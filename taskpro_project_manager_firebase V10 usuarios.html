@@ -1,0 +1,4404 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskPro — Project Control</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
+    rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f0e;
+      --surface: #141714;
+      --surface2: #1c201b;
+      --surface3: #232723;
+      --border: #2a2f29;
+      --accent: #b8f55a;
+      --accent2: #5af5a0;
+      --accent-dim: rgba(184, 245, 90, 0.12);
+      --accent-dim2: rgba(90, 245, 160, 0.10);
+      --text: #e8ede6;
+      --text2: #8a9688;
+      --text3: #5a635a;
+      --danger: #f55a5a;
+      --danger-dim: rgba(245, 90, 90, 0.12);
+      --warn: #f5c55a;
+      --warn-dim: rgba(245, 197, 90, 0.12);
+      --radius: 8px;
+      --radius-lg: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span {
+      color: var(--accent);
+    }
+
+    .project-selector {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .project-selector select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 12px;
+      border-radius: var(--radius);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 200px;
+    }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      border: none;
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0d0f0e;
+    }
+
+    .btn-primary:hover {
+      background: #d4ff7a;
+    }
+
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-danger {
+      background: var(--danger-dim);
+      color: var(--danger);
+      border: 1px solid rgba(245, 90, 90, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: rgba(245, 90, 90, 0.25);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 11px;
+    }
+
+    .btn-export {
+      background: var(--accent-dim2);
+      color: var(--accent2);
+      border: 1px solid rgba(90, 245, 160, 0.2);
+    }
+
+    .btn-export:hover {
+      background: rgba(90, 245, 160, 0.2);
+    }
+
+    /* LAYOUT */
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: calc(100vh - 57px);
+    }
+
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sidebar-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text3);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 20px 8px;
+    }
+
+    .nav-item {
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 0;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text2);
+      transition: all 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-left: 2px solid transparent;
+    }
+
+    .nav-item:hover {
+      color: var(--text);
+      background: var(--surface2);
+    }
+
+    .nav-item.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-left-color: var(--accent);
+    }
+
+    .nav-icon {
+      font-size: 15px;
+    }
+
+    /* MAIN */
+    .main {
+      padding: 28px;
+      overflow-y: auto;
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .section-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+
+    .section-sub {
+      color: var(--text2);
+      font-size: 13px;
+      margin-bottom: 24px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* CARDS */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* FORM GRID */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .form-grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    input,
+    select,
+    textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 8px 11px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    input::placeholder {
+      color: var(--text3);
+    }
+
+    /* TABLE */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(42, 47, 41, 0.5);
+      vertical-align: middle;
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-table tr:hover td {
+      background: var(--surface2);
+    }
+
+    .data-table .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .data-table .total-row td {
+      color: var(--accent);
+      font-weight: 500;
+      border-top: 1px solid var(--border);
+    }
+
+    /* BADGES */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .badge-green {
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    .badge-red {
+      background: var(--danger-dim);
+      color: var(--danger);
+    }
+
+    .badge-warn {
+      background: var(--warn-dim);
+      color: var(--warn);
+    }
+
+    /* SUMMARY STATS */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    .stat-value.accent {
+      color: var(--accent);
+    }
+
+    .stat-value.danger {
+      color: var(--danger);
+    }
+
+    .stat-value.warn {
+      color: var(--warn);
+    }
+
+    /* PROGRESS BAR */
+    .progress-wrap {
+      height: 6px;
+      background: var(--surface3);
+      border-radius: 100px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      border-radius: 100px;
+      transition: width 0.4s;
+    }
+
+    .progress-bar.green {
+      background: var(--accent);
+    }
+
+    .progress-bar.red {
+      background: var(--danger);
+    }
+
+    /* DIVIDER */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 18px 0;
+    }
+
+    /* PERSON TAG */
+    .person-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface3);
+      border-radius: 100px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+    }
+
+    /* INLINE EDITABLE */
+    .inline-edit {
+      background: transparent;
+      border: none;
+      border-bottom: 1px dashed var(--border);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 22px;
+      width: 100%;
+      padding: 2px 0;
+    }
+
+    .inline-edit:focus {
+      outline: none;
+      border-bottom-color: var(--accent);
+    }
+
+    /* TOGGLE SECTION */
+    .collapsible-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 4px 0;
+      margin-bottom: 14px;
+    }
+
+    .collapsible-content {}
+
+    /* CHIP ROW */
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .chip {
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-family: 'DM Mono', monospace;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chip-remove {
+      cursor: pointer;
+      color: var(--text3);
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .chip-remove:hover {
+      color: var(--danger);
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      max-width: 480px;
+      width: 90%;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 18px;
+    }
+
+    /* ALERT */
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      font-size: 12px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .alert-warn {
+      background: var(--warn-dim);
+      border: 1px solid rgba(245, 197, 90, 0.2);
+      color: var(--warn);
+    }
+
+    .alert-success {
+      background: var(--accent-dim);
+      border: 1px solid rgba(184, 245, 90, 0.2);
+      color: var(--accent);
+    }
+
+    .alert-danger {
+      background: var(--danger-dim);
+      border: 1px solid rgba(245, 90, 90, 0.2);
+      color: var(--danger);
+    }
+
+    /* WORKERS CONFIG */
+    .worker-row {
+      display: grid;
+      grid-template-columns: 1fr 120px 80px 36px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    /* COMPARISON BAR */
+    .compare-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .compare-side {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+    }
+
+    .compare-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text3);
+      margin-bottom: 4px;
+    }
+
+    .compare-value {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text3);
+    }
+
+    .empty-state .icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+    }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 100px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text3);
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 768px) {
+
+      /* Layout */
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 8px 10px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        gap: 2px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .nav-item {
+        border-left: none;
+        border-bottom: 2px solid transparent;
+        white-space: nowrap;
+        padding: 8px 12px;
+        font-size: 12px;
+        gap: 6px;
+      }
+
+      .nav-item.active {
+        border-left: none;
+        border-bottom-color: var(--accent);
+      }
+
+      .nav-icon {
+        font-size: 13px;
+      }
+
+      /* Header */
+      .header {
+        padding: 12px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .logo {
+        font-size: 16px;
+      }
+
+      .project-selector {
+        flex-wrap: wrap;
+        gap: 6px;
+        width: 100%;
+      }
+
+      .project-selector select {
+        min-width: 0;
+        flex: 1 1 160px;
+        font-size: 11px;
+      }
+
+      /* Main */
+      .main {
+        padding: 14px;
+      }
+
+      .section-title {
+        font-size: 18px;
+      }
+
+      .card {
+        padding: 14px 14px;
+        margin-bottom: 12px;
+      }
+
+      .card-title {
+        font-size: 11px;
+      }
+
+      /* Stats grid */
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+
+      .stat-value {
+        font-size: 18px;
+      }
+
+      /* Form grids */
+      .form-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .form-grid-3 {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Tables — make scrollable horizontally */
+      .card>table,
+      .card .data-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .data-table {
+        font-size: 10px;
+        min-width: 420px;
+      }
+
+      .data-table th,
+      .data-table td {
+        padding: 6px 8px;
+      }
+
+      /* Compare section */
+      .compare-section {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+      }
+
+      .compare-value {
+        font-size: 22px;
+      }
+
+      /* Buttons */
+      .btn {
+        font-size: 11px;
+        padding: 6px 10px;
+      }
+
+      .btn-sm {
+        padding: 4px 8px;
+        font-size: 10px;
+      }
+
+      /* Modal */
+      .modal {
+        padding: 20px 16px;
+        width: 95%;
+        max-width: 95%;
+      }
+
+      /* Quote labour/material rows */
+      .qt-row {
+        grid-template-columns: 1fr 90px 36px !important;
+      }
+
+      .qt-row-full {
+        grid-template-columns: 1fr 36px !important;
+      }
+
+      /* Person tag */
+      .person-tag {
+        font-size: 10px;
+        padding: 2px 8px;
+      }
+
+      /* Sidebar label hide on mobile */
+      .sidebar-label {
+        display: none;
+      }
+
+      /* Worker row */
+      .worker-row {
+        grid-template-columns: 1fr 90px 36px !important;
+      }
+
+      /* Progress bars */
+      .progress-wrap {
+        height: 5px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .header {
+        padding: 10px 12px;
+      }
+
+      .main {
+        padding: 10px;
+      }
+
+      .data-table {
+        font-size: 9px;
+      }
+
+      .data-table th,
+      .data-table td {
+        padding: 5px 6px;
+      }
+    }
+
+    /* ── AUTH / LOGIN ── */
+    #loginScreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: var(--bg);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #loginScreen.active {
+      display: flex;
+    }
+
+    .login-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+
+    .login-logo {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .login-logo span {
+      color: var(--accent);
+    }
+
+    .login-sub {
+      color: var(--text2);
+      font-size: 12px;
+      margin-bottom: 28px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .login-error {
+      color: var(--danger);
+      font-size: 12px;
+      margin-top: 10px;
+      font-family: 'DM Mono', monospace;
+      min-height: 18px;
+    }
+
+    .login-box .form-group {
+      text-align: left;
+      margin-bottom: 14px;
+    }
+
+    .login-box input {
+      font-size: 13px;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 11px;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+
+    .user-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 4px 12px 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .user-pill:hover {
+      border-color: var(--accent);
+    }
+
+    .user-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #0d0f0e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .role-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 1px 6px;
+      border-radius: 100px;
+    }
+
+    .role-admin {
+      background: rgba(184, 245, 90, 0.15);
+      color: var(--accent);
+    }
+
+    .role-supervisor {
+      background: rgba(90, 160, 245, 0.15);
+      color: #5aa0f5;
+    }
+
+    .role-operador {
+      background: rgba(245, 197, 90, 0.15);
+      color: var(--warn);
+    }
+
+    /* ── USERS MANAGEMENT SECTION ── */
+    .user-row-grid {
+      display: grid;
+      grid-template-columns: 1fr 160px 110px 80px;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 768px) {
+      .user-row-grid {
+        grid-template-columns: 1fr 100px 80px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ══════════ LOGIN SCREEN ══════════ -->
+  <div id="loginScreen" class="active">
+    <div class="login-box">
+      <div class="login-logo">Task<span>Pro</span></div>
+      <div class="login-sub">Project Control</div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="login_email" placeholder="tu@email.com" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="login_pass" placeholder="••••••••" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter') doLogin()">
+      </div>
+      <button class="btn btn-primary login-btn" onclick="doLogin()">Ingresar</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+
+  <!-- ══════════ MAIN APP (hidden until auth) ══════════ -->
+  <div id="appShell" style="display:none;">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="logo">Task<span>Pro</span> <span
+          style="color:var(--text3);font-weight:400;font-size:13px;margin-left:8px;">Project Control</span> <span
+          id="syncDot"
+          style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:8px;vertical-align:middle;"
+          title="Conectado a Firebase"></span></div>
+      <div class="project-selector">
+        <select id="projectSelect" onchange="loadProject(this.value)">
+          <option value="">— Seleccionar proyecto —</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" id="btn_new_project" onclick="openNewProjectModal()">＋ Nuevo</button>
+        <button class="btn btn-export btn-sm" onclick="exportCSV()">↓ Exportar CSV</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCurrentProject()" id="btn_delete_project">🗑</button>
+        <div class="user-pill" onclick="toggleUserMenu()" id="userPill" style="margin-left:6px;">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <span id="userEmail"
+            style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span>
+          <span class="role-badge role-admin" id="userRoleBadge">—</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="Cerrar sesión"
+          style="padding:5px 8px;">⏏</button>
+      </div>
+    </div>
+    <div id="userMenu" style="display:none;position:fixed;top:58px;right:16px;z-index:999;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:8px 0;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+      <div style="padding:8px 14px;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;"
+        id="userMenuEmail">—</div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+      <div style="padding:6px 14px;font-size:12px;cursor:pointer;color:var(--danger);" onclick="doLogout()">⏏ Cerrar
+        sesión</div>
+    </div>
+
+    <div class="layout">
+      <!-- SIDEBAR -->
+      <nav class="sidebar">
+        <div class="sidebar-label">Proyecto</div>
+        <div class="nav-item active" onclick="showSection('timelog')" id="nav-timelog">
+          <span class="nav-icon">⏱</span> Time Log
+        </div>
+        <div class="nav-item" onclick="showSection('materials')" id="nav-materials">
+          <span class="nav-icon">🧱</span> Materiales & Costos
+        </div>
+        <div class="nav-item" onclick="showSection('workers')" id="nav-workers">
+          <span class="nav-icon">👷</span> Equipo & Tarifas
+        </div>
+        <div class="nav-item" onclick="showSection('pricing')" id="nav-pricing">
+          <span class="nav-icon">💰</span> Pricing & Márgenes
+        </div>
+        <div class="nav-item" onclick="showSection('summary')" id="nav-summary">
+          <span class="nav-icon">📊</span> Resumen Final
+        </div>
+        <hr class="divider" style="margin: 8px 20px;">
+        <div class="nav-item" onclick="showSection('equipobase')" id="nav-equipobase" style="display:none;">
+          <span class="nav-icon">🏗️</span> Equipo Base
+        </div>
+        <div class="nav-item" onclick="showSection('tiempos')" id="nav-tiempos">
+          <span class="nav-icon">📈</span> Tiempos Equipo
+        </div>
+        <div class="nav-item" onclick="showSection('pagos')" id="nav-pagos">
+          <span class="nav-icon">💵</span> Pago Personal
+        </div>
+        <div class="nav-item" onclick="showSection('quote')" id="nav-quote">
+          <span class="nav-icon">📝</span> Quote
+        </div>
+        <div class="nav-item" onclick="showSection('projects')" id="nav-projects">
+          <span class="nav-icon">📁</span> Todos los proyectos
+        </div>
+        <div class="nav-item" onclick="showSection('users')" id="nav-users" style="display:none;">
+          <span class="nav-icon">👤</span> Gestión Usuarios
+        </div>
+      </nav>
+
+      <!-- MAIN CONTENT -->
+      <main class="main">
+
+        <!-- NO PROJECT STATE -->
+        <div id="noProjectState" style="display:none;">
+          <div class="empty-state">
+            <div class="icon">📋</div>
+            <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">Ningún proyecto seleccionado
+            </p>
+            <p>Selecciona un proyecto existente o crea uno nuevo para comenzar.</p>
+            <br>
+            <button class="btn btn-primary" onclick="openNewProjectModal()">＋ Crear primer proyecto</button>
+          </div>
+        </div>
+
+        <!-- ══════════ TIME LOG ══════════ -->
+        <div class="section active" id="section-timelog">
+          <div class="section-title" id="projectTitle">Nombre del proyecto</div>
+          <div class="section-sub" id="projectMeta">Cliente · Fecha inicio</div>
+
+          <div class="card">
+            <div class="card-title">➕ Registrar jornada</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Fecha</label>
+                <input type="date" id="tl_date">
+              </div>
+              <div class="form-group">
+                <label>Persona</label>
+                <select id="tl_person">
+                  <option value="">— Seleccionar —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Hora entrada</label>
+                <input type="time" id="tl_start">
+              </div>
+              <div class="form-group">
+                <label>Hora salida</label>
+                <input type="time" id="tl_end">
+              </div>
+              <div class="form-group">
+                <label>Break (HH:MM)</label>
+                <input type="text" id="tl_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
+              </div>
+              <div class="form-group">
+                <label>Tiempo admin (HH:MM)</label>
+                <input type="text" id="tl_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary" onclick="addTimeEntry()">Registrar jornada</button>
+              <span id="tl_preview"
+                style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);align-self:center;"></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">📋 Registro de tiempo acumulado</div>
+            <div id="timelogTable">
+              <div class="empty-state" style="padding:24px;">
+                <p>Aún no hay jornadas registradas.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stats-grid" id="timeStats">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <!-- ══════════ MATERIALS ══════════ -->
+        <div class="section" id="section-materials">
+          <div class="section-title">Materiales & Costos</div>
+          <div class="section-sub">Registra todos los costos directos del proyecto</div>
+
+          <div class="card">
+            <div class="card-title">➕ Agregar costo</div>
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Descripción</label>
+                <input type="text" id="mat_desc" placeholder="Ej: Madera MDF 18mm, Transporte, Herramienta alquiler...">
+              </div>
+              <div class="form-group">
+                <label>Categoría</label>
+                <select id="mat_cat">
+                  <option value="Material">Material</option>
+                  <option value="Transporte">Transporte</option>
+                  <option value="Herramienta">Herramienta</option>
+                  <option value="Subcontrato">Subcontrato</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Monto ($AUD)</label>
+                <input type="number" id="mat_amount" min="0" step="0.01" placeholder="0.00">
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="addMaterial()">Agregar costo</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">🧱 Costos directos del proyecto</div>
+            <div id="materialsTable">
+              <div class="empty-state" style="padding:24px;">
+                <p>Sin costos registrados.</p>
+              </div>
+            </div>
+            <div id="materialsTotal"
+              style="margin-top:12px;text-align:right;font-family:'DM Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);">
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════ WORKERS ══════════ -->
+        <div class="section" id="section-workers">
+          <div class="section-title">Equipo & Tarifas</div>
+          <div class="section-sub">Configura el equipo disponible y sus tarifas horarias</div>
+
+          <div class="card">
+            <div class="card-title">➕ Agregar persona al equipo</div>
+            <div class="alert alert-warn" style="margin-bottom:12px;font-size:11px;">
+              Selecciona del equipo base o ingresa manualmente. La tarifa se puede modificar por proyecto.
+            </div>
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;">
+                Seleccionar del equipo base (opcional)
+              </label>
+              <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;">
+                <select id="w_base_select" style="flex:1;min-width:180px;" onchange="fillFromBaseTeam()">
+                  <option value="">— Elegir del equipo base —</option>
+                </select>
+                <span style="color:var(--text3);font-size:11px;">o ingresa manualmente abajo</span>
+              </div>
+            </div>
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" id="w_name" placeholder="Ej: Carlos">
+              </div>
+              <div class="form-group">
+                <label>Tarifa/h ($AUD)</label>
+                <input type="number" id="w_rate" min="0" step="0.50" placeholder="35.00">
+              </div>
+              <div class="form-group">
+                <label>Rol</label>
+                <input type="text" id="w_role" placeholder="Ej: Cabinetry">
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="addWorker()">Agregar al equipo</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">👷 Equipo configurado</div>
+            <div id="workersList">
+              <div class="empty-state" style="padding:24px;">
+                <p>Sin trabajadores configurados.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════ PRICING ══════════ -->
+        <div class="section" id="section-pricing">
+          <div class="section-title">Pricing & Márgenes</div>
+          <div class="section-sub">Configura los porcentajes y el precio acordado con el cliente</div>
+
+          <div class="card">
+            <div class="card-title">⚙️ Parámetros de pricing</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Overhead (%)</label>
+                <input type="number" id="p_overhead" min="0" max="100" step="1" value="20"
+                  onchange="savePricingParams()">
+              </div>
+              <div class="form-group">
+                <label>Imprevisto (%)</label>
+                <input type="number" id="p_contingency" min="0" max="100" step="1" value="5"
+                  onchange="savePricingParams()">
+              </div>
+              <div class="form-group">
+                <label>Markup (%)</label>
+                <input type="number" id="p_markup" min="0" max="200" step="1" value="35" onchange="savePricingParams()">
+              </div>
+              <div class="form-group">
+                <label>Precio cliente ($AUD)</label>
+                <input type="number" id="p_clientprice" min="0" step="1" placeholder="0.00"
+                  onchange="savePricingParams()">
+              </div>
+            </div>
+            <div class="alert alert-warn" style="margin-top:8px;" id="markupHint">
+              ⚠️ Markup 35% = margen real ≈ 30% sobre precio final. Los cambios se guardan automáticamente.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">📐 Estructura de costos (preview)</div>
+            <div id="pricingBreakdown">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════ SUMMARY ══════════ -->
+        <div class="section" id="section-summary">
+          <div class="section-title">Resumen Final</div>
+          <div class="section-sub" id="summaryMeta">—</div>
+
+          <div id="summaryContent">
+            <!-- Filled by JS -->
+          </div>
+        </div>
+
+        <!-- ══════════ EQUIPO BASE ══════════ -->
+    <div class="section" id="section-equipobase">
+      <div class="section-title">Equipo Base</div>
+      <div class="section-sub">Personal fijo del equipo — se vincula con los accesos de login</div>
+
+      <div class="card">
+        <div class="card-title">➕ Agregar persona al equipo base</div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="form-group">
+            <label>Nombre completo</label>
+            <input type="text" id="eb_name" placeholder="Ej: Carlos Perez">
+          </div>
+          <div class="form-group">
+            <label>Rol / Especialidad</label>
+            <input type="text" id="eb_role" placeholder="Ej: Cabinetry, Painter...">
+          </div>
+          <div class="form-group">
+            <label>Tarifa base ($/h)</label>
+            <input type="number" id="eb_rate" min="0" step="0.5" placeholder="35.00">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addBaseTeamMember()">Agregar al equipo base</button>
+      </div>
+
+      <div class="card" style="border-color:rgba(184,245,90,0.2);">
+        <div class="card-title">🔄 Sincronizar nombres en proyectos</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">
+          Actualiza automáticamente los nombres cortos (ej: "Carlos") por los nombres completos
+          del equipo base (ej: "Carlos Castano") en todos los proyectos y registros de tiempo.
+        </p>
+        <button class="btn btn-primary" onclick="autoMatchWorkerNames()">
+          🔄 Auto-match nombres ahora
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">👷 Equipo base registrado</div>
+        <div id="baseTeamList">
+          <div class="empty-state" style="padding:20px;"><p>Sin miembros en el equipo base.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ TIEMPOS EQUIPO ══════════ -->
+        <div class="section" id="section-tiempos">
+          <div class="section-title">Tiempos Equipo</div>
+          <div class="section-sub">Acumulado de tiempos por persona — productivo, break, admin</div>
+
+          <!-- FILTERS -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">🔍 Filtro por rango de fechas</div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr auto;align-items:end;">
+              <div class="form-group">
+                <label>Desde</label>
+                <input type="date" id="tf_from">
+              </div>
+              <div class="form-group">
+                <label>Hasta</label>
+                <input type="date" id="tf_to">
+              </div>
+              <div style="display:flex;gap:8px;padding-bottom:1px;">
+                <button class="btn btn-primary btn-sm" onclick="renderTiempos()">Aplicar</button>
+                <button class="btn btn-ghost btn-sm" onclick="setTiemposThisMonth()">Este mes</button>
+                <button class="btn btn-ghost btn-sm" onclick="setTiemposAll()">Todo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- RESUMEN TABLA -->
+          <div class="card">
+            <div class="card-title">📊 Resumen por persona</div>
+            <div id="tiemposResumen"></div>
+          </div>
+
+          <!-- ADMIN EXTERNO -->
+          <div class="card">
+            <div class="card-title">⏰ Tiempo admin fuera de proyectos</div>
+            <div style="margin-bottom:14px;">
+              <div class="form-grid" style="grid-template-columns:130px 1fr 100px auto;align-items:end;">
+                <div class="form-group">
+                  <label>Fecha</label>
+                  <input type="date" id="ea_date">
+                </div>
+                <div class="form-group">
+                  <label>Descripción (max 50 car.)</label>
+                  <input type="text" id="ea_desc" placeholder="Ej: Reunión clientes, Cotización..." maxlength="50">
+                </div>
+                <div class="form-group">
+                  <label>Tiempo (HH:MM)</label>
+                  <input type="text" id="ea_time" value="00:00" placeholder="00:00" maxlength="5">
+                </div>
+                <div style="padding-bottom:1px;">
+                  <select id="ea_person" style="margin-bottom:6px;width:100%;">
+                    <option value="Santiago">Santiago</option>
+                    <option value="Carlos">Carlos</option>
+                    <option value="Paula">Paula</option>
+                  </select>
+                  <button class="btn btn-primary btn-sm" style="width:100%;"
+                    onclick="addExternalAdmin()">Agregar</button>
+                </div>
+              </div>
+            </div>
+            <div id="externalAdminTable"></div>
+          </div>
+        </div>
+
+        <!-- ══════════ PAGO PERSONAL ══════════ -->
+        <div class="section" id="section-pagos">
+          <div class="section-title">Pago Personal</div>
+          <div class="section-sub">Calcula lo que corresponde pagar a cada persona por rango de fechas</div>
+
+          <!-- FILTROS -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">🔍 Filtros</div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end;">
+              <div class="form-group">
+                <label>Desde</label>
+                <input type="date" id="pp_from">
+              </div>
+              <div class="form-group">
+                <label>Hasta</label>
+                <input type="date" id="pp_to">
+              </div>
+              <div style="display:flex;gap:8px;padding-bottom:1px;flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="renderPagos()">Aplicar</button>
+                <button class="btn btn-ghost btn-sm" onclick="setPagosThisMonth()">Este mes</button>
+                <button class="btn btn-ghost btn-sm" onclick="setPagosAll()">Todo</button>
+              </div>
+            </div>
+            <div class="alert alert-warn" style="margin-top:10px;font-size:11px;">
+              Horas pagables = <strong>Productivas + Admin</strong>. El % de break es opcional y se configura
+              individualmente por persona en el detalle.
+            </div>
+          </div>
+
+          <!-- RESUMEN GENERAL -->
+          <div class="card">
+            <div class="card-title">💰 Resumen de pagos por persona</div>
+            <div id="pagosResumen"></div>
+          </div>
+
+          <!-- DETALLE INDIVIDUAL -->
+          <div class="card">
+            <div class="card-title">👤 Detalle individual</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;" id="pagosPersonBtns"></div>
+            <div id="pagosDetalle"></div>
+          </div>
+        </div>
+
+        <!-- ══════════ QUOTE ══════════ -->
+        <div class="section" id="section-quote">
+          <div class="section-title">Quote — Cotización</div>
+          <div class="section-sub">Simula el costo y precio de venta antes de aceptar un trabajo</div>
+
+          <!-- INFO -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">📋 Info de la cotización</div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+              <div class="form-group" style="grid-column:span 2;">
+                <label>Nombre del trabajo</label>
+                <input type="text" id="qt_name" placeholder="Ej: Kitchen renovation — Smith" oninput="calcQuote()">
+              </div>
+              <div class="form-group">
+                <label>Cliente</label>
+                <input type="text" id="qt_client" placeholder="Nombre del cliente" oninput="calcQuote()">
+              </div>
+            </div>
+          </div>
+
+          <!-- LABOUR -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">👷 Mano de obra estimada</div>
+            <div id="qt_labour_rows"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addLabourRow()">＋ Agregar
+              persona/rol</button>
+          </div>
+
+          <!-- MATERIALS -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">🧱 Materiales y costos directos previstos</div>
+            <div id="qt_material_rows"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="addMaterialRow()">＋ Agregar
+              ítem</button>
+          </div>
+
+          <!-- PARAMS -->
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title">⚙️ Parámetros de pricing</div>
+            <div class="form-grid" style="grid-template-columns:repeat(3,1fr);">
+              <div class="form-group">
+                <label>Overhead (%)</label>
+                <input type="number" id="qt_overhead" value="20" min="0" max="100" step="1" oninput="calcQuote()">
+              </div>
+              <div class="form-group">
+                <label>Imprevisto (%)</label>
+                <input type="number" id="qt_contingency" value="5" min="0" max="100" step="1" oninput="calcQuote()">
+              </div>
+              <div class="form-group">
+                <label>Markup (%)</label>
+                <input type="number" id="qt_markup" value="35" min="0" max="200" step="1" oninput="calcQuote()">
+              </div>
+            </div>
+            <div class="alert alert-warn" style="margin-top:8px;font-size:11px;" id="qt_markup_hint">
+              Markup 35% = margen real sobre precio final: 25.9%
+            </div>
+          </div>
+
+          <!-- RESULT -->
+          <div class="card" id="qt_result_card">
+            <div class="card-title">💰 Resultado estimado</div>
+            <div id="qt_result"></div>
+            <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="exportQuotePDF()">↓ Exportar PDF</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearQuote()">🗑 Limpiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════ ALL PROJECTS ══════════ -->
+        <div class="section" id="section-projects">
+          <div class="section-title">Todos los proyectos</div>
+          <div class="section-sub">Historial completo — sincronizado con Firebase en tiempo real</div>
+          <div id="allProjectsList"></div>
+        </div>
+
+        <!-- ══════════ USERS MANAGEMENT ══════════ -->
+        <div class="section" id="section-users">
+          <div class="section-title">Gestión de Usuarios</div>
+          <div class="section-sub">Crea y administra los accesos al sistema</div>
+
+          <div class="card">
+            <div class="card-title">➕ Crear nuevo usuario</div>
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="nu_email" placeholder="correo@ejemplo.com">
+              </div>
+              <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="nu_pass" placeholder="Mínimo 6 caracteres">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+              <div class="form-group" style="flex:0 0 160px;min-width:130px;">
+                <label>Rol</label>
+                <select id="nu_role" onchange="toggleLinkedMember()">
+                  <option value="operador">Operador</option>
+                  <option value="supervisor">Supervisor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div class="form-group" id="nu_linked_wrap" style="flex:0 0 200px;min-width:160px;">
+                <label>Vincular con equipo base</label>
+                <select id="nu_linked">
+                  <option value="">— Sin vincular —</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="createUser()" style="flex-shrink:0;padding:9px 22px;">
+                ＋ Crear usuario
+              </button>
+            </div>
+            <div id="createUserMsg" style="font-size:12px;margin-top:10px;font-family:'DM Mono',monospace;"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">👤 Usuarios registrados</div>
+            <div id="usersList">
+              <div class="empty-state" style="padding:20px;">
+                <p>Cargando usuarios...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- ══════════ MODAL: NEW PROJECT ══════════ -->
+    <div class="modal-overlay" id="newProjectModal">
+      <div class="modal">
+        <div class="modal-title">＋ Nuevo proyecto</div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Nombre del proyecto</label>
+            <input type="text" id="np_name" placeholder="Ej: Kitchen Renovation — Smith">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Cliente</label>
+            <input type="text" id="np_client" placeholder="Nombre del cliente">
+          </div>
+          <div class="form-group">
+            <label>Fecha inicio</label>
+            <input type="date" id="np_start">
+          </div>
+          <div class="form-group">
+            <label>Fecha estimada fin</label>
+            <input type="date" id="np_end">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="createProject()">Crear proyecto</button>
+          <button class="btn btn-ghost" onclick="closeModal('newProjectModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ MODAL: EDIT PROJECT ══════════ -->
+    <div class="modal-overlay" id="editProjectModal">
+      <div class="modal">
+        <div class="modal-title">✏️ Editar proyecto</div>
+        <div class="form-grid" style="grid-template-columns:1fr;">
+          <div class="form-group">
+            <label>Nombre del proyecto</label>
+            <input type="text" id="ep_name" placeholder="Nombre del proyecto">
+          </div>
+          <div class="form-group">
+            <label>Cliente</label>
+            <input type="text" id="ep_client" placeholder="Nombre del cliente">
+          </div>
+        </div>
+        <input type="hidden" id="ep_id">
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="saveProjectEdit()">Guardar</button>
+          <button class="btn btn-ghost" onclick="closeModal('editProjectModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ═══════════════════════════════════════════
+      // FIREBASE CONFIG
+      // ═══════════════════════════════════════════
+      const firebaseConfig = {
+        apiKey: "AIzaSyBnADzVrpGIr_4Wg5dXrrhmGxfUNjfruGg",
+        authDomain: "taskpro-sph.firebaseapp.com",
+        databaseURL: "https://taskpro-sph-default-rtdb.firebaseio.com",
+        projectId: "taskpro-sph",
+        storageBucket: "taskpro-sph.firebasestorage.app",
+        messagingSenderId: "401314712131",
+        appId: "1:401314712131:web:907f72f81d622ca2dfa2f6"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+      const auth = firebase.auth();
+
+      // ═══════════════════════════════════════════
+      // AUTH STATE
+      // ═══════════════════════════════════════════
+      let currentUser = null;  // { uid, email, role }
+
+      // Role permissions
+      const ROLE_PERMS = {
+        admin: {
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users'],
+          canDelete: true, canEdit: true
+        },
+        supervisor: {
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'quote'],
+          canDelete: false, canEdit: true
+        },
+        operador: {
+          nav: ['timelog'],
+          canDelete: false, canEdit: false
+        }
+      };
+
+      function getRolePerms() {
+        if (!currentUser) return ROLE_PERMS.operador;
+        return ROLE_PERMS[currentUser.role] || ROLE_PERMS.operador;
+      }
+
+      function canDo(action) {
+        return getRolePerms()[action] === true;
+      }
+
+      // ── Apply role-based UI ──
+      function applyRoleUI() {
+        if (!currentUser) return;
+        const perms = getRolePerms();
+
+        // Show/hide nav items
+        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users'].forEach(id => {
+          const el = document.getElementById('nav-' + id);
+          if (el) el.style.display = perms.nav.includes(id) ? '' : 'none';
+        });
+
+        // Show/hide delete & new project buttons
+        ['btn_delete_project', 'btn_new_project'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = canDo('canDelete') ? '' : 'none';
+        });
+
+        // Header project controls: non-admins can't delete
+        const delBtn = document.getElementById('btn_delete_project');
+        if (delBtn) delBtn.style.display = canDo('canDelete') ? '' : 'none';
+
+        // Update user pill
+        const emailEl = document.getElementById('userEmail');
+        const avatarEl = document.getElementById('userAvatar');
+        const badgeEl = document.getElementById('userRoleBadge');
+        const menuEmailEl = document.getElementById('userMenuEmail');
+        if (emailEl) emailEl.textContent = currentUser.email.split('@')[0];
+        if (avatarEl) avatarEl.textContent = currentUser.email[0].toUpperCase();
+        if (badgeEl) {
+          badgeEl.textContent = currentUser.role;
+          badgeEl.className = 'role-badge role-' + currentUser.role;
+        }
+        if (menuEmailEl) menuEmailEl.textContent = currentUser.email;
+
+        // Operador: hide project selector, show simplified header
+        const sel = document.getElementById('projectSelect');
+        const newBtn = document.querySelector('[onclick="openNewProjectModal()"]');
+        const csvBtn = document.querySelector('[onclick="exportCSV()"]');
+        if (currentUser.role === 'operador') {
+          if (sel) sel.style.display = '';
+          if (newBtn) newBtn.style.display = 'none';
+          if (csvBtn) csvBtn.style.display = 'none';
+        }
+
+        // Navigate to first allowed section
+        const firstSection = perms.nav[0];
+        showSection(firstSection);
+      }
+
+      // ── Login ──
+      async function doLogin() {
+        const email = document.getElementById('login_email').value.trim();
+        const pass = document.getElementById('login_pass').value;
+        const errEl = document.getElementById('loginError');
+        errEl.textContent = '';
+
+        if (!email || !pass) { errEl.textContent = 'Ingresa email y contraseña.'; return; }
+
+        try {
+          const cred = await auth.signInWithEmailAndPassword(email, pass);
+          // Role loaded in onAuthStateChanged
+        } catch (e) {
+          const msgs = {
+            'auth/user-not-found': 'Usuario no encontrado.',
+            'auth/wrong-password': 'Contraseña incorrecta.',
+            'auth/invalid-email': 'Email inválido.',
+            'auth/too-many-requests': 'Demasiados intentos. Espera un momento.',
+            'auth/invalid-credential': 'Email o contraseña incorrectos.'
+          };
+          errEl.textContent = msgs[e.code] || 'Error: ' + e.message;
+        }
+      }
+
+      // ── Logout ──
+      async function doLogout() {
+        toggleUserMenu(false);
+        await auth.signOut();
+      }
+
+      // ── User menu toggle ──
+      function toggleUserMenu(force) {
+        const menu = document.getElementById('userMenu');
+        if (!menu) return;
+        const show = force !== undefined ? force : menu.style.display === 'none';
+        menu.style.display = show ? 'block' : 'none';
+      }
+      document.addEventListener('click', e => {
+        const menu = document.getElementById('userMenu');
+        const pill = document.getElementById('userPill');
+        if (menu && pill && !pill.contains(e.target) && !menu.contains(e.target)) {
+          menu.style.display = 'none';
+        }
+      });
+
+      // ── Auth state listener — central entry point ──
+      auth.onAuthStateChanged(async user => {
+        if (!user) {
+          // Not logged in — show login screen, hide app
+          currentUser = null;
+          document.getElementById('loginScreen').classList.add('active');
+          document.getElementById('appShell').style.display = 'none';
+          return;
+        }
+
+        // Logged in — load role from DB
+        try {
+          const snap = await db.ref('taskpro/users/' + user.uid).get();
+          const userData = snap.val() || {};
+          currentUser = {
+            uid:        user.uid,
+            email:      user.email,
+            role:       userData.role       || 'operador',
+            linkedId:   userData.linkedId   || '',
+            linkedName: userData.linkedName || ''
+          };
+        } catch (e) {
+          console.error('Role load error:', e);
+          currentUser = { uid: user.uid, email: user.email, role: 'operador', linkedId: '', linkedName: '' };
+        }
+
+        // Hide login, show app
+        document.getElementById('loginScreen').classList.remove('active');
+        document.getElementById('appShell').style.display = 'block';
+
+        // Boot the app
+        applyRoleUI();
+        await bootApp();
+      });
+
+      // ═══════════════════════════════════════════
+      // USER MANAGEMENT (admin only)
+      // ═══════════════════════════════════════════
+      async function createUser() {
+        const email      = document.getElementById('nu_email').value.trim();
+        const pass       = document.getElementById('nu_pass').value;
+        const role       = document.getElementById('nu_role').value;
+        const linkedRaw  = document.getElementById('nu_linked') ? document.getElementById('nu_linked').value : '';
+        const linkedId   = linkedRaw ? linkedRaw.split('|')[0] : '';
+        const linkedName = linkedRaw ? linkedRaw.split('|').slice(1).join('|') : '';
+        const msgEl = document.getElementById('createUserMsg');
+        msgEl.style.color = 'var(--text2)';
+        msgEl.textContent = 'Creando usuario...';
+
+        if (!email || !pass || pass.length < 6) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Email válido y contraseña de mínimo 6 caracteres requeridos.';
+          return;
+        }
+
+        try {
+          // Create user via Firebase Auth REST API (keeps current session intact)
+          const apiKey = firebaseConfig.apiKey;
+          const res = await fetch(
+            'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + apiKey,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password: pass, returnSecureToken: true })
+            }
+          );
+          const data = await res.json();
+          if (data.error) throw new Error(data.error.message);
+
+          // Save role in DB
+          await db.ref('taskpro/users/' + data.localId).set({ email, role, linkedId: linkedId||'', linkedName: linkedName||'', createdBy: currentUser.uid });
+
+          msgEl.style.color = 'var(--accent)';
+          msgEl.textContent = 'Usuario creado: ' + email + ' (' + role + ')';
+          document.getElementById('nu_email').value = '';
+          document.getElementById('nu_pass').value = '';
+          renderUsersList();
+        } catch (e) {
+          const msgs = {
+            'EMAIL_EXISTS': 'Este email ya está registrado.',
+            'WEAK_PASSWORD : Password should be at least 6 characters': 'Contraseña muy corta (mínimo 6 caracteres).',
+          };
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = msgs[e.message] || 'Error: ' + e.message;
+        }
+      }
+
+      async function updateUserRole(uid, newRole) {
+        try {
+          await db.ref('taskpro/users/' + uid + '/role').set(newRole);
+          showSyncBanner('Rol actualizado', 'success');
+          renderUsersList();
+        } catch (e) {
+          showSyncBanner('Error actualizando rol', 'warn');
+        }
+      }
+
+      // ═══════════════════════════════════════════
+      // EQUIPO BASE
+      // ═══════════════════════════════════════════
+      function addBaseTeamMember() {
+        const name = document.getElementById('eb_name').value.trim();
+        const role = document.getElementById('eb_role').value.trim();
+        const rate = parseFloat(document.getElementById('eb_rate').value) || 0;
+        if (!name) { alert('Ingresa el nombre del miembro.'); return; }
+        const member = { id: 'eb_' + Date.now(), name, role, rate };
+        db.ref('taskpro/equipoBase/' + member.id).set(member)
+          .then(() => { showSyncBanner('Miembro agregado al equipo base', 'success'); renderBaseTeam(); })
+          .catch(err => showSyncBanner('Error guardando: ' + err.message, 'warn'));
+        document.getElementById('eb_name').value = '';
+        document.getElementById('eb_role').value = '';
+        document.getElementById('eb_rate').value = '';
+      }
+
+      function removeBaseTeamMember(id) {
+        if (!canDo('canDelete')) { showSyncBanner('Sin permiso para eliminar.', 'warn'); return; }
+        if (!confirm('¿Eliminar este miembro del equipo base?\n\nLos usuarios vinculados a esta persona perderán su vinculación.')) return;
+        db.ref('taskpro/equipoBase/' + id).remove()
+          .then(() => { showSyncBanner('Miembro eliminado', 'success'); renderBaseTeam(); populateLinkedDropdown(); })
+          .catch(console.error);
+      }
+
+      function renderBaseTeam() {
+        const container = document.getElementById('baseTeamList');
+        if (!container) return;
+        db.ref('taskpro/equipoBase').get().then(snap => {
+          const members = snap.val() || {};
+          const entries = Object.entries(members);
+          if (!entries.length) {
+            container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Sin miembros en el equipo base.</p></div>';
+            return;
+          }
+          container.innerHTML = `
+            <table class="data-table">
+              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th></th></tr></thead>
+              <tbody>
+                ${entries.map(([id, m]) => `
+                  <tr>
+                    <td><span class="person-tag">👷 ${m.name}</span></td>
+                    <td style="color:var(--text2);">${m.role || '—'}</td>
+                    <td class="num">$${(m.rate||0).toFixed(0)}/h</td>
+                    <td style="white-space:nowrap;">
+                      <button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"
+                        data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role||''}" data-ebrate="${m.rate||0}"
+                        onclick="openEditBaseModalFromBtn(this)">✏️</button>
+                      <button class="btn btn-danger btn-sm" onclick="removeBaseTeamMember('${id}')">✕</button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`;
+        }).catch(() => {
+          container.innerHTML = '<div class="empty-state"><p>Error cargando equipo base.</p></div>';
+        });
+      }
+
+      // Populate the linked member dropdown in user creation
+      function populateLinkedDropdown() {
+        const sel = document.getElementById('nu_linked');
+        if (!sel) return;
+        db.ref('taskpro/equipoBase').get().then(snap => {
+          const members = snap.val() || {};
+          sel.innerHTML = '<option value="">— Sin vincular —</option>';
+          Object.entries(members).forEach(([id, m]) => {
+            sel.innerHTML += `<option value="${id}|${m.name}">${m.name} (${m.role || 'Sin rol'})</option>`;
+          });
+        });
+      }
+
+      function toggleLinkedMember() {
+        const role = document.getElementById('nu_role').value;
+        const wrap = document.getElementById('nu_linked_wrap');
+        if (wrap) wrap.style.display = (role === 'admin') ? 'none' : '';
+      }
+
+      // ═══════════════════════════════════════════
+      // OPERADOR — auto-select name in timelog
+      // ═══════════════════════════════════════════
+      function applyOperadorTimelog() {
+        if (!currentUser || currentUser.role !== 'operador') return;
+        if (!currentUser.linkedName) return;
+        // Find worker matching linked name and pre-select
+        const p = currentProject();
+        if (!p) return;
+        const sel = document.getElementById('tl_person');
+        if (!sel) return;
+        // Find option whose text starts with linkedName
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].text.startsWith(currentUser.linkedName)) {
+            sel.value = sel.options[i].value;
+            sel.dispatchEvent(new Event('change'));
+            break;
+          }
+        }
+      }
+
+      // ══════════════════════════════════════
+      // EQUIPO BASE — edit functions
+      // ══════════════════════════════════════
+      function openEditBaseModalFromBtn(btn) {
+        openEditBaseModal(
+          btn.getAttribute('data-ebid'),
+          btn.getAttribute('data-ebname'),
+          btn.getAttribute('data-ebrole'),
+          btn.getAttribute('data-ebrate')
+        );
+      }
+
+      function openEditBaseModal(id, name, role, rate) {
+        document.getElementById('ebm_id').value   = id;
+        document.getElementById('ebm_name').value = name;
+        document.getElementById('ebm_role').value = role;
+        document.getElementById('ebm_rate').value = rate;
+        document.getElementById('editBaseMsg').textContent = '';
+        document.getElementById('editBaseModal').classList.add('open');
+      }
+
+      async function saveBaseTeamEdit() {
+        const id   = document.getElementById('ebm_id').value;
+        const name = document.getElementById('ebm_name').value.trim();
+        const role = document.getElementById('ebm_role').value.trim();
+        const rate = parseFloat(document.getElementById('ebm_rate').value) || 0;
+        const msg  = document.getElementById('editBaseMsg');
+        if (!name) { msg.style.color='var(--danger)'; msg.textContent='El nombre es requerido.'; return; }
+        msg.style.color='var(--text2)'; msg.textContent='Guardando...';
+        try {
+          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate });
+          msg.style.color='var(--accent)'; msg.textContent='Actualizado correctamente.';
+          // Refresh all dropdowns
+          populateWorkerBaseDropdown();
+          populateLinkedDropdown();
+          renderBaseTeam();
+          setTimeout(() => closeModal('editBaseModal'), 800);
+        } catch(e) {
+          msg.style.color='var(--danger)'; msg.textContent='Error: ' + e.message;
+        }
+      }
+
+      // ══════════════════════════════════════
+      // WORKERS PER PROJECT — edit functions
+      // ══════════════════════════════════════
+      function openEditWorkerModal(wid) {
+        const p = currentProject();
+        if (!p) return;
+        const w = p.workers.find(w => w.id === wid);
+        if (!w) return;
+        document.getElementById('ew_id').value   = wid;
+        document.getElementById('ew_name').value = w.name;
+        document.getElementById('ew_rate').value = w.rate;
+        document.getElementById('ew_role').value = w.role || '';
+        document.getElementById('editWorkerMsg').textContent = '';
+        // Populate base team dropdown
+        db.ref('taskpro/equipoBase').get().then(snap => {
+          const members = snap.val() || {};
+          const sel = document.getElementById('ew_base_select');
+          sel.innerHTML = '<option value="">— Mantener nombre actual —</option>';
+          Object.entries(members).forEach(([id, m]) => {
+            sel.innerHTML += '<option value="' + id + '|' + m.name + '|' + m.rate + '|' + (m.role||'') + '">'
+              + m.name + ' (' + (m.role||'Sin rol') + ') $' + (m.rate||0) + '/h</option>';
+          });
+        });
+        document.getElementById('editWorkerModal').classList.add('open');
+      }
+
+      function fillEditWorkerFromBase() {
+        const sel = document.getElementById('ew_base_select');
+        if (!sel.value) return;
+        const parts = sel.value.split('|');
+        document.getElementById('ew_name').value = parts[1] || '';
+        document.getElementById('ew_rate').value = parts[2] || '';
+        document.getElementById('ew_role').value = parts[3] || '';
+      }
+
+      function saveWorkerEdit() {
+        const p = currentProject();
+        if (!p) return;
+        const wid  = document.getElementById('ew_id').value;
+        const name = document.getElementById('ew_name').value.trim();
+        const rate = parseFloat(document.getElementById('ew_rate').value) || 0;
+        const role = document.getElementById('ew_role').value.trim();
+        const msg  = document.getElementById('editWorkerMsg');
+        if (!name || !rate) { msg.style.color='var(--danger)'; msg.textContent='Nombre y tarifa requeridos.'; return; }
+        const w = p.workers.find(w => w.id === wid);
+        if (!w) return;
+        const oldName = w.name;
+        w.name = name; w.rate = rate; w.role = role;
+        saveProject(state.currentId);
+        renderWorkers();
+        renderTimeLogPersonSelect();
+        msg.style.color='var(--accent)'; msg.textContent='Actualizado.';
+        setTimeout(() => closeModal('editWorkerModal'), 600);
+      }
+
+      // ══════════════════════════════════════
+      // AUTO-MATCH: short names → equipo base full names
+      // ══════════════════════════════════════
+      async function autoMatchWorkerNames() {
+        const snap = await db.ref('taskpro/equipoBase').get();
+        const baseMembers = Object.values(snap.val() || {});
+        if (!baseMembers.length) { alert('Primero agrega miembros al equipo base.'); return; }
+
+        let matchCount = 0;
+        let noMatch = [];
+
+        // For each project, check each worker
+        for (const [projId, p] of Object.entries(state.projects)) {
+          let changed = false;
+          (p.workers || []).forEach(w => {
+            // Find base member whose full name contains worker's name (case insensitive)
+            const match = baseMembers.find(m =>
+              m.name.toLowerCase().includes(w.name.toLowerCase()) ||
+              w.name.toLowerCase().includes(m.name.toLowerCase().split(' ')[0])
+            );
+            if (match && w.name !== match.name) {
+              w.name = match.name;
+              matchCount++;
+              changed = true;
+            } else if (!match) {
+              noMatch.push(w.name);
+            }
+          });
+          // Also update timelog personName entries
+          (p.timelog || []).forEach(e => {
+            const match = baseMembers.find(m =>
+              m.name.toLowerCase().includes((e.personName||'').toLowerCase()) ||
+              (e.personName||'').toLowerCase().includes(m.name.toLowerCase().split(' ')[0])
+            );
+            if (match && e.personName !== match.name) {
+              e.personName = match.name;
+              changed = true;
+            }
+          });
+          if (changed) await db.ref('taskpro/projects/' + projId).set(p);
+        }
+
+        // Update externalAdmin names too
+        let extChanged = false;
+        state.externalAdmin = state.externalAdmin.map(e => {
+          const match = baseMembers.find(m =>
+            m.name.toLowerCase().includes((e.person||'').toLowerCase()) ||
+            (e.person||'').toLowerCase().includes(m.name.toLowerCase().split(' ')[0])
+          );
+          if (match && e.person !== match.name) { extChanged = true; return {...e, person: match.name}; }
+          return e;
+        });
+        if (extChanged) await db.ref('taskpro/externalAdmin').set(state.externalAdmin);
+
+        const noMatchUnique = [...new Set(noMatch)];
+        let msg = matchCount + ' registros actualizados correctamente.';
+        if (noMatchUnique.length) msg += '\nSin match para: ' + noMatchUnique.join(', ');
+        alert(msg);
+        showSyncBanner('Nombres actualizados: ' + matchCount + ' cambios', 'success');
+      }
+
+      function openEditUserModalFromBtn(btn) {
+        openEditUserModal(
+          btn.getAttribute('data-uid'),
+          btn.getAttribute('data-email'),
+          btn.getAttribute('data-role'),
+          btn.getAttribute('data-linked')
+        );
+      }
+      function deleteUserFromBtn(btn) {
+        deleteUser(btn.getAttribute('data-uid'), btn.getAttribute('data-email'));
+      }
+      function updateUserRoleFromSel(sel) {
+        updateUserRole(sel.getAttribute('data-uid'), sel.value);
+      }
+
+      function openEditUserModal(uid, email, role, linkedName) {
+        document.getElementById('eu_uid').value   = uid;
+        document.getElementById('eu_email').value = email;
+        document.getElementById('eu_role').value  = role;
+        // Populate linked dropdown then set value
+        db.ref('taskpro/equipoBase').get().then(snap => {
+          const members = snap.val() || {};
+          const sel = document.getElementById('eu_linked');
+          sel.innerHTML = '<option value="">— Sin vincular —</option>';
+          Object.entries(members).forEach(([id, m]) => {
+            const val = id + '|' + m.name;
+            sel.innerHTML += '<option value="' + val + '"' + (m.name === linkedName ? ' selected' : '') + '>'
+              + m.name + ' (' + (m.role||'Sin rol') + ')</option>';
+          });
+        });
+        document.getElementById('editUserMsg').textContent = '';
+        document.getElementById('editUserModal').classList.add('open');
+      }
+
+      async function saveUserEdit() {
+        const uid        = document.getElementById('eu_uid').value;
+        const email      = document.getElementById('eu_email').value.trim();
+        const role       = document.getElementById('eu_role').value;
+        const linkedRaw  = document.getElementById('eu_linked').value;
+        const linkedId   = linkedRaw ? linkedRaw.split('|')[0] : '';
+        const linkedName = linkedRaw ? linkedRaw.split('|').slice(1).join('|') : '';
+        const msgEl      = document.getElementById('editUserMsg');
+        msgEl.style.color = 'var(--text2)';
+        msgEl.textContent = 'Guardando...';
+
+        try {
+          // Update role and linked in DB
+          await db.ref('taskpro/users/' + uid).update({ role, linkedId, linkedName, email });
+
+          // Update email in Firebase Auth via REST API (if changed)
+          const snap = await db.ref('taskpro/users/' + uid).get();
+          const currentEmail = (snap.val() || {}).email || '';
+          if (email && email !== currentEmail) {
+            const apiKey = firebaseConfig.apiKey;
+            const res = await fetch(
+              'https://identitytoolkit.googleapis.com/v1/accounts:update?key=' + apiKey,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ localId: uid, email, returnSecureToken: false })
+              }
+            );
+            const data = await res.json();
+            if (data.error) throw new Error(data.error.message);
+          }
+
+          msgEl.style.color = 'var(--accent)';
+          msgEl.textContent = 'Usuario actualizado correctamente.';
+          setTimeout(() => { closeModal('editUserModal'); renderUsersList(); }, 1200);
+        } catch(e) {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = 'Error: ' + e.message;
+        }
+      }
+
+      async function deleteUser(uid, email) {
+        if (!confirm('¿Eliminar usuario ' + email + '?\n\nEsta accion no se puede deshacer. El usuario perdera acceso inmediatamente.')) return;
+        try {
+          // Remove from DB
+          await db.ref('taskpro/users/' + uid).remove();
+          // Remove from Auth via REST API
+          const apiKey = firebaseConfig.apiKey;
+          // Need admin token — can only disable, not delete, without Admin SDK
+          // Mark as deleted in DB instead
+          showSyncBanner('Usuario eliminado del sistema', 'success');
+          renderUsersList();
+        } catch(e) {
+          showSyncBanner('Error: ' + e.message, 'warn');
+        }
+      }
+
+      function renderUsersList() {
+        const container = document.getElementById('usersList');
+        if (!container) return;
+        db.ref('taskpro/users').get().then(snap => {
+          const users = snap.val() || {};
+          const entries = Object.entries(users);
+          if (!entries.length) {
+            container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Sin usuarios registrados.</p></div>';
+            return;
+          }
+          container.innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th>Usuario</th><th>Rol</th><th>Vinculado</th><th>Cambiar rol</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${entries.map(([uid, u]) => {
+            const isMe = uid === currentUser.uid;
+            const role = u.role || 'operador';
+            const editBtn = '<button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"'
+              + ' data-uid="' + uid + '" data-email="' + (u.email||'').replace(/"/g,'&quot;') + '"'
+              + ' data-role="' + role + '" data-linked="' + (u.linkedName||'').replace(/"/g,'&quot;') + '"'
+              + ' onclick="openEditUserModalFromBtn(this)" title="Editar usuario">✏️</button>';
+            const delBtn = !isMe
+              ? '<button class="btn btn-danger btn-sm" style="padding:4px 8px;"'
+                + ' data-uid="' + uid + '" data-email="' + (u.email||'').replace(/"/g,'&quot;') + '"'
+                + ' onclick="deleteUserFromBtn(this)" title="Eliminar usuario">🗑</button>'
+              : '';
+            return '<tr>'
+              + '<td><div style="display:flex;align-items:center;gap:8px;">'
+              + '<div class="user-avatar" style="width:28px;height:28px;font-size:12px;flex-shrink:0;">'
+              + (u.email||'?')[0].toUpperCase() + '</div>'
+              + '<span style="font-family:monospace;font-size:11px;">' + (u.email||'—')
+              + (isMe ? ' <span class=\"badge badge-green\">Tu</span>' : '') + '</span>'
+              + '</div></td>'
+              + '<td><span class="role-badge role-' + role + '">' + role + '</span></td>'
+              + '<td style="color:var(--text2);font-size:11px;font-family:monospace;">' + (u.linkedName||'—') + '</td>'
+              + '<td><select data-uid="' + uid + '" onchange="updateUserRoleFromSel(this)"'
+              + ' style="font-size:11px;padding:4px 8px;" ' + (isMe ? 'disabled' : '') + '>'
+              + '<option value="operador" ' + (role==='operador'?'selected':'') + '>Operador</option>'
+              + '<option value="supervisor" ' + (role==='supervisor'?'selected':'') + '>Supervisor</option>'
+              + '<option value="admin" ' + (role==='admin'?'selected':'') + '>Admin</option>'
+              + '</select></td>'
+              + '<td style="white-space:nowrap;">' + editBtn + delBtn + '</td>'
+              + '</tr>';
+          }).join('')}
+        </tbody>
+      </table>`;
+        }).catch(() => {
+          container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Error cargando usuarios.</p></div>';
+        });
+      }
+
+      // ═══════════════════════════════════════════
+      // HELPERS — normalize Firebase data
+      // Always returns a plain JS array regardless of whether
+      // Firebase returned an array or a keyed object {0:{},1:{}}
+      // ═══════════════════════════════════════════
+      function toArr(val) {
+        if (!val) return [];
+        if (Array.isArray(val)) return val.filter(Boolean);
+        return Object.values(val).filter(Boolean);
+      }
+
+      // ═══════════════════════════════════════════
+      // STATE
+      // ═══════════════════════════════════════════
+      let state = {
+        projects: {},
+        currentId: null,
+        globalWorkers: [],
+        externalAdmin: []   // [{id, date, person, desc, timeHHMM}]
+      };
+
+      function currentProject() {
+        return state.currentId ? state.projects[state.currentId] : null;
+      }
+
+      // Normalize a single project — ensure timelog/materials/workers are arrays
+      function normalizeProject(p) {
+        if (!p) return p;
+        p.timelog = toArr(p.timelog);
+        p.materials = toArr(p.materials);
+        p.workers = toArr(p.workers);
+        p.pricing = p.pricing || { overhead: 20, contingency: 5, markup: 43, clientPrice: 0 };
+        return p;
+      }
+
+      // ═══════════════════════════════════════════
+      // FIREBASE SAVE — granular writes
+      // ═══════════════════════════════════════════
+      function saveProject(id) {
+        if (!id || !state.projects[id]) return;
+        db.ref('taskpro/projects/' + id).set(state.projects[id])
+          .then(() => showSyncDot(true))
+          .catch(err => { console.error('saveProject error:', err); showSyncBanner('⚠️ Error guardando. Revisa conexión.', 'warn'); });
+      }
+
+      function saveGlobalWorkers() {
+        db.ref('taskpro/globalWorkers').set(state.globalWorkers).catch(console.error);
+      }
+
+      function saveCurrentId(id) {
+        db.ref('taskpro/currentId').set(id || null).catch(console.error);
+      }
+
+      function showSyncDot(ok) {
+        const dot = document.getElementById('syncDot');
+        if (!dot) return;
+        dot.style.background = ok ? 'var(--accent)' : 'var(--danger)';
+      }
+
+      // ═══════════════════════════════════════════
+      // MIGRATION: localStorage → Firebase (one-time)
+      // ═══════════════════════════════════════════
+      async function migrateFromLocalStorage() {
+        try {
+          const raw = localStorage.getItem('taskpro_v3');
+          if (!raw) return false;
+          const local = JSON.parse(raw);
+          const hasProjects = local.projects && Object.keys(local.projects).length > 0;
+          if (!hasProjects) return false;
+          // Normalize before upload
+          Object.values(local.projects).forEach(p => normalizeProject(p));
+          await db.ref('taskpro').set(local);
+          localStorage.removeItem('taskpro_v3');
+          console.log('Migration complete: localStorage → Firebase');
+          return true;
+        } catch (e) {
+          console.error('Migration error:', e);
+          return false;
+        }
+      }
+
+      // ═══════════════════════════════════════════
+      // INIT
+      // ═══════════════════════════════════════════
+      function showLoadingState() {
+        const ns = document.getElementById('noProjectState');
+        ns.innerHTML = `<div class="empty-state">
+    <div class="icon">🔄</div>
+    <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">Conectando con Firebase...</p>
+    <p style="color:var(--text2);">Sincronizando datos</p></div>`;
+        ns.style.display = 'block';
+      }
+
+      function showMigrationBanner() {
+        const b = document.createElement('div');
+        b.className = 'alert alert-success';
+        b.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;max-width:320px;';
+        b.innerHTML = '✅ Datos migrados a Firebase. Ahora accesibles desde cualquier dispositivo.';
+        document.body.appendChild(b);
+        setTimeout(() => b.remove(), 6000);
+      }
+
+      function showSyncBanner(msg, type) {
+        const existing = document.getElementById('syncBanner');
+        if (existing) existing.remove();
+        const b = document.createElement('div');
+        b.id = 'syncBanner';
+        b.className = 'alert alert-' + type;
+        b.style.cssText = 'position:fixed;top:70px;right:20px;z-index:9999;max-width:320px;font-size:11px;';
+        b.innerHTML = msg;
+        document.body.appendChild(b);
+        setTimeout(() => { if (b.parentNode) b.remove(); }, 3000);
+      }
+
+      async function bootApp() {
+        // Ensure current user has a role record in DB (first-time admin setup)
+        if (currentUser) {
+          const snap = await db.ref('taskpro/users/' + currentUser.uid).get();
+          if (!snap.val()) {
+            await db.ref('taskpro/users/' + currentUser.uid).set({
+              email: currentUser.email,
+              role: currentUser.role,
+              createdBy: 'sistema'
+            });
+          }
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        document.getElementById('tl_date').value = today;
+        document.getElementById('np_start').value = today;
+        document.getElementById('ea_date').value = today;
+        // pp dates initialized when section opens (setPagosThisMonth)
+        setupHHMMInput('tl_break');
+        setupHHMMInput('tl_admin');
+        showLoadingState();
+
+        const migrated = await migrateFromLocalStorage();
+
+        // firstLoad = true means: accept Firebase's currentId on first snapshot
+        // After that, the user controls which project is active
+        let firstLoad = true;
+
+        db.ref('taskpro').on('value', snapshot => {
+          const data = snapshot.val() || {};
+
+          // Update projects, normalize each one
+          state.projects = {};
+          Object.entries(data.projects || {}).forEach(([id, p]) => {
+            state.projects[id] = normalizeProject(p);
+          });
+          state.globalWorkers = toArr(data.globalWorkers);
+          state.externalAdmin = toArr(data.externalAdmin);
+
+          if (firstLoad) {
+            state.currentId = data.currentId || null;
+            firstLoad = false;
+          }
+          // After first load: state.currentId is controlled by user actions only
+
+          showSyncDot(true);
+          renderProjectSelect();
+
+          if (state.currentId && state.projects[state.currentId]) {
+            renderCurrentProject();
+          } else {
+            resetNoProjectState();
+            showNoProjectState();
+          }
+          renderAllProjects();
+
+          if (migrated) showMigrationBanner();
+
+        }, err => {
+          console.error('Firebase error:', err);
+          showSyncDot(false);
+          showSyncBanner('⚠️ Error conectando a Firebase. Verifica tu conexión.', 'warn');
+          resetNoProjectState();
+          showNoProjectState();
+        });
+      }
+
+      // Render all tabs for the current project (called by Firebase listener & loadProject)
+      function renderCurrentProject() {
+        const p = currentProject();
+        if (!p) return;
+        document.getElementById('projectTitle').textContent = p.name;
+        document.getElementById('projectMeta').textContent = (p.client || '—') + ' · ' + (p.start || '—');
+        document.getElementById('summaryMeta').textContent = (p.client || '—') + ' · ' + (p.start || '—');
+        document.getElementById('projectSelect').value = state.currentId;
+        document.getElementById('p_overhead').value = p.pricing.overhead;
+        document.getElementById('p_contingency').value = p.pricing.contingency;
+        document.getElementById('p_markup').value = p.pricing.markup;
+        updateMarkupHint(p.pricing.markup);
+        document.getElementById('p_clientprice').value = p.pricing.clientPrice || '';
+        hideNoProjectState();
+        renderTimeLog();
+        renderMaterials();
+        renderWorkers();
+        renderPricing();
+        renderSummary();
+        // Always populate base team dropdown so it's ready when switching to workers tab
+        populateWorkerBaseDropdown();
+      }
+
+      function resetNoProjectState() {
+        document.getElementById('noProjectState').innerHTML = `
+    <div class="empty-state">
+      <div class="icon">📋</div>
+      <p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">Ningún proyecto seleccionado</p>
+      <p>Selecciona un proyecto existente o crea uno nuevo para comenzar.</p><br>
+      <button class="btn btn-primary" onclick="openNewProjectModal()">＋ Crear primer proyecto</button>
+    </div>`;
+      }
+
+      function showNoProjectState() { document.getElementById('noProjectState').style.display = 'block'; }
+      function hideNoProjectState() { document.getElementById('noProjectState').style.display = 'none'; }
+
+      // ═══════════════════════════════════════════
+      // PROJECT MANAGEMENT
+      // ═══════════════════════════════════════════
+      function openNewProjectModal() { document.getElementById('newProjectModal').classList.add('open'); }
+      function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+      function createProject() {
+        const name = document.getElementById('np_name').value.trim();
+        const client = document.getElementById('np_client').value.trim();
+        const start = document.getElementById('np_start').value;
+        const end = document.getElementById('np_end').value;
+        if (!name) { alert('Ingresa un nombre para el proyecto.'); return; }
+
+        const id = 'proj_' + Date.now();
+        // New project starts with empty workers — team is added manually per project
+        state.projects[id] = {
+          name, client, start, end,
+          timelog: [], materials: [],
+          workers: [],
+          pricing: { overhead: 20, contingency: 5, markup: 35, clientPrice: 0 }
+        };
+
+        state.currentId = id;
+        saveProject(id);
+        saveCurrentId(id);
+        closeModal('newProjectModal');
+        renderProjectSelect();
+        renderCurrentProject();
+        renderAllProjects();
+        ['np_name', 'np_client', 'np_end'].forEach(fid => document.getElementById(fid).value = '');
+      }
+
+      function loadProject(id) {
+        if (!id || !state.projects[id]) { showNoProjectState(); return; }
+        state.currentId = id;
+        saveCurrentId(id);
+        renderCurrentProject();
+      }
+
+      function deleteCurrentProject() {
+        if (!canDo('canDelete')) { showSyncBanner('Sin permiso para eliminar proyectos.', 'warn'); return; }
+        if (!state.currentId) return;
+        const p = currentProject();
+        if (!p) return;
+        if (!confirm('¿Eliminar proyecto "' + p.name + '"?\n\nEsta accion NO se puede deshacer.')) return;
+        const deletedId = state.currentId;
+        delete state.projects[deletedId];
+        state.currentId = null;
+        db.ref('taskpro/projects/' + deletedId).remove().catch(console.error);
+        saveCurrentId(null);
+        renderProjectSelect();
+        renderAllProjects();
+        resetNoProjectState();
+        showNoProjectState();
+      }
+
+      function renderProjectSelect() {
+        const sel = document.getElementById('projectSelect');
+        sel.innerHTML = '<option value="">— Seleccionar proyecto —</option>';
+        Object.entries(state.projects).forEach(([id, p]) => {
+          // Operador: only show projects where they are assigned as a worker
+          if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
+            const workers = Array.isArray(p.workers) ? p.workers : Object.values(p.workers || {});
+            const isAssigned = workers.some(w => w.name === currentUser.linkedName);
+            if (!isAssigned) return;
+          }
+          const opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = p.name + (p.client ? ` — ${p.client}` : '');
+          if (id === state.currentId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      }
+
+      // ═══════════════════════════════════════════
+      // WORKERS
+      // ═══════════════════════════════════════════
+      // Populate the equipo base dropdown in workers form
+      function populateWorkerBaseDropdown() {
+        const sel = document.getElementById('w_base_select');
+        if (!sel) return;
+        db.ref('taskpro/equipoBase').get().then(snap => {
+          const members = snap.val() || {};
+          sel.innerHTML = '<option value="">— Elegir del equipo base —</option>';
+          Object.entries(members).forEach(([id, m]) => {
+            sel.innerHTML += `<option value="${id}|${m.name}|${m.rate}|${m.role||''}">${m.name} — ${m.role||'Sin rol'} ($${m.rate||0}/h)</option>`;
+          });
+        });
+      }
+
+      // Fill form fields when selecting from equipo base
+      function fillFromBaseTeam() {
+        const sel = document.getElementById('w_base_select');
+        if (!sel || !sel.value) return;
+        const parts = sel.value.split('|');
+        const name = parts[1] || '';
+        const rate = parts[2] || '';
+        const role = parts[3] || '';
+        document.getElementById('w_name').value = name;
+        document.getElementById('w_rate').value = rate;
+        document.getElementById('w_role').value = role;
+      }
+
+      function addWorker() {
+        const p = currentProject();
+        if (!p) { alert('Selecciona un proyecto primero.'); return; }
+        const name = document.getElementById('w_name').value.trim();
+        const rate = parseFloat(document.getElementById('w_rate').value) || 0;
+        const role = document.getElementById('w_role').value.trim();
+        if (!name || !rate) { alert('Ingresa nombre y tarifa.'); return; }
+
+        const worker = { id: 'w_' + Date.now(), name, rate, role };
+        p.workers.push(worker);
+        saveProject(state.currentId);
+        renderWorkers();
+        renderTimeLogPersonSelect();
+        ['w_name', 'w_rate', 'w_role'].forEach(fid => document.getElementById(fid).value = '');
+        const basesel = document.getElementById('w_base_select');
+        if (basesel) basesel.value = '';
+      }
+
+      function removeWorker(wid) {
+        if (!canDo('canDelete')) { showSyncBanner('Sin permiso para eliminar.', 'warn'); return; }
+        const p = currentProject();
+        if (!p) return;
+        if (!confirm('¿Eliminar este trabajador del proyecto?')) return;
+        p.workers = p.workers.filter(w => w.id !== wid);
+        saveProject(state.currentId);
+        renderWorkers();
+        renderTimeLogPersonSelect();
+      }
+
+      function updateWorkerRate(wid, newRate) {
+        const p = currentProject();
+        if (!p) return;
+        const w = p.workers.find(w => w.id === wid);
+        if (w) w.rate = parseFloat(newRate) || 0;
+        saveProject(state.currentId);
+        renderTimeLog();
+        renderPricing();
+        renderSummary();
+      }
+
+      function renderWorkers() {
+        const p = currentProject();
+        const container = document.getElementById('workersList');
+        if (!p || !p.workers.length) {
+          container.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin trabajadores configurados.</p></div>';
+          renderTimeLogPersonSelect();
+          return;
+        }
+        container.innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Nombre</th><th>Rol</th><th>Tarifa / hora</th><th></th></tr></thead>
+      <tbody>
+        ${p.workers.map(w => `
+          <tr>
+            <td><span class="person-tag">👷 ${w.name}</span></td>
+            <td style="color:var(--text2);">${w.role || '—'}</td>
+            <td><input type="number" value="${w.rate}" step="0.50" min="0"
+              style="width:90px;" onchange="updateWorkerRate('${w.id}', this.value)"> /h</td>
+            <td style="white-space:nowrap;">
+              <button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"
+                onclick="openEditWorkerModal('${w.id}')">✏️</button>
+              <button class="btn btn-danger btn-sm" onclick="removeWorker('${w.id}')">✕</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+        renderTimeLogPersonSelect();
+      }
+
+      function renderTimeLogPersonSelect() {
+        const p = currentProject();
+        const sel = document.getElementById('tl_person');
+        sel.innerHTML = '<option value="">— Seleccionar —</option>';
+        if (p) {
+          p.workers.forEach(w => {
+            sel.innerHTML += `<option value="${w.id}">${w.name} ($${w.rate}/h)</option>`;
+          });
+        }
+        // Operador: auto-select their linked name
+        if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
+          for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text.startsWith(currentUser.linkedName)) {
+              sel.value = sel.options[i].value;
+              sel.disabled = true;  // Can't change person
+              break;
+            }
+          }
+        } else {
+          sel.disabled = false;
+        }
+      }
+
+      // ═══════════════════════════════════════════
+      // TIME LOG
+      // ═══════════════════════════════════════════
+      function addTimeEntry() {
+        const p = currentProject();
+        if (!p) { alert('Selecciona un proyecto primero.'); return; }
+        const date = document.getElementById('tl_date').value;
+        const personId = document.getElementById('tl_person').value;
+        const start = document.getElementById('tl_start').value;
+        const end = document.getElementById('tl_end').value;
+        const breakH = timeToMins(document.getElementById('tl_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('tl_admin').value || '00:00') / 60;
+
+        if (!date || !personId || !start || !end) { alert('Completa fecha, persona, entrada y salida.'); return; }
+
+        const startMins = timeToMins(start);
+        const endMins = timeToMins(end);
+        if (endMins <= startMins) { alert('La hora de salida debe ser mayor a la de entrada.'); return; }
+
+        const worker = p.workers.find(w => w.id === personId);
+        if (!worker) { alert('Trabajador no encontrado.'); return; }
+
+        const totalH = (endMins - startMins) / 60;
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const pay = productiveH * worker.rate;
+
+        const entry = {
+          id: 'tl_' + Date.now(),
+          date, personId, personName: worker.name, rate: worker.rate,
+          start, end, breakH, adminH, totalH, productiveH, pay
+        };
+
+        p.timelog.push(entry);
+        saveProject(state.currentId);
+        showSyncBanner('✅ Jornada guardada', 'success');
+        renderTimeLog();
+        renderPricing();
+        renderSummary();
+
+        ['tl_start', 'tl_end'].forEach(fid => document.getElementById(fid).value = '');
+        document.getElementById('tl_break').value = '00:00';
+        document.getElementById('tl_admin').value = '00:00';
+      }
+
+      function removeTimeEntry(eid) {
+        if (!canDo('canDelete')) { showSyncBanner('Sin permiso para eliminar registros.', 'warn'); return; }
+        if (!confirm('¿Eliminar esta jornada? Esta accion no se puede deshacer.')) return;
+        const p = currentProject();
+        if (!p) return;
+        p.timelog = p.timelog.filter(e => e.id !== eid);
+        saveProject(state.currentId);
+        renderTimeLog();
+        renderPricing();
+        renderSummary();
+      }
+
+      function renderTimeLog() {
+        const p = currentProject();
+        const container = document.getElementById('timelogTable');
+        const statsContainer = document.getElementById('timeStats');
+
+        if (!p || !p.timelog.length) {
+          container.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin jornadas registradas.</p></div>';
+          statsContainer.innerHTML = '';
+          return;
+        }
+
+        let sorted = [...p.timelog].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        // Operador: only see own entries
+        if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
+          sorted = sorted.filter(e => e.personName === currentUser.linkedName);
+        }
+        // Recalculate on render — source of truth is raw fields
+        sorted.forEach(e => {
+          const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
+          e.productiveH = Math.max(0, totalH - (parseFloat(e.breakH) || 0) - (parseFloat(e.adminH) || 0));
+          e.pay = e.productiveH * (parseFloat(e.rate) || 0);
+        });
+
+        const totalProductiveH = sorted.reduce((s, e) => s + e.productiveH, 0);
+        const totalPay = sorted.reduce((s, e) => s + e.pay, 0);
+        const days = [...new Set(sorted.map(e => e.date))].length;
+        const persons = [...new Set(sorted.map(e => e.personName))];
+
+        container.innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Fecha</th><th>Persona</th><th>Entrada</th><th>Salida</th>
+        <th>Break</th><th>Admin</th><th class="num">Prod. (h)</th>
+        <th class="num">Tarifa</th><th class="num">Subtotal</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${sorted.map(e => `
+          <tr>
+            <td style="font-family:'DM Mono',monospace;">${e.date}</td>
+            <td><span class="person-tag">👷 ${e.personName}</span></td>
+            <td style="font-family:'DM Mono',monospace;">${e.start}</td>
+            <td style="font-family:'DM Mono',monospace;">${e.end}</td>
+            <td style="font-family:'DM Mono',monospace;">${minsToHHMM(Math.round((parseFloat(e.breakH) || 0) * 60))}</td>
+            <td style="font-family:'DM Mono',monospace;">${minsToHHMM(Math.round((parseFloat(e.adminH) || 0) * 60))}</td>
+            <td class="num"><strong>${e.productiveH.toFixed(2)}h</strong></td>
+            <td class="num">$${(parseFloat(e.rate) || 0).toFixed(0)}</td>
+            <td class="num"><strong>$${e.pay.toFixed(2)}</strong></td>
+            <td><button class="btn btn-danger btn-sm" onclick="removeTimeEntry('${e.id}')">✕</button></td>
+          </tr>`).join('')}
+        <tr class="total-row">
+          <td colspan="6"><strong>TOTAL</strong></td>
+          <td class="num"><strong>${totalProductiveH.toFixed(2)}h</strong></td>
+          <td></td>
+          <td class="num"><strong>$${totalPay.toFixed(2)}</strong></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>`;
+
+        statsContainer.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total mano de obra</div><div class="stat-value accent">$${totalPay.toFixed(0)}</div></div>
+    <div class="stat-card"><div class="stat-label">Horas productivas</div><div class="stat-value">${totalProductiveH.toFixed(1)}h</div></div>
+    <div class="stat-card"><div class="stat-label">Días trabajados</div><div class="stat-value">${days}</div></div>
+    <div class="stat-card"><div class="stat-label">Personas en proyecto</div><div class="stat-value">${persons.length}</div></div>`;
+      }
+
+      // ═══════════════════════════════════════════
+      // MATERIALS
+      // ═══════════════════════════════════════════
+      function addMaterial() {
+        const p = currentProject();
+        if (!p) { alert('Selecciona un proyecto primero.'); return; }
+        const desc = document.getElementById('mat_desc').value.trim();
+        const cat = document.getElementById('mat_cat').value;
+        const amount = parseFloat(document.getElementById('mat_amount').value) || 0;
+        if (!desc || !amount) { alert('Ingresa descripción y monto.'); return; }
+
+        p.materials.push({ id: 'mat_' + Date.now(), desc, cat, amount });
+        saveProject(state.currentId);
+        renderMaterials();
+        renderPricing();
+        renderSummary();
+        document.getElementById('mat_desc').value = '';
+        document.getElementById('mat_amount').value = '';
+      }
+
+      function removeMaterial(mid) {
+        if (!canDo('canDelete')) { showSyncBanner('Sin permiso para eliminar.', 'warn'); return; }
+        if (!confirm('¿Eliminar este costo?')) return;
+        const p = currentProject();
+        if (!p) return;
+        p.materials = p.materials.filter(m => m.id !== mid);
+        saveProject(state.currentId);
+        renderMaterials();
+        renderPricing();
+        renderSummary();
+      }
+
+      function renderMaterials() {
+        const p = currentProject();
+        const container = document.getElementById('materialsTable');
+        const totalEl = document.getElementById('materialsTotal');
+        if (!p || !p.materials.length) {
+          container.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin costos registrados.</p></div>';
+          totalEl.innerHTML = '';
+          return;
+        }
+        const total = p.materials.reduce((s, m) => s + (parseFloat(m.amount) || 0), 0);
+        container.innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Descripción</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead>
+      <tbody>
+        ${p.materials.map(m => `
+          <tr>
+            <td>${m.desc}</td>
+            <td><span class="badge badge-green">${m.cat}</span></td>
+            <td class="num">$${(parseFloat(m.amount) || 0).toFixed(2)}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="removeMaterial('${m.id}')">✕</button></td>
+          </tr>`).join('')}
+        <tr class="total-row">
+          <td colspan="2"><strong>TOTAL MATERIALES</strong></td>
+          <td class="num"><strong>$${total.toFixed(2)}</strong></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>`;
+        totalEl.innerHTML = '';
+      }
+
+      // ═══════════════════════════════════════════
+      // PRICING — debounced to avoid Firebase spam on keystroke
+      // ═══════════════════════════════════════════
+      let pricingDebounce = null;
+      function savePricingParams() {
+        const p = currentProject();
+        if (!p) return;
+        p.pricing.overhead = parseFloat(document.getElementById('p_overhead').value) || 0;
+        p.pricing.contingency = parseFloat(document.getElementById('p_contingency').value) || 0;
+        p.pricing.markup = parseFloat(document.getElementById('p_markup').value) || 0;
+        p.pricing.clientPrice = parseFloat(document.getElementById('p_clientprice').value) || 0;
+        updateMarkupHint(p.pricing.markup);
+        renderPricing();
+        renderSummary();
+        // Debounce Firebase write — waits 800ms after user stops typing
+        clearTimeout(pricingDebounce);
+        pricingDebounce = setTimeout(() => saveProject(state.currentId), 800);
+      }
+
+      function updateMarkupHint(markup) {
+        const hint = document.getElementById('markupHint');
+        if (!hint) return;
+        const margin = markup > 0 ? ((markup / (100 + markup)) * 100) : 0;
+        hint.innerHTML = `⚠️ Markup ${markup}% = margen real ≈ ${margin.toFixed(1)}% sobre precio final. Los cambios se guardan automáticamente.`;
+      }
+
+      function calcPricing(p) {
+        // Always recalculate from raw fields — never trust stored pay/productiveH
+        const timelog = p.timelog || [];
+        const materials = p.materials || [];
+
+        timelog.forEach(e => {
+          const startMins = timeToMins(e.start || '00:00');
+          const endMins = timeToMins(e.end || '00:00');
+          const totalH = endMins > startMins ? (endMins - startMins) / 60 : 0;
+          e.productiveH = Math.max(0, totalH - (parseFloat(e.breakH) || 0) - (parseFloat(e.adminH) || 0));
+          e.pay = e.productiveH * (parseFloat(e.rate) || 0);
+        });
+
+        const labour = timelog.reduce((s, e) => s + e.pay, 0);
+        const matTotal = materials.reduce((s, m) => s + (parseFloat(m.amount) || 0), 0);
+        const totalCost = labour + matTotal;
+        const overhead = totalCost * ((p.pricing.overhead || 0) / 100);
+        const contingency = totalCost * ((p.pricing.contingency || 0) / 100);
+        const base = totalCost + overhead + contingency;
+        const markup = base * ((p.pricing.markup || 0) / 100);
+        const total = base + markup;
+        const clientPrice = p.pricing.clientPrice || 0;
+        const margin = total > 0 ? (markup / total) * 100 : 0;
+        const profitVsClient = clientPrice - total;
+        return { labour, materials: matTotal, totalCost, overhead, contingency, base, markup, total, margin, clientPrice, profitVsClient };
+      }
+
+      function renderPricing() {
+        const p = currentProject();
+        const container = document.getElementById('pricingBreakdown');
+        if (!p) { container.innerHTML = ''; return; }
+        const c = calcPricing(p);
+        container.innerHTML = `
+    <table class="data-table">
+      <tbody>
+        <tr><td>Mano de obra</td><td class="num">$${c.labour.toFixed(2)}</td></tr>
+        <tr><td>Materiales & costos directos</td><td class="num">$${c.materials.toFixed(2)}</td></tr>
+        <tr class="total-row"><td>COSTO DIRECTO TOTAL</td><td class="num">$${c.totalCost.toFixed(2)}</td></tr>
+        <tr><td>Overhead (${p.pricing.overhead}%)</td><td class="num">$${c.overhead.toFixed(2)}</td></tr>
+        <tr><td>Imprevisto (${p.pricing.contingency}%)</td><td class="num">$${c.contingency.toFixed(2)}</td></tr>
+        <tr><td>Markup (${p.pricing.markup}%)</td><td class="num">$${c.markup.toFixed(2)}</td></tr>
+        <tr class="total-row">
+          <td><strong>PRECIO SUGERIDO AL CLIENTE</strong></td>
+          <td class="num" style="color:var(--accent);font-size:16px;"><strong>$${c.total.toFixed(2)}</strong></td>
+        </tr>
+        <tr><td style="color:var(--text2);">Margen real sobre precio final</td>
+          <td class="num"><span class="badge ${c.margin > 25 ? 'badge-green' : 'badge-warn'}">${c.margin.toFixed(1)}%</span></td>
+        </tr>
+      </tbody>
+    </table>`;
+      }
+
+      // ═══════════════════════════════════════════
+      // SUMMARY
+      // ═══════════════════════════════════════════
+      function renderSummary() {
+        const p = currentProject();
+        const container = document.getElementById('summaryContent');
+        if (!p) { container.innerHTML = ''; return; }
+        const c = calcPricing(p);
+        const profitStatus = c.profitVsClient >= 0 ? 'accent' : 'danger';
+        const days = [...new Set(p.timelog.map(e => e.date))].length;
+        const persons = [...new Set(p.timelog.map(e => e.personName))];
+        const totalProdH = p.timelog.reduce((s, e) => s + (e.productiveH || 0), 0);
+
+        // Per-person breakdown
+        const personMap = {};
+        p.timelog.forEach(e => {
+          if (!personMap[e.personName]) personMap[e.personName] = { productiveH: 0, pay: 0, rate: e.rate };
+          personMap[e.personName].productiveH += e.productiveH || 0;
+          personMap[e.personName].pay += e.pay || 0;
+        });
+        const personRows = Object.entries(personMap);
+        const totalPersonH = personRows.reduce((s, [, d]) => s + d.productiveH, 0);
+        const totalPersonPay = personRows.reduce((s, [, d]) => s + d.pay, 0);
+
+        container.innerHTML = `
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+      <div class="stat-card"><div class="stat-label">Precio sugerido</div><div class="stat-value accent">$${c.total.toFixed(0)}</div></div>
+      <div class="stat-card"><div class="stat-label">Precio cliente</div>
+        <div class="stat-value ${c.clientPrice > 0 ? '' : 'warn'}">${c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Ganancia / Diferencia</div>
+        <div class="stat-value ${profitStatus}">${c.clientPrice > 0 ? (c.profitVsClient >= 0 ? '+' : '') + '$' + c.profitVsClient.toFixed(0) : '—'}</div></div>
+    </div>
+
+    ${c.clientPrice > 0 ? `
+      <div class="card" style="border-color:${c.profitVsClient >= 0 ? 'rgba(184,245,90,0.3)' : 'rgba(245,90,90,0.3)'};">
+        <div class="compare-section">
+          <div class="compare-side">
+            <div class="compare-label">Precio sugerido (calculado)</div>
+            <div class="compare-value" style="color:var(--accent)">$${c.total.toFixed(2)}</div>
+          </div>
+          <div class="compare-side">
+            <div class="compare-label">Precio acordado cliente</div>
+            <div class="compare-value" style="color:${c.profitVsClient >= 0 ? 'var(--accent2)' : 'var(--danger)'}">$${c.clientPrice.toFixed(2)}</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;" class="${c.profitVsClient >= 0 ? 'alert alert-success' : 'alert alert-danger'}">
+          ${c.profitVsClient >= 0
+              ? `El cliente paga $${c.profitVsClient.toFixed(2)} MAS de lo calculado.`
+              : `El cliente paga $${Math.abs(c.profitVsClient).toFixed(2)} MENOS de lo calculado. Revisar margenes.`}
+        </div>
+      </div>` : `<div class="alert alert-warn">Ingresa el precio acordado con el cliente en Pricing para ver la comparación.</div>`}
+
+    <div class="card">
+      <div class="card-title">📊 Desglose completo</div>
+      ${(() => {
+            // Cascade coverage: distribute clientPrice down the chain
+            // Order: totalCost → overhead → contingency → markup
+            // Each layer gets what's left, capped at ideal, min 0
+            const idealItems = [
+              { label: 'Costo directo', ideal: c.totalCost, isTotal: true },
+              { label: 'Overhead (' + p.pricing.overhead + '%)', ideal: c.overhead },
+              { label: 'Imprevisto (' + p.pricing.contingency + '%)', ideal: c.contingency },
+              { label: 'Markup (' + p.pricing.markup + '%) - Margen ideal ' + c.margin.toFixed(1) + '%', ideal: c.markup },
+            ];
+            let remaining = c.clientPrice > 0 ? c.clientPrice : c.total;
+            const realItems = idealItems.map(item => {
+              const real = Math.min(Math.max(remaining, 0), item.ideal);
+              remaining -= real;
+              const pct = item.ideal > 0 ? (real / item.ideal * 100) : 100;
+              return { ...item, real, pct };
+            });
+            const showComparison = c.clientPrice > 0 && c.profitVsClient < 0;
+
+            // % objective per item (overhead/contingency/markup are % of totalCost; costo directo is 100% of itself)
+            const pctTargets = [100, p.pricing.overhead, p.pricing.contingency, p.pricing.markup];
+
+            const rows = showComparison ? realItems.map((item, i) => {
+              const ok = item.real >= item.ideal - 0.01;
+              const color = ok ? 'var(--accent)' : item.real > 0 ? 'var(--warn)' : 'var(--danger)';
+              const badge = ok
+                ? '<span class="badge badge-green">100%</span>'
+                : '<span class="badge badge-red">' + item.pct.toFixed(0) + '%</span>';
+              const bar = '<div class="progress-wrap" style="margin-top:4px;"><div class="progress-bar '
+                + (ok ? 'green' : 'red') + '" style="width:' + Math.min(item.pct, 100).toFixed(1) + '%;"></div></div>';
+              // % real = real $ as % of totalCost (same base as objective %)
+              const pctReal = item.isTotal ? null : (c.totalCost > 0 ? (item.real / c.totalCost * 100) : 0);
+              const pctObj = pctTargets[i];
+              const pctRealStr = item.isTotal ? '—'
+                : '<span style="color:' + color + ';font-weight:700;">' + pctReal.toFixed(1) + '%</span>'
+                + (ok ? '' : '<br><span style="font-size:10px;color:var(--text3);">obj: ' + pctObj + '%</span>');
+              const pctObjStr = item.isTotal ? '—' : pctObj + '%';
+              return '<tr' + (item.isTotal ? ' class="total-row"' : '') + '>'
+                + '<td>' + (item.isTotal ? '<strong>' + item.label + '</strong>' : item.label) + '</td>'
+                + '<td class="num" style="color:var(--text2);">' + pctObjStr + '</td>'
+                + '<td class="num">$' + item.ideal.toFixed(2) + '</td>'
+                + '<td class="num" style="color:' + color + ';font-weight:600;">$' + item.real.toFixed(2)
+                + (item.real < item.ideal ? '<br><span style="font-size:10px;color:var(--text3);">falta $' + (item.ideal - item.real).toFixed(2) + '</span>' : '') + '</td>'
+                + '<td class="num">' + pctRealStr + '</td>'
+                + '<td class="num">' + badge + bar + '</td>'
+                + '</tr>';
+            }).join('') : realItems.map((item, i) => {
+              const pctObj = pctTargets[i];
+              const pctReal = item.isTotal ? null : (c.totalCost > 0 ? (item.real / c.totalCost * 100) : 0);
+              const pctObjStr = item.isTotal ? '—' : pctObj + '%';
+              const pctRealStr = item.isTotal ? '—'
+                : '<span style="color:var(--accent);font-weight:700;">' + pctReal.toFixed(1) + '%</span>';
+              return '<tr' + (item.isTotal ? ' class="total-row"' : '') + '>'
+                + '<td>' + (item.isTotal ? '<strong>' + item.label + '</strong>' : item.label) + '</td>'
+                + '<td class="num" style="color:var(--text2);">' + pctObjStr + '</td>'
+                + '<td class="num">$' + item.ideal.toFixed(2) + '</td>'
+                + '<td class="num" style="color:var(--accent);">$' + item.ideal.toFixed(2) + '</td>'
+                + '<td class="num">' + pctRealStr + '</td>'
+                + '<td class="num"><span class="badge badge-green">100%</span></td>'
+                + '</tr>';
+            }).join('');
+
+            const extraRows = '<tr><td>Mano de obra</td><td class="num">$' + c.labour.toFixed(2) + '</td><td class="num">—</td><td></td></tr>'
+              + '<tr><td>Materiales & costos directos</td><td class="num">$' + c.materials.toFixed(2) + '</td><td class="num">—</td><td></td></tr>';
+
+            const header = showComparison
+              ? '<thead><tr><th>Concepto</th><th class="num">% Obj.</th><th class="num">Ideal</th><th class="num">Real $</th><th class="num">% Real</th><th class="num">Cobertura</th></tr></thead>'
+              : '<thead><tr><th>Concepto</th><th class="num">% Obj.</th><th class="num">Ideal</th><th class="num">Real $</th><th class="num">% Real</th><th class="num">Cobertura</th></tr></thead>';
+
+            return '<table class="data-table"><tbody>'
+              + '<tr><td>Mano de obra</td><td colspan="3" class="num">$' + c.labour.toFixed(2) + '</td></tr>'
+              + '<tr><td>Materiales & costos directos</td><td colspan="3" class="num">$' + c.materials.toFixed(2) + '</td></tr>'
+              + '</tbody></table>'
+              + '<table class="data-table" style="margin-top:12px;">' + header + '<tbody>'
+              + rows
+              + '<tr class="total-row"><td><strong>PRECIO TOTAL SUGERIDO</strong></td>'
+              + '<td class="num">—</td>'
+              + '<td class="num"><strong>$' + c.total.toFixed(2) + '</strong></td>'
+              + '<td class="num" style="color:' + (c.clientPrice > 0 ? (c.profitVsClient >= 0 ? 'var(--accent)' : 'var(--danger)') : 'var(--accent)') + ';font-size:15px;font-weight:800;">'
+              + '$' + (c.clientPrice > 0 ? c.clientPrice.toFixed(2) : c.total.toFixed(2)) + '</td>'
+              + '<td class="num">—</td>'
+              + '<td></td></tr>'
+              + '</tbody></table>';
+          })()}
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Info del proyecto</div>
+      <table class="data-table"><tbody>
+        <tr><td>Cliente</td><td>${p.client || '—'}</td></tr>
+        <tr><td>Inicio</td><td style="font-family:'DM Mono',monospace;">${p.start || '—'}</td></tr>
+        <tr><td>Fin estimado</td><td style="font-family:'DM Mono',monospace;">${p.end || '—'}</td></tr>
+        <tr><td>Días trabajados</td><td>${days}</td></tr>
+        <tr><td>Equipo</td><td>${persons.join(', ') || '—'}</td></tr>
+        <tr><td>Horas productivas totales</td><td style="font-family:'DM Mono',monospace;">${totalProdH.toFixed(2)}h</td></tr>
+      </tbody></table>
+    </div>
+
+    ${personRows.length ? `
+    <div class="card">
+      <div class="card-title">👷 Pago por persona</div>
+      <table class="data-table">
+        <thead><tr><th>Persona</th><th class="num">Tarifa/h</th><th class="num">Horas productivas</th><th class="num">Total a pagar</th></tr></thead>
+        <tbody>
+          ${personRows.map(([name, d]) => `
+            <tr>
+              <td><span class="person-tag">👷 ${name}</span></td>
+              <td class="num" style="font-family:'DM Mono',monospace;">$${(d.rate || 0).toFixed(0)}/h</td>
+              <td class="num"><strong>${minsToHHMM(Math.round(d.productiveH * 60))}</strong>
+                <span style="color:var(--text3);margin-left:4px;">(${d.productiveH.toFixed(2)}h)</span></td>
+              <td class="num" style="color:var(--accent);font-weight:700;">$${d.pay.toFixed(2)}</td>
+            </tr>`).join('')}
+          <tr class="total-row">
+            <td colspan="2"><strong>TOTAL MANO DE OBRA</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totalPersonH * 60))}</strong>
+              <span style="color:var(--text3);margin-left:4px;">(${totalPersonH.toFixed(2)}h)</span></td>
+            <td class="num" style="color:var(--accent);font-size:15px;"><strong>$${totalPersonPay.toFixed(2)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>` : ''}
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-export" onclick="exportCSV()">↓ Exportar CSV</button>
+      <button class="btn btn-primary" onclick="exportPDF()" style="background:var(--accent);">↓ Exportar PDF</button>
+      <button class="btn btn-ghost" onclick="exportJSON()">↓ Backup JSON</button>
+    </div>`;
+      }
+
+      // ═══════════════════════════════════════════
+      // ALL PROJECTS
+      // ═══════════════════════════════════════════
+      function openEditProjectModal(id) {
+        const p = state.projects[id];
+        if (!p) return;
+        document.getElementById('ep_id').value = id;
+        document.getElementById('ep_name').value = p.name;
+        document.getElementById('ep_client').value = p.client || '';
+        document.getElementById('editProjectModal').classList.add('open');
+      }
+
+      function saveProjectEdit() {
+        const id = document.getElementById('ep_id').value;
+        const name = document.getElementById('ep_name').value.trim();
+        const client = document.getElementById('ep_client').value.trim();
+        if (!name) { alert('El nombre no puede estar vacío.'); return; }
+        const p = state.projects[id];
+        if (!p) return;
+        p.name = name;
+        p.client = client;
+        saveProject(id);
+        // Update header if this is the current project
+        if (state.currentId === id) {
+          document.getElementById('projectTitle').textContent = name;
+          document.getElementById('projectMeta').textContent = (client || '—') + ' · ' + (p.start || '—');
+          document.getElementById('summaryMeta').textContent = (client || '—') + ' · ' + (p.start || '—');
+          document.getElementById('projectSelect').value = id;
+        }
+        closeModal('editProjectModal');
+        renderProjectSelect();
+        renderAllProjects();
+        showSyncBanner('✅ Proyecto actualizado', 'success');
+      }
+
+      function renderAllProjects() {
+        const container = document.getElementById('allProjectsList');
+        const projects = Object.entries(state.projects);
+        if (!projects.length) {
+          container.innerHTML = '<div class="empty-state"><div class="icon">📁</div><p>Sin proyectos aún.</p></div>';
+          return;
+        }
+        container.innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Proyecto</th><th>Cliente</th><th>Inicio</th>
+        <th class="num">Labour</th><th class="num">Materiales</th>
+        <th class="num">Total sugerido</th><th class="num">Precio cliente</th>
+        <th class="num">Diferencia</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${projects.map(([id, p]) => {
+          const c = calcPricing(p);
+          return `<tr>
+            <td><strong>${p.name}</strong></td>
+            <td style="color:var(--text2);">${p.client || '—'}</td>
+            <td style="font-family:'DM Mono',monospace;font-size:11px;">${p.start || '—'}</td>
+            <td class="num">$${c.labour.toFixed(0)}</td>
+            <td class="num">$${c.materials.toFixed(0)}</td>
+            <td class="num" style="color:var(--accent);">$${c.total.toFixed(0)}</td>
+            <td class="num">${c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—'}</td>
+            <td class="num">${c.clientPrice > 0
+              ? `<span class="badge ${c.profitVsClient >= 0 || Math.abs(c.profitVsClient) < 0.5 ? 'badge-green' : 'badge-red'}">${c.profitVsClient > 0 ? '+' : ''}$${Math.round(Math.abs(c.profitVsClient)) === 0 ? '0' : (c.profitVsClient < 0 ? '-' : '') + Math.abs(c.profitVsClient).toFixed(0)}</span>`
+              : '—'}</td>
+            <td style="display:flex;gap:6px;align-items:center;">
+              <button class="btn btn-ghost btn-sm" onclick="loadProject('${id}');showSection('summary')">Ver</button>
+              <button class="btn btn-ghost btn-sm" onclick="openEditProjectModal('${id}')" title="Editar nombre y cliente"
+                style="padding:5px 8px;">✏️</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+      }
+
+      // ═══════════════════════════════════════════
+      // EXPORT
+      // ═══════════════════════════════════════════
+      function exportCSV() {
+        const p = currentProject();
+        if (!p) { alert('Selecciona un proyecto.'); return; }
+        const c = calcPricing(p);
+        let csv = `TASKPRO - ${p.name}\n`;
+        csv += `Cliente,${p.client}\nInicio,${p.start}\n\n`;
+        csv += `TIME LOG\nFecha,Persona,Entrada,Salida,Break (h),Admin (h),Prod (h),Tarifa,Subtotal\n`;
+        p.timelog.forEach(e => {
+          csv += `${e.date},${e.personName},${e.start},${e.end},${(parseFloat(e.breakH) || 0).toFixed(2)},${(parseFloat(e.adminH) || 0).toFixed(2)},${(e.productiveH || 0).toFixed(2)},${e.rate},${(e.pay || 0).toFixed(2)}\n`;
+        });
+        csv += `\nMATERIALES Y COSTOS\nDescripcion,Categoria,Monto\n`;
+        p.materials.forEach(m => { csv += `${m.desc},${m.cat},${(parseFloat(m.amount) || 0).toFixed(2)}\n`; });
+        csv += `\nRESUMEN FINANCIERO\n`;
+        csv += `Mano de obra,$${c.labour.toFixed(2)}\nMateriales,$${c.materials.toFixed(2)}\n`;
+        csv += `Costo directo,$${c.totalCost.toFixed(2)}\nOverhead (${p.pricing.overhead}%),$${c.overhead.toFixed(2)}\n`;
+        csv += `Imprevisto (${p.pricing.contingency}%),$${c.contingency.toFixed(2)}\nMarkup (${p.pricing.markup}%),$${c.markup.toFixed(2)}\n`;
+        csv += `TOTAL SUGERIDO,$${c.total.toFixed(2)}\nPrecio cliente,$${c.clientPrice.toFixed(2)}\nDiferencia,$${c.profitVsClient.toFixed(2)}\n`;
+        downloadFile(csv, `TaskPro_${p.name.replace(/\s+/g, '_')}.csv`, 'text/csv');
+      }
+
+      function exportJSON() {
+        downloadFile(JSON.stringify(state, null, 2), `TaskPro_Backup_${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+      }
+
+      function exportPDF() {
+        const p = currentProject();
+        if (!p) { alert('Selecciona un proyecto.'); return; }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const c = calcPricing(p);
+        const pageW = doc.internal.pageSize.getWidth();
+        const margin = 15;
+        let y = 20;
+        const GREEN = [184, 245, 90];
+        const DARK = [13, 15, 14];
+        const SURFACE = [28, 32, 27];
+        const TEXT = [232, 237, 230];
+        const TEXT2 = [138, 150, 136];
+
+        doc.setFillColor(...DARK);
+        doc.rect(0, 0, pageW, 30, 'F');
+        doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREEN);
+        doc.text('TaskPro', margin, 14);
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(...TEXT2);
+        doc.text('Project Control Report', margin + 28, 14);
+        doc.setFontSize(8);
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, pageW - margin, 14, { align: 'right' });
+
+        y = 42;
+        doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text(p.name, margin, y); y += 7;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 110, 100);
+        doc.text(`Cliente: ${p.client || '—'}   |   Inicio: ${p.start || '—'}   |   Fin estimado: ${p.end || '—'}`, margin, y);
+        y += 10;
+
+        function sectionTitle(title) {
+          y += 3;
+          doc.setFillColor(...GREEN);
+          doc.rect(margin, y, pageW - margin * 2, 7, 'F');
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+          doc.text(title.toUpperCase(), margin + 3, y + 5);
+          y += 10;
+        }
+
+        if (p.timelog.length) {
+          sectionTitle('Time Log');
+          let sorted = [...p.timelog].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        // Operador: only see own entries
+        if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
+          sorted = sorted.filter(e => e.personName === currentUser.linkedName);
+        }
+          doc.autoTable({
+            startY: y, margin: { left: margin, right: margin },
+            head: [['Fecha', 'Persona', 'Entrada', 'Salida', 'Break', 'Admin', 'Prod (h)', 'Tarifa', 'Subtotal']],
+            body: sorted.map(e => [
+              e.date, e.personName, e.start, e.end,
+              minsToHHMM(Math.round((parseFloat(e.breakH) || 0) * 60)),
+              minsToHHMM(Math.round((parseFloat(e.adminH) || 0) * 60)),
+              (e.productiveH || 0).toFixed(2) + 'h', '$' + (parseFloat(e.rate) || 0).toFixed(0),
+              '$' + (e.pay || 0).toFixed(2)
+            ]),
+            foot: [['', '', '', '', '', 'TOTAL',
+              sorted.reduce((s, e) => s + (e.productiveH || 0), 0).toFixed(2) + 'h', '',
+              '$' + sorted.reduce((s, e) => s + (e.pay || 0), 0).toFixed(2)]],
+            styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 35, 30] },
+            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
+            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 250, 242] },
+          });
+          y = doc.lastAutoTable.finalY + 8;
+        }
+
+        const personMap = {};
+        p.timelog.forEach(e => {
+          if (!personMap[e.personName]) personMap[e.personName] = { productiveH: 0, pay: 0, rate: e.rate };
+          personMap[e.personName].productiveH += e.productiveH || 0;
+          personMap[e.personName].pay += e.pay || 0;
+        });
+        const personRows = Object.entries(personMap);
+        if (personRows.length) {
+          if (y > 220) { doc.addPage(); y = 20; }
+          sectionTitle('Pago por persona');
+          const totalPH = personRows.reduce((s, [, d]) => s + d.productiveH, 0);
+          const totalPay = personRows.reduce((s, [, d]) => s + d.pay, 0);
+          doc.autoTable({
+            startY: y, margin: { left: margin, right: margin },
+            head: [['Persona', 'Tarifa/h', 'Horas productivas', 'Total a pagar']],
+            body: personRows.map(([name, d]) => [
+              name, '$' + (d.rate || 0).toFixed(0) + '/h',
+              minsToHHMM(Math.round(d.productiveH * 60)) + ' (' + d.productiveH.toFixed(2) + 'h)',
+              '$' + d.pay.toFixed(2)
+            ]),
+            foot: [['TOTAL MANO DE OBRA', '',
+              minsToHHMM(Math.round(totalPH * 60)) + ' (' + totalPH.toFixed(2) + 'h)',
+              '$' + totalPay.toFixed(2)]],
+            styles: { fontSize: 8, cellPadding: 2.5 },
+            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
+            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 250, 242] },
+            columnStyles: { 3: { halign: 'right' }, 2: { halign: 'right' }, 1: { halign: 'center' } }
+          });
+          y = doc.lastAutoTable.finalY + 8;
+        }
+
+        if (p.materials.length) {
+          if (y > 220) { doc.addPage(); y = 20; }
+          sectionTitle('Materiales & Costos directos');
+          doc.autoTable({
+            startY: y, margin: { left: margin, right: margin },
+            head: [['Descripcion', 'Categoria', 'Monto']],
+            body: p.materials.map(m => [m.desc, m.cat, '$' + (parseFloat(m.amount) || 0).toFixed(2)]),
+            foot: [['TOTAL MATERIALES', '', '$' + p.materials.reduce((s, m) => s + (parseFloat(m.amount) || 0), 0).toFixed(2)]],
+            styles: { fontSize: 8, cellPadding: 2.5 },
+            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
+            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 250, 242] },
+            columnStyles: { 2: { halign: 'right' } }
+          });
+          y = doc.lastAutoTable.finalY + 8;
+        }
+
+        if (y > 200) { doc.addPage(); y = 20; }
+        sectionTitle('Desglose financiero');
+        doc.autoTable({
+          startY: y, margin: { left: margin, right: margin },
+          body: [
+            ['Mano de obra', '$' + c.labour.toFixed(2)],
+            ['Materiales & costos directos', '$' + c.materials.toFixed(2)],
+            ['COSTO DIRECTO TOTAL', '$' + c.totalCost.toFixed(2)],
+            ['Overhead (' + p.pricing.overhead + '%)', '$' + c.overhead.toFixed(2)],
+            ['Imprevisto (' + p.pricing.contingency + '%)', '$' + c.contingency.toFixed(2)],
+            ['Markup (' + p.pricing.markup + '%) - Margen real ' + c.margin.toFixed(1) + '%', '$' + c.markup.toFixed(2)],
+            ['PRECIO TOTAL SUGERIDO', '$' + c.total.toFixed(2)],
+          ],
+          styles: { fontSize: 8.5, cellPadding: 3 },
+          columnStyles: { 0: { textColor: [50, 60, 50] }, 1: { halign: 'right' } },
+          didParseCell: function (data) {
+            if ([2, 6].includes(data.row.index)) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [220, 250, 180];
+              data.cell.styles.textColor = DARK;
+            }
+          },
+          alternateRowStyles: { fillColor: [245, 250, 242] },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+
+        if (c.clientPrice > 0) {
+          if (y > 230) { doc.addPage(); y = 20; }
+          sectionTitle('Comparacion vs precio cliente');
+          const diff = c.profitVsClient;
+          doc.autoTable({
+            startY: y, margin: { left: margin, right: margin },
+            body: [
+              ['Precio sugerido (calculado)', '$' + c.total.toFixed(2)],
+              ['Precio acordado con cliente', '$' + c.clientPrice.toFixed(2)],
+              [diff >= 0 ? 'Margen adicional' : 'Deficit vs calculado',
+              (diff >= 0 ? '+' : '') + '$' + diff.toFixed(2)],
+            ],
+            styles: { fontSize: 8.5, cellPadding: 3 },
+            columnStyles: { 1: { halign: 'right' } },
+            didParseCell: function (data) {
+              if (data.row.index === 2) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = diff >= 0 ? [220, 250, 180] : [255, 220, 220];
+                data.cell.styles.textColor = diff >= 0 ? [30, 80, 20] : [150, 20, 20];
+              }
+            },
+            alternateRowStyles: { fillColor: [245, 250, 242] },
+          });
+        }
+
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(7); doc.setTextColor(160, 170, 160);
+          doc.text(`TaskPro Project Control  |  Pagina ${i} de ${pageCount}  |  ${p.name}`,
+            pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+        }
+        doc.save(`TaskPro_${p.name.replace(/\s+/g, '_')}_Resumen.pdf`);
+      }
+
+      function downloadFile(content, filename, type) {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      // ═══════════════════════════════════════════
+      // TIEMPOS EQUIPO
+      // ═══════════════════════════════════════════
+
+      function populateEaPersonDropdown() {
+        const sel = document.getElementById('ea_person');
+        if (!sel) return;
+        db.ref('taskpro/equipoBase').get().then(snap => {
+          const members = snap.val() || {};
+          const entries = Object.entries(members);
+          sel.innerHTML = '<option value="">— Seleccionar —</option>';
+          entries.forEach(([id, m]) => {
+            sel.innerHTML += '<option value="' + m.name + '">' + m.name + '</option>';
+          });
+        });
+      }
+
+      function setTiemposThisMonth() {
+        const now = new Date();
+        const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+        const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+        document.getElementById('tf_from').value = `${y}-${m}-01`;
+        document.getElementById('tf_to').value = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+        renderTiempos();
+      }
+
+      function setTiemposAll() {
+        document.getElementById('tf_from').value = '';
+        document.getElementById('tf_to').value = '';
+        renderTiempos();
+      }
+
+      function inRange(dateStr, from, to) {
+        if (!dateStr) return false;
+        if (from && dateStr < from) return false;
+        if (to && dateStr > to) return false;
+        return true;
+      }
+
+      function renderTiempos() {
+        const from = document.getElementById('tf_from').value;
+        const to = document.getElementById('tf_to').value;
+
+        // ── Collect all entries from all projects ──
+        const allEntries = [];
+        Object.values(state.projects).forEach(p => {
+          toArr(p.timelog).forEach(e => {
+            if (!inRange(e.date, from, to)) return;
+            const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
+            const breakH = parseFloat(e.breakH) || 0;
+            const adminH = parseFloat(e.adminH) || 0;
+            const prodH = Math.max(0, totalH - breakH - adminH);
+            allEntries.push({
+              date: e.date, person: e.personName,
+              prodH, breakH, adminH,
+              project: p.name
+            });
+          });
+        });
+
+        // ── External admin entries in range ──
+        const extInRange = toArr(state.externalAdmin).filter(e => inRange(e.date, from, to));
+
+        // ── Build per-person summary ──
+        const TEAM = ['Santiago', 'Carlos', 'Paula'];
+        const personData = {};
+        TEAM.forEach(name => { personData[name] = { prodH: 0, breakH: 0, adminH: 0, extAdminH: 0 }; });
+
+        allEntries.forEach(e => {
+          if (!personData[e.person]) personData[e.person] = { prodH: 0, breakH: 0, adminH: 0, extAdminH: 0 };
+          personData[e.person].prodH += e.prodH;
+          personData[e.person].breakH += e.breakH;
+          personData[e.person].adminH += e.adminH;
+        });
+        extInRange.forEach(e => {
+          if (!personData[e.person]) personData[e.person] = { prodH: 0, breakH: 0, adminH: 0, extAdminH: 0 };
+          personData[e.person].extAdminH += timeToMins(e.timeHHMM || '00:00') / 60;
+        });
+
+        // ── Render summary table ──
+        const resumen = document.getElementById('tiemposResumen');
+        const rows = Object.entries(personData).filter(([, d]) => d.prodH + d.breakH + d.adminH + d.extAdminH > 0);
+        if (!rows.length) {
+          resumen.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin datos en este rango.</p></div>';
+        } else {
+          const totProd = rows.reduce((s, [, d]) => s + d.prodH, 0);
+          const totBreak = rows.reduce((s, [, d]) => s + d.breakH, 0);
+          const totAdmin = rows.reduce((s, [, d]) => s + d.adminH, 0);
+          const totExt = rows.reduce((s, [, d]) => s + d.extAdminH, 0);
+          resumen.innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th>Persona</th>
+          <th class="num">Productivo</th>
+          <th class="num">Break</th>
+          <th class="num">Admin (proyectos)</th>
+          <th class="num">Admin (externo)</th>
+          <th class="num">Admin total</th>
+          <th class="num">Total general</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(([name, d]) => {
+            const adminTotal = d.adminH + d.extAdminH;
+            const total = d.prodH + d.breakH + adminTotal;
+            return `<tr>
+              <td><span class="person-tag">👷 ${name}</span></td>
+              <td class="num" style="color:var(--accent);"><strong>${minsToHHMM(Math.round(d.prodH * 60))}</strong></td>
+              <td class="num">${minsToHHMM(Math.round(d.breakH * 60))}</td>
+              <td class="num">${minsToHHMM(Math.round(d.adminH * 60))}</td>
+              <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.extAdminH * 60))}</td>
+              <td class="num"><strong>${minsToHHMM(Math.round(adminTotal * 60))}</strong></td>
+              <td class="num"><strong>${minsToHHMM(Math.round(total * 60))}</strong></td>
+            </tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totProd * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totBreak * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totAdmin * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totExt * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round((totAdmin + totExt) * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round((totProd + totBreak + totAdmin + totExt) * 60))}</strong></td>
+          </tr>
+        </tbody>
+      </table>`;
+        }
+
+        renderExternalAdminTable(from, to);
+      }
+
+      // ─── External Admin ───
+      function addExternalAdmin() {
+        const date = document.getElementById('ea_date').value;
+        const desc = document.getElementById('ea_desc').value.trim().slice(0, 50);
+        const time = document.getElementById('ea_time').value || '00:00';
+        const person = document.getElementById('ea_person').value;
+
+        if (!date || !desc || time === '00:00') {
+          alert('Completa fecha, descripción y tiempo.');
+          return;
+        }
+        const entry = { id: 'ea_' + Date.now(), date, person, desc, timeHHMM: time };
+        state.externalAdmin.push(entry);
+        db.ref('taskpro/externalAdmin').set(state.externalAdmin)
+          .then(() => showSyncDot(true))
+          .catch(err => console.error('externalAdmin save error:', err));
+
+        document.getElementById('ea_desc').value = '';
+        document.getElementById('ea_time').value = '00:00';
+        renderTiempos();
+      }
+
+      function removeExternalAdmin(eid) {
+        if (!canDo('canDelete')) { showSyncBanner('Sin permiso para eliminar.', 'warn'); return; }
+        if (!confirm('¿Eliminar este registro de admin externo?')) return;
+        state.externalAdmin = state.externalAdmin.filter(e => e.id !== eid);
+        db.ref('taskpro/externalAdmin').set(state.externalAdmin).catch(console.error);
+        renderTiempos();
+      }
+
+      function renderExternalAdminTable(from, to) {
+        const container = document.getElementById('externalAdminTable');
+        const entries = toArr(state.externalAdmin)
+          .filter(e => inRange(e.date, from, to))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        if (!entries.length) {
+          container.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin registros de admin externo en este rango.</p></div>';
+          return;
+        }
+        container.innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Fecha</th><th>Persona</th><th>Descripción</th><th class="num">Tiempo</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${entries.map(e => `
+          <tr>
+            <td style="font-family:'DM Mono',monospace;">${e.date}</td>
+            <td><span class="person-tag">👷 ${e.person}</span></td>
+            <td style="color:var(--text2);">${e.desc}</td>
+            <td class="num" style="color:var(--warn);font-weight:700;">${e.timeHHMM}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="removeExternalAdmin('${e.id}')">✕</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+      }
+
+      // ═══════════════════════════════════════════
+      // PAGO PERSONAL
+      // ═══════════════════════════════════════════
+
+      function setPagosThisMonth() {
+        const now = new Date();
+        const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+        const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+        document.getElementById('pp_from').value = `${y}-${m}-01`;
+        document.getElementById('pp_to').value = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+        renderPagos();
+      }
+
+      function setPagosAll() {
+        document.getElementById('pp_from').value = '';
+        document.getElementById('pp_to').value = '';
+        renderPagos();
+      }
+
+      // Get per-person break % from UI input (temporary, not saved)
+      function getPersonBreakPct(personName) {
+        const el = document.getElementById('bp_' + personName.replace(/\s+/g, '_'));
+        return el ? (parseFloat(el.value) || 0) : 0;
+      }
+
+      // Build pay data per person across all projects in range
+      // ─── Company break rule ───
+      // For every 4h of (prod+admin) → 15 min break paid by TaskPro
+      // Paid = min(what_corresponds, what_was_actually_taken)
+      function calcCompanyBreak(prodH, adminH, actualBreakH) {
+        const workedH = prodH + adminH;
+        const correspondsH = Math.floor(workedH / 4) * (15 / 60);
+        return Math.min(correspondsH, actualBreakH);
+      }
+
+      // Pay = (prodH + adminH + companyBreakH) * rate
+      function buildPayData(from, to) {
+        const data = {};
+
+        Object.values(state.projects).forEach(p => {
+          toArr(p.timelog).forEach(e => {
+            if (!inRange(e.date, from, to)) return;
+            const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
+            const breakH = parseFloat(e.breakH) || 0;
+            const adminH = parseFloat(e.adminH) || 0;
+            const prodH = Math.max(0, totalH - breakH - adminH);
+            const rate = parseFloat(e.rate) || 0;
+            const name = e.personName;
+
+            const companyBreakH = calcCompanyBreak(prodH, adminH, breakH);
+            const breakUnpaidH  = Math.max(0, breakH - companyBreakH);
+
+            if (!data[name]) data[name] = { entries: [], prodH: 0, breakH: 0, adminH: 0, breakPaid: 0, companyBreakH: 0, pay: 0 };
+            data[name].entries.push({
+              project: p.name, date: e.date,
+              rate, prodH, breakH, adminH,
+              companyBreakH, breakUnpaidH,
+              pay: 0  // recalculated in recalcPayData
+            });
+            data[name].prodH       += prodH;
+            data[name].breakH      += breakH;
+            data[name].adminH      += adminH;
+            data[name].companyBreakH += companyBreakH;
+          });
+        });
+
+        // Sort entries per person by date
+        Object.values(data).forEach(d => {
+          d.entries.sort((a, b) => a.date.localeCompare(b.date));
+        });
+        return data;
+      }
+
+      // Recalculate pay using company break rule
+      // Pay per entry = (prodH + adminH + companyBreakH) * rate
+      function recalcPayData(data) {
+        Object.entries(data).forEach(([name, d]) => {
+          d.breakPaid = d.companyBreakH || 0;
+          d.pay = 0;
+          d.entries.forEach(e => {
+            e.pay = (e.prodH + e.adminH + (e.companyBreakH || 0)) * e.rate;
+            d.pay += e.pay;
+          });
+        });
+        return data;
+      }
+
+      function renderPagos() {
+        const from = document.getElementById('pp_from').value;
+        const to = document.getElementById('pp_to').value;
+        const data = buildPayData(from, to);
+        const persons = Object.keys(data).sort();
+
+        const resumen = document.getElementById('pagosResumen');
+        const btns = document.getElementById('pagosPersonBtns');
+
+        if (!persons.length) {
+          resumen.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin datos en este rango.</p></div>';
+          btns.innerHTML = '';
+          document.getElementById('pagosDetalle').innerHTML = '';
+          return;
+        }
+
+        // ── Render resumen with per-person break % inputs ──
+        // We render the table with inputs first, then recalc on change
+        resumen.innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Persona</th>
+        <th class="num">Prod.</th>
+        <th class="num">Admin</th>
+        <th class="num">Break total</th>
+        <th class="num" style="white-space:nowrap;">Break empresa</th>
+        <th class="num" style="white-space:nowrap;">Break no pagado</th>
+        <th class="num">Total a pagar</th>
+      </tr></thead>
+      <tbody id="pagosResumenBody"></tbody>
+    </table>`;
+
+        // Render person buttons
+        btns.innerHTML = persons.map(name =>
+          `<button class="btn btn-ghost btn-sm" onclick="renderPagoDetalle('${name}')"
+      id="btn_pago_${name.replace(/\s+/g, '_')}">👷 ${name}</button>`
+        ).join('');
+
+        // Populate rows with inputs and initial calc
+        updatePagosResumen(data, persons);
+
+        // Auto-show first person
+        renderPagoDetalle(persons[0], data);
+      }
+
+      function updatePagosResumen(data, persons) {
+        recalcPayData(data);
+        const totProd = persons.reduce((s, n) => s + data[n].prodH, 0);
+        const totAdmin = persons.reduce((s, n) => s + data[n].adminH, 0);
+        const totBreak = persons.reduce((s, n) => s + data[n].breakH, 0);
+        const totBreakPaid = persons.reduce((s, n) => s + data[n].breakPaid, 0);
+        const totPay = persons.reduce((s, n) => s + data[n].pay, 0);
+
+        const tbody = document.getElementById('pagosResumenBody');
+        if (!tbody) return;
+        tbody.innerHTML = persons.map(name => {
+          const d = data[name];
+          const safeId = name.replace(/\s+/g, '_');
+          return `<tr>
+      <td><span class="person-tag" style="cursor:pointer;border-color:var(--accent);"
+        onclick="renderPagoDetalle('${name}')">👷 ${name}</span></td>
+      <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round(d.prodH * 60))}</td>
+      <td class="num">${minsToHHMM(Math.round(d.adminH * 60))}</td>
+      <td class="num">${minsToHHMM(Math.round(d.breakH * 60))}</td>
+      <td class="num" style="color:var(--accent);" id="bpaid_${safeId}" title="Break pagado por TaskPro (min entre lo que corresponde y lo tomado)">
+        ${minsToHHMM(Math.round((d.companyBreakH || 0) * 60))}
+        <div style="font-size:9px;color:var(--text2);margin-top:2px;">
+          ${Math.floor((d.prodH + d.adminH) / 4)} x 15min
+        </div>
+      </td>
+      <td class="num" style="color:var(--text3);" title="Break tomado pero no pagado por la empresa">
+        ${minsToHHMM(Math.round(Math.max(0, d.breakH - (d.companyBreakH || 0)) * 60))}
+      </td>
+      <td class="num" style="color:var(--accent);font-weight:700;font-size:13px;" id="pay_${safeId}">
+        $${d.pay.toFixed(2)}</td>
+    </tr>`;
+        }).join('') + `
+    <tr class="total-row">
+      <td><strong>TOTAL</strong></td>
+      <td class="num"><strong>${minsToHHMM(Math.round(totProd * 60))}</strong></td>
+      <td class="num"><strong>${minsToHHMM(Math.round(totAdmin * 60))}</strong></td>
+      <td class="num"><strong>${minsToHHMM(Math.round(totBreak * 60))}</strong></td>
+      <td class="num" id="tot_breakpaid"><strong>${minsToHHMM(Math.round(totBreakPaid * 60))}</strong></td>
+      <td class="num"><strong>—</strong></td>
+      <td class="num" style="color:var(--accent);font-size:15px;" id="tot_pay">
+        <strong>$${totPay.toFixed(2)}</strong></td>
+    </tr>`;
+      }
+
+      // No longer used — break is auto-calculated by company rule
+      function onBreakPctChange() { /* replaced by calcCompanyBreak rule */ }
+
+      function renderPagoDetalle(personName, prebuiltData) {
+        const from = document.getElementById('pp_from').value;
+        const to = document.getElementById('pp_to').value;
+        const breakPct = getPersonBreakPct(personName);
+        const data = prebuiltData || buildPayData(from, to);
+        recalcPayData(data);
+        const d = data[personName];
+
+        // Highlight active button
+        document.querySelectorAll('[id^="btn_pago_"]').forEach(b => {
+          b.classList.remove('btn-primary');
+          b.style.background = '';
+          b.style.color = '';
+        });
+        const activeBtn = document.getElementById('btn_pago_' + personName.replace(/\s/g, '_'));
+        if (activeBtn) { activeBtn.style.background = 'var(--accent)'; activeBtn.style.color = '#0d0f0e'; }
+
+        if (!d || !d.entries.length) {
+          document.getElementById('pagosDetalle').innerHTML =
+            `<div class="empty-state" style="padding:24px;"><p>Sin jornadas para ${personName} en este rango.</p></div>`;
+          return;
+        }
+
+        document.getElementById('pagosDetalle').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div>
+        <span style="font-size:16px;font-weight:800;">👷 ${personName}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);margin-left:10px;">
+          ${from || 'inicio'} &rarr; ${to || 'hoy'} &nbsp;|&nbsp; Break empresa: 15min por cada 4h trabajadas
+        </span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="exportPagoPDF('${personName}')">↓ PDF</button>
+    </div>
+    <table class="data-table">
+      <thead><tr>
+        <th>Fecha</th><th>Proyecto</th>
+        <th class="num">Rate/h</th>
+        <th class="num">Prod (h)</th>
+        <th class="num">Break total</th>
+        <th class="num">Break empresa</th>
+        <th class="num">Break no pagado</th>
+        <th class="num">Admin</th>
+        <th class="num">Total</th>
+      </tr></thead>
+      <tbody>
+        ${d.entries.map(e => `
+          <tr>
+            <td style="font-family:'DM Mono',monospace;">${e.date}</td>
+            <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text2);">${e.project}</td>
+            <td class="num">$${e.rate.toFixed(0)}</td>
+            <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round(e.prodH * 60))}</td>
+            <td class="num">${minsToHHMM(Math.round(e.breakH * 60))}</td>
+            <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round((e.companyBreakH || 0) * 60))}</td>
+            <td class="num" style="color:var(--text3);">${minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60))}</td>
+            <td class="num">${minsToHHMM(Math.round(e.adminH * 60))}</td>
+            <td class="num" style="font-weight:700;">$${e.pay.toFixed(2)}</td>
+          </tr>`).join('')}
+        <tr class="total-row">
+          <td colspan="3"><strong>TOTAL ${personName.toUpperCase()}</strong></td>
+          <td class="num"><strong>${minsToHHMM(Math.round(d.prodH * 60))}</strong></td>
+          <td class="num"><strong>${minsToHHMM(Math.round(d.breakH * 60))}</strong></td>
+          <td class="num" style="color:var(--accent);"><strong>${minsToHHMM(Math.round((d.companyBreakH || 0) * 60))}</strong></td>
+          <td class="num" style="color:var(--text3);"><strong>${minsToHHMM(Math.round(Math.max(0, d.breakH - (d.companyBreakH || 0)) * 60))}</strong></td>
+          <td class="num"><strong>${minsToHHMM(Math.round(d.adminH * 60))}</strong></td>
+          <td class="num" style="color:var(--accent);font-size:15px;"><strong>$${d.pay.toFixed(2)}</strong></td>
+        </tr>
+      </tbody>
+    </table>`;
+      }
+
+      function exportPagoPDF(personName) {
+        const from = document.getElementById('pp_from').value;
+        const to = document.getElementById('pp_to').value;
+        const breakPct = getPersonBreakPct(personName);
+        const data = buildPayData(from, to);
+        recalcPayData(data);
+        const d = data[personName];
+        if (!d) return;
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const margin = 15;
+        const GREEN = [184, 245, 90];
+        const DARK = [13, 15, 14];
+        const SURFACE = [28, 32, 27];
+        const TEXT = [232, 237, 230];
+        const TEXT2 = [138, 150, 136];
+
+        // Header
+        doc.setFillColor(...DARK);
+        doc.rect(0, 0, pageW, 30, 'F');
+        doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREEN);
+        doc.text('TaskPro', margin, 14);
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(...TEXT2);
+        doc.text('Reporte de Pago Personal', margin + 28, 14);
+        doc.setFontSize(8);
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-CO')}`, pageW - margin, 14, { align: 'right' });
+
+        // Person info
+        let y = 42;
+        doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text(personName, margin, y); y += 7;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 110, 100);
+        doc.text('Periodo: ' + (from || 'inicio') + ' - ' + (to || 'hoy') + '   |   Regla break empresa: 15min por cada 4h trabajadas', margin, y);
+        y += 12;
+
+        // Summary box
+        doc.setFillColor(...GREEN);
+        doc.rect(margin, y, pageW - margin * 2, 14, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text('TOTAL A PAGAR', margin + 4, y + 6);
+        doc.setFontSize(14);
+        doc.text('$' + d.pay.toFixed(2), pageW - margin - 4, y + 9, { align: 'right' });
+        y += 20;
+
+        // Detail table
+        doc.setFillColor(...GREEN);
+        doc.rect(margin, y, pageW - margin * 2, 7, 'F');
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text('DETALLE DE JORNADAS', margin + 3, y + 5);
+        y += 10;
+
+        doc.autoTable({
+          startY: y, margin: { left: margin, right: margin },
+          head: [['Fecha', 'Proyecto', 'Rate/h', 'Prod (h)', 'Break total', 'Break empresa', 'No pagado', 'Admin', 'Total']],
+          body: d.entries.map(e => [
+            e.date,
+            e.project,
+            '$' + e.rate.toFixed(0) + '/h',
+            minsToHHMM(Math.round(e.prodH * 60)),
+            minsToHHMM(Math.round(e.breakH * 60)),
+            minsToHHMM(Math.round((e.companyBreakH || 0) * 60)),
+            minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60)),
+            minsToHHMM(Math.round(e.adminH * 60)),
+            '$' + e.pay.toFixed(2)
+          ]),
+          foot: [['', 'TOTAL', '',
+            minsToHHMM(Math.round(d.prodH * 60)),
+            minsToHHMM(Math.round(d.breakH * 60)),
+            minsToHHMM(Math.round((d.companyBreakH || 0) * 60)),
+            minsToHHMM(Math.round(Math.max(0, d.breakH - (d.companyBreakH || 0)) * 60)),
+            minsToHHMM(Math.round(d.adminH * 60)),
+            '$' + d.pay.toFixed(2)
+          ]],
+          styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 35, 30], overflow: 'linebreak' },
+          headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
+          footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [245, 250, 242] },
+          columnStyles: { 1: { cellWidth: 50 }, 8: { halign: 'right', fontStyle: 'bold' }, 2: { halign: 'center' } }
+        });
+
+        // Footer
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(7); doc.setTextColor(160, 170, 160);
+          doc.text(
+            'TaskPro  |  Pago Personal - ' + personName + '  |  Pagina ' + i + ' de ' + pageCount,
+            pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' }
+          );
+        }
+        doc.save(`TaskPro_Pago_${personName.replace(/\s+/g, '_')}_${from || 'all'}_${to || 'all'}.pdf`);
+      }
+
+      // ═══════════════════════════════════════════
+      // QUOTE
+      // ═══════════════════════════════════════════
+
+      // Quote state — lives in memory only, not saved to Firebase
+      let quoteLabour = [];  // [{id, role, rate, hours}]
+      let quoteMaterials = []; // [{id, desc, amount}]
+
+      function initQuote() {
+        quoteLabour = [];
+        quoteMaterials = [];
+        document.getElementById('qt_labour_rows').innerHTML = '';
+        document.getElementById('qt_material_rows').innerHTML = '';
+        addLabourRow();
+        addMaterialRow();
+        calcQuote();
+      }
+
+      function addLabourRow() {
+        const id = 'ql_' + Date.now();
+        const obj = { id, role: '', rate: 0, hours: 0 };
+        quoteLabour.push(obj);
+        renderLabourRows();
+      }
+
+      function removeLabourRow(id) {
+        quoteLabour = quoteLabour.filter(r => r.id !== id);
+        renderLabourRows();
+        calcQuote();
+      }
+
+      function renderLabourRows() {
+        const container = document.getElementById('qt_labour_rows');
+        container.innerHTML = quoteLabour.map(r => `
+    <div style="display:grid;grid-template-columns:1fr 110px 110px 36px;gap:8px;align-items:center;margin-bottom:8px;">
+      <input type="text" placeholder="Rol / Persona (ej: Cabinetry, Painter...)"
+        value="${r.role}" oninput="updateLabourRow('${r.id}','role',this.value)" style="font-size:12px;">
+      <div style="position:relative;">
+        <span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:11px;">$</span>
+        <input type="number" placeholder="Rate/h" value="${r.rate || ''}" min="0" step="0.5"
+          oninput="updateLabourRow('${r.id}','rate',this.value)"
+          style="padding-left:20px;font-size:12px;">
+      </div>
+      <div style="position:relative;">
+        <input type="number" placeholder="Horas" value="${r.hours || ''}" min="0" step="0.25"
+          oninput="updateLabourRow('${r.id}','hours',this.value)" style="font-size:12px;">
+        <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:10px;">h</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeLabourRow('${r.id}')" style="padding:5px 8px;">✕</button>
+    </div>`).join('');
+      }
+
+      function updateLabourRow(id, field, val) {
+        const r = quoteLabour.find(r => r.id === id);
+        if (!r) return;
+        r[field] = field === 'role' ? val : (parseFloat(val) || 0);
+        calcQuote();
+      }
+
+      function addMaterialRow() {
+        const id = 'qm_' + Date.now();
+        const obj = { id, desc: '', amount: 0 };
+        quoteMaterials.push(obj);
+        renderMaterialRows();
+      }
+
+      function removeMaterialRow(id) {
+        quoteMaterials = quoteMaterials.filter(m => m.id !== id);
+        renderMaterialRows();
+        calcQuote();
+      }
+
+      function renderMaterialRows() {
+        const container = document.getElementById('qt_material_rows');
+        container.innerHTML = quoteMaterials.map(m => `
+    <div style="display:grid;grid-template-columns:1fr 140px 36px;gap:8px;align-items:center;margin-bottom:8px;">
+      <input type="text" placeholder="Descripción (ej: Madera MDF, Pintura...)"
+        value="${m.desc}" oninput="updateMaterialRow('${m.id}','desc',this.value)" style="font-size:12px;">
+      <div style="position:relative;">
+        <span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:11px;">$</span>
+        <input type="number" placeholder="Monto" value="${m.amount || ''}" min="0" step="0.01"
+          oninput="updateMaterialRow('${m.id}','amount',this.value)"
+          style="padding-left:20px;font-size:12px;">
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeMaterialRow('${m.id}')" style="padding:5px 8px;">✕</button>
+    </div>`).join('');
+      }
+
+      function updateMaterialRow(id, field, val) {
+        const m = quoteMaterials.find(m => m.id === id);
+        if (!m) return;
+        m[field] = field === 'desc' ? val : (parseFloat(val) || 0);
+        calcQuote();
+      }
+
+      function clearQuote() {
+        if (!confirm('Limpiar toda la cotizacion?')) return;
+        document.getElementById('qt_name').value = '';
+        document.getElementById('qt_client').value = '';
+        document.getElementById('qt_overhead').value = '20';
+        document.getElementById('qt_contingency').value = '5';
+        document.getElementById('qt_markup').value = '35';
+        initQuote();
+      }
+
+      function calcQuote() {
+        const overhead = parseFloat(document.getElementById('qt_overhead').value) || 0;
+        const contingency = parseFloat(document.getElementById('qt_contingency').value) || 0;
+        const markup = parseFloat(document.getElementById('qt_markup').value) || 0;
+
+        // Update markup hint
+        const margin = markup > 0 ? (markup / (100 + markup)) * 100 : 0;
+        const hint = document.getElementById('qt_markup_hint');
+        if (hint) hint.innerHTML = 'Markup ' + markup + '% = margen real sobre precio final: ' + margin.toFixed(1) + '%';
+
+        const labour = quoteLabour.reduce((s, r) => s + (r.rate * r.hours), 0);
+        const materials = quoteMaterials.reduce((s, m) => s + m.amount, 0);
+        const totalCost = labour + materials;
+        const overheadAmt = totalCost * (overhead / 100);
+        const contingencyAmt = totalCost * (contingency / 100);
+        const base = totalCost + overheadAmt + contingencyAmt;
+        const markupAmt = base * (markup / 100);
+        const total = base + markupAmt;
+
+        const result = document.getElementById('qt_result');
+        if (!result) return;
+
+        // Labour detail rows
+        const labourRows = quoteLabour.filter(r => r.rate > 0 && r.hours > 0).map(r =>
+          `<tr><td style="padding-left:20px;color:var(--text2);">${r.role || 'Sin nombre'}</td>
+      <td class="num" style="color:var(--text2);">$${r.rate.toFixed(0)}/h x ${r.hours}h</td>
+      <td class="num">$${(r.rate * r.hours).toFixed(2)}</td></tr>`
+        ).join('');
+
+        const materialRows = quoteMaterials.filter(m => m.amount > 0).map(m =>
+          `<tr><td style="padding-left:20px;color:var(--text2);">${m.desc || 'Sin descripcion'}</td>
+      <td class="num"></td>
+      <td class="num">$${m.amount.toFixed(2)}</td></tr>`
+        ).join('');
+
+        result.innerHTML = `
+    <table class="data-table">
+      <tbody>
+        <tr><td><strong>Mano de obra</strong></td><td></td><td class="num"><strong>$${labour.toFixed(2)}</strong></td></tr>
+        ${labourRows}
+        <tr><td><strong>Materiales y costos directos</strong></td><td></td><td class="num"><strong>$${materials.toFixed(2)}</strong></td></tr>
+        ${materialRows}
+        <tr class="total-row"><td><strong>COSTO DIRECTO TOTAL</strong></td><td></td><td class="num"><strong>$${totalCost.toFixed(2)}</strong></td></tr>
+        <tr><td>Overhead (${overhead}%)</td><td></td><td class="num">$${overheadAmt.toFixed(2)}</td></tr>
+        <tr><td>Imprevisto (${contingency}%)</td><td></td><td class="num">$${contingencyAmt.toFixed(2)}</td></tr>
+        <tr><td>Markup (${markup}%) - Margen real ${margin.toFixed(1)}%</td><td></td><td class="num">$${markupAmt.toFixed(2)}</td></tr>
+        <tr class="total-row">
+          <td><strong>PRECIO SUGERIDO AL CLIENTE</strong></td><td></td>
+          <td class="num" style="color:var(--accent);font-size:16px;"><strong>$${total.toFixed(2)}</strong></td>
+        </tr>
+      </tbody>
+    </table>`;
+      }
+
+      function exportQuotePDF() {
+        const name = document.getElementById('qt_name').value.trim() || 'Sin nombre';
+        const client = document.getElementById('qt_client').value.trim() || 'Sin cliente';
+        const overhead = parseFloat(document.getElementById('qt_overhead').value) || 0;
+        const contingency = parseFloat(document.getElementById('qt_contingency').value) || 0;
+        const markup = parseFloat(document.getElementById('qt_markup').value) || 0;
+
+        const labour = quoteLabour.reduce((s, r) => s + (r.rate * r.hours), 0);
+        const materials = quoteMaterials.reduce((s, m) => s + m.amount, 0);
+        const totalCost = labour + materials;
+        const overheadAmt = totalCost * (overhead / 100);
+        const contingencyAmt = totalCost * (contingency / 100);
+        const base = totalCost + overheadAmt + contingencyAmt;
+        const markupAmt = base * (markup / 100);
+        const total = base + markupAmt;
+        const margin = markup > 0 ? (markup / (100 + markup)) * 100 : 0;
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const margin_pg = 15;
+        const GREEN = [184, 245, 90];
+        const DARK = [13, 15, 14];
+        const SURFACE = [28, 32, 27];
+        const TEXT = [232, 237, 230];
+
+        // Header bar
+        doc.setFillColor(...DARK);
+        doc.rect(0, 0, pageW, 30, 'F');
+        doc.setFontSize(18); doc.setFont('helvetica', 'bold'); doc.setTextColor(...GREEN);
+        doc.text('TaskPro', margin_pg, 14);
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(138, 150, 136);
+        doc.text('Quote - Cotizacion', margin_pg + 28, 14);
+        doc.setFontSize(8);
+        doc.text('Generado: ' + new Date().toLocaleDateString('es-CO'), pageW - margin_pg, 14, { align: 'right' });
+
+        // Project info
+        let y = 42;
+        doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text(name, margin_pg, y); y += 7;
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 110, 100);
+        doc.text('Cliente: ' + client, margin_pg, y); y += 12;
+
+        // Price highlight box
+        doc.setFillColor(...GREEN);
+        doc.rect(margin_pg, y, pageW - margin_pg * 2, 14, 'F');
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text('PRECIO SUGERIDO AL CLIENTE', margin_pg + 4, y + 6);
+        doc.setFontSize(14);
+        doc.text('$' + total.toFixed(2), pageW - margin_pg - 4, y + 9, { align: 'right' });
+        y += 20;
+
+        // Labour section
+        if (quoteLabour.filter(r => r.rate > 0 && r.hours > 0).length) {
+          doc.setFillColor(...GREEN);
+          doc.rect(margin_pg, y, pageW - margin_pg * 2, 7, 'F');
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+          doc.text('MANO DE OBRA', margin_pg + 3, y + 5);
+          y += 10;
+          doc.autoTable({
+            startY: y, margin: { left: margin_pg, right: margin_pg },
+            head: [['Rol / Persona', 'Rate/h', 'Horas', 'Subtotal']],
+            body: quoteLabour.filter(r => r.rate > 0 && r.hours > 0).map(r => [
+              r.role || 'Sin nombre',
+              '$' + r.rate.toFixed(0) + '/h',
+              r.hours + 'h',
+              '$' + (r.rate * r.hours).toFixed(2)
+            ]),
+            foot: [['TOTAL MANO DE OBRA', '', '', '$' + labour.toFixed(2)]],
+            styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 35, 30] },
+            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
+            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 250, 242] },
+            columnStyles: { 3: { halign: 'right' }, 1: { halign: 'center' }, 2: { halign: 'center' } }
+          });
+          y = doc.lastAutoTable.finalY + 8;
+        }
+
+        // Materials section
+        if (quoteMaterials.filter(m => m.amount > 0).length) {
+          if (y > 220) { doc.addPage(); y = 20; }
+          doc.setFillColor(...GREEN);
+          doc.rect(margin_pg, y, pageW - margin_pg * 2, 7, 'F');
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+          doc.text('MATERIALES Y COSTOS DIRECTOS', margin_pg + 3, y + 5);
+          y += 10;
+          doc.autoTable({
+            startY: y, margin: { left: margin_pg, right: margin_pg },
+            head: [['Descripcion', 'Monto']],
+            body: quoteMaterials.filter(m => m.amount > 0).map(m => [
+              m.desc || 'Sin descripcion',
+              '$' + m.amount.toFixed(2)
+            ]),
+            foot: [['TOTAL MATERIALES', '$' + materials.toFixed(2)]],
+            styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 35, 30] },
+            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
+            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [245, 250, 242] },
+            columnStyles: { 1: { halign: 'right' } }
+          });
+          y = doc.lastAutoTable.finalY + 8;
+        }
+
+        // Pricing breakdown
+        if (y > 200) { doc.addPage(); y = 20; }
+        doc.setFillColor(...GREEN);
+        doc.rect(margin_pg, y, pageW - margin_pg * 2, 7, 'F');
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.text('DESGLOSE FINANCIERO', margin_pg + 3, y + 5);
+        y += 10;
+        doc.autoTable({
+          startY: y, margin: { left: margin_pg, right: margin_pg },
+          body: [
+            ['Mano de obra', '$' + labour.toFixed(2)],
+            ['Materiales y costos directos', '$' + materials.toFixed(2)],
+            ['COSTO DIRECTO TOTAL', '$' + totalCost.toFixed(2)],
+            ['Overhead (' + overhead + '%)', '$' + overheadAmt.toFixed(2)],
+            ['Imprevisto (' + contingency + '%)', '$' + contingencyAmt.toFixed(2)],
+            ['Markup (' + markup + '%) - Margen real ' + margin.toFixed(1) + '%', '$' + markupAmt.toFixed(2)],
+            ['PRECIO SUGERIDO AL CLIENTE', '$' + total.toFixed(2)],
+          ],
+          styles: { fontSize: 8.5, cellPadding: 3, overflow: 'linebreak' },
+          columnStyles: { 0: { textColor: [50, 60, 50] }, 1: { halign: 'right' } },
+          didParseCell: function (data) {
+            if ([2, 6].includes(data.row.index)) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [220, 250, 180];
+              data.cell.styles.textColor = DARK;
+            }
+          },
+          alternateRowStyles: { fillColor: [245, 250, 242] },
+        });
+
+        // Footer
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(7); doc.setTextColor(160, 170, 160);
+          doc.text(
+            'TaskPro  |  Quote - ' + name + '  |  Pagina ' + i + ' de ' + pageCount,
+            pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' }
+          );
+        }
+
+        const safeName = name.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 50);
+        doc.save('TaskPro_Quote_' + safeName + '.pdf');
+      }
+
+      // ═══════════════════════════════════════════
+      // NAV
+      // ═══════════════════════════════════════════
+      function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('section-' + id).classList.add('active');
+        document.getElementById('nav-' + id).classList.add('active');
+        if (id === 'summary') renderSummary();
+        if (id === 'projects') renderAllProjects();
+        if (id === 'tiempos') { setTiemposThisMonth(); setupHHMMInput('ea_time'); populateEaPersonDropdown(); }
+        if (id === 'pagos') { setPagosThisMonth(); }
+        if (id === 'quote') { initQuote(); }
+        if (id === 'users')    { renderUsersList(); populateLinkedDropdown(); toggleLinkedMember(); }
+        if (id === 'workers')  { populateWorkerBaseDropdown(); }
+        if (id === 'equipobase') { renderBaseTeam(); }
+      }
+
+      // ═══════════════════════════════════════════
+      // UTILS
+      // ═══════════════════════════════════════════
+      function timeToMins(t) {
+        if (!t || !t.includes(':')) return 0;
+        const [h, m] = t.split(':').map(Number);
+        if (isNaN(h) || isNaN(m)) return 0;
+        return h * 60 + m;
+      }
+
+      function minsToHHMM(mins) {
+        const h = Math.floor(Math.max(0, mins) / 60);
+        const m = Math.max(0, mins) % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+
+      function setupHHMMInput(id) {
+        const el = document.getElementById(id);
+        el.addEventListener('input', function () {
+          let val = this.value.replace(/[^\d]/g, '');
+          if (val.length >= 3) val = val.slice(0, 2) + ':' + val.slice(2, 4);
+          this.value = val;
+        });
+        el.addEventListener('blur', function () {
+          const parts = this.value.replace(/[^\d:]/g, '').split(':');
+          const h = Math.min(parseInt(parts[0]) || 0, 23);
+          const m = Math.min(parseInt(parts[1]) || 0, 59);
+          this.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        });
+      }
+
+    </script>
+  <!-- ══════════ MODAL: EDIT WORKER ══════════ -->
+<div class="modal-overlay" id="editWorkerModal">
+  <div class="modal">
+    <div class="modal-title">✏️ Editar persona del proyecto</div>
+    <input type="hidden" id="ew_id">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" id="ew_name" placeholder="Ej: Carlos">
+      </div>
+      <div class="form-group">
+        <label>Tarifa/h ($AUD)</label>
+        <input type="number" id="ew_rate" min="0" step="0.5">
+      </div>
+      <div class="form-group">
+        <label>Rol</label>
+        <input type="text" id="ew_role" placeholder="Ej: Cabinetry">
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;">
+        O seleccionar del equipo base
+      </label>
+      <select id="ew_base_select" style="width:100%;margin-top:6px;" onchange="fillEditWorkerFromBase()">
+        <option value="">— Mantener nombre actual —</option>
+      </select>
+    </div>
+    <div id="editWorkerMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="saveWorkerEdit()">Guardar cambios</button>
+      <button class="btn btn-ghost" onclick="closeModal('editWorkerModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL: EDIT BASE TEAM MEMBER ══════════ -->
+<div class="modal-overlay" id="editBaseModal">
+  <div class="modal">
+    <div class="modal-title">✏️ Editar miembro del equipo base</div>
+    <input type="hidden" id="ebm_id">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="form-group">
+        <label>Nombre completo</label>
+        <input type="text" id="ebm_name" placeholder="Ej: Carlos Perez">
+      </div>
+      <div class="form-group">
+        <label>Rol / Especialidad</label>
+        <input type="text" id="ebm_role" placeholder="Ej: Lider, Labour">
+      </div>
+      <div class="form-group">
+        <label>Tarifa base ($/h)</label>
+        <input type="number" id="ebm_rate" min="0" step="0.5">
+      </div>
+    </div>
+    <div id="editBaseMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="saveBaseTeamEdit()">Guardar cambios</button>
+      <button class="btn btn-ghost" onclick="closeModal('editBaseModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL: EDIT USER ══════════ -->
+<div class="modal-overlay" id="editUserModal">
+  <div class="modal">
+    <div class="modal-title">✏️ Editar usuario</div>
+    <input type="hidden" id="eu_uid">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div class="form-group" style="grid-column:span 2;">
+        <label>Email</label>
+        <input type="email" id="eu_email" placeholder="correo@ejemplo.com">
+        <span style="font-size:10px;color:var(--text3);font-family:monospace;">
+          Cambiar email requiere que el usuario cierre e inicie sesion nuevamente
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="form-group" style="flex:0 0 160px;min-width:130px;">
+        <label>Rol</label>
+        <select id="eu_role">
+          <option value="operador">Operador</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:0 0 200px;min-width:160px;">
+        <label>Vincular con equipo base</label>
+        <select id="eu_linked">
+          <option value="">— Sin vincular —</option>
+        </select>
+      </div>
+    </div>
+    <div id="editUserMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="saveUserEdit()">Guardar cambios</button>
+      <button class="btn btn-ghost" onclick="closeModal('editUserModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /appShell -->
+</body>
+
+</html>
