@@ -667,16 +667,27 @@
       /* Layout */
       .layout {
         grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
       }
 
       .sidebar {
         flex-direction: row;
         overflow-x: auto;
+        overflow-y: hidden;
         padding: 8px 10px;
         border-right: none;
         border-bottom: 1px solid var(--border);
         gap: 2px;
         -webkit-overflow-scrolling: touch;
+        /* Override desktop sticky/height */
+        position: relative;
+        top: auto;
+        height: auto;
+        min-height: unset;
+        max-height: unset;
+        scrollbar-width: none;
       }
 
       .nav-item {
@@ -699,30 +710,40 @@
 
       /* Header */
       .header {
-        padding: 12px 14px;
+        padding: 8px 10px;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px;
       }
 
       .logo {
-        font-size: 16px;
+        font-size: 14px;
       }
 
       .project-selector {
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 4px;
         width: 100%;
+        order: 3;
       }
 
       .project-selector select {
         min-width: 0;
-        flex: 1 1 160px;
+        flex: 1 1 140px;
         font-size: 11px;
+        max-width: calc(100vw - 120px);
       }
+
+      /* Hide user pill text on mobile, keep avatar only */
+      #userEmail { display: none; }
+      #userRoleBadge { display: none; }
+      .user-pill { padding: 4px 6px; }
 
       /* Main */
       .main {
-        padding: 14px;
+        padding: 12px;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
       }
 
       .section-title {
@@ -840,11 +861,11 @@
       }
 
       .header {
-        padding: 10px 12px;
+        padding: 6px 8px;
       }
 
       .main {
-        padding: 10px;
+        padding: 8px;
       }
 
       .data-table {
@@ -854,6 +875,40 @@
       .data-table th,
       .data-table td {
         padding: 5px 6px;
+      }
+
+      /* Extra compact nav on small phones */
+      .nav-item {
+        padding: 6px 8px;
+        font-size: 10px;
+      }
+
+      .nav-icon {
+        font-size: 12px;
+      }
+
+      /* Section title smaller */
+      .section-title {
+        font-size: 16px;
+      }
+
+      /* Buttons more compact */
+      .btn {
+        padding: 5px 8px;
+        font-size: 10px;
+      }
+
+      /* Modal full screen on small phones */
+      .modal {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 0;
+        min-height: 100vh;
+        margin: 0;
+      }
+
+      .modal-overlay {
+        align-items: flex-start;
       }
     }
 
