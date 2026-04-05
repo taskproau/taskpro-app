@@ -1805,6 +1805,7 @@
           <select id="fin_month_sel" onchange="renderFinSummary()" style="min-width:140px;"><option value="">Seleccionar mes</option></select>
           <button class="btn btn-ghost btn-sm" onclick="setFinSummaryThisMonth()">Este mes</button>
           <button class="btn btn-ghost btn-sm" onclick="setFinSummaryAllYear()">Año completo</button>
+          <button class="btn btn-primary btn-sm" onclick="generateExecutivePDF()" style="margin-left:8px;">📄 Generar Reporte Ejecutivo PDF</button>
         </div>
       </div>
       <div id="fin_summary_content"><div class="empty-state"><p>Selecciona un mes para ver el resumen.</p></div></div>
@@ -5231,6 +5232,458 @@ function renderFinSummary() {
     + '<tr><td style="color:var(--text3);">Gastos Personales (info - excluido P&L)</td>'
       + '<td class="num" style="color:var(--text3);">$' + pl.personal.toFixed(2) + '</td><td></td><td></td><td></td><td style="color:var(--text3);font-size:10px;">No afecta el negocio</td></tr>'
     + '</tbody></table></div></div>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXECUTIVE PDF REPORT — P&L + KPIs
+// ═══════════════════════════════════════════════════════════
+function generateExecutivePDF() {
+  const monthKey = document.getElementById('fin_month_sel')?.value || '';
+  if (!monthKey) {
+    alert('Seleccioná un mes antes de generar el reporte.');
+    return;
+  }
+  if (typeof window.jspdf === 'undefined' && typeof jsPDF === 'undefined') {
+    alert('jsPDF no está disponible. Recargá la página.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf || window;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const pl = calcPL(monthKey);
+  const plPrev = calcPL(getPrevMonth(monthKey));
+  const isAll = monthKey === '__all__';
+  const title = isAll ? 'Año ' + new Date().getFullYear() : monthKey;
+
+  const W = 210;
+  const margin = 14;
+  const colW = W - margin * 2;
+
+  // ── Helpers ──────────────────────────────────────────────
+  function fmt$(v) { return '$' + Math.abs(v).toFixed(2); }
+  function fmtPct(v) { return (v * 100).toFixed(1) + '%'; }
+  function addPageIfNeeded(doc, y, needed) {
+    if (y + needed > 272) {
+      doc.addPage();
+      return 20;
+    }
+    return y;
+  }
+
+  // ── Colors ───────────────────────────────────────────────
+  const C = {
+    black:    [13, 15, 14],
+    surface:  [28, 32, 27],
+    accent:   [184, 245, 90],
+    accentDim:[90, 100, 60],
+    warn:     [245, 197, 90],
+    danger:   [245, 90, 90],
+    white:    [232, 237, 230],
+    grey:     [138, 150, 136],
+    darkgrey: [60, 80, 60],
+    green:    [90, 180, 90],
+  };
+
+  // ── PAGE 1: HEADER ───────────────────────────────────────
+  // Full-width dark header bar
+  doc.setFillColor(...C.black);
+  doc.rect(0, 0, W, 36, 'F');
+
+  // Accent left stripe
+  doc.setFillColor(...C.accent);
+  doc.rect(0, 0, 4, 36, 'F');
+
+  // TaskPro logo text
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(...C.accent);
+  doc.text('TaskPro', margin, 14);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.grey);
+  doc.text('Project Control System', margin, 20);
+
+  // Report title right side
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...C.white);
+  doc.text('REPORTE EJECUTIVO — P&L', W - margin, 13, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...C.accent);
+  doc.text(title, W - margin, 20, { align: 'right' });
+
+  doc.setFontSize(7);
+  doc.setTextColor(...C.grey);
+  const genDate = 'Generado: ' + new Date().toLocaleDateString('es-AU', { day:'2-digit', month:'2-digit', year:'numeric' });
+  doc.text(genDate, W - margin, 27, { align: 'right' });
+
+  // ── SUMMARY BOXES (4 KPI cards row) ─────────────────────
+  let y = 44;
+
+  const kpiBoxes = [
+    { label: 'REVENUE NETO', value: fmt$(pl.revenueNeto), color: C.accent },
+    { label: 'GROSS PROFIT', value: fmt$(pl.grossProfit), color: pl.grossProfit >= 0 ? C.accent : C.danger },
+    { label: 'NET PROFIT', value: fmt$(pl.netProfit), color: pl.netProfit >= 0 ? C.accent : C.danger },
+    { label: 'NET MARGIN', value: fmtPct(pl.netMarginPct), color: pl.netMarginPct >= getParam('min_margin')/100 ? C.accent : C.danger },
+  ];
+
+  const boxW = (colW - 9) / 4;
+  kpiBoxes.forEach((b, i) => {
+    const x = margin + i * (boxW + 3);
+    doc.setFillColor(...C.surface);
+    doc.roundedRect(x, y, boxW, 20, 2, 2, 'F');
+    // accent top border
+    doc.setFillColor(...b.color);
+    doc.rect(x, y, boxW, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...b.color);
+    doc.text(b.value, x + boxW / 2, y + 11, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.grey);
+    doc.text(b.label, x + boxW / 2, y + 17, { align: 'center' });
+  });
+
+  y += 28;
+
+  // ── P&L TABLE ────────────────────────────────────────────
+  // Section header
+  doc.setFillColor(...C.surface);
+  doc.rect(margin, y, colW, 8, 'F');
+  doc.setFillColor(...C.accent);
+  doc.rect(margin, y, 3, 8, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.accent);
+  doc.text('ESTADO DE RESULTADOS  (P&L)', margin + 6, y + 5.5);
+  y += 12;
+
+  // Column headers
+  const cols = { label: margin, monto: margin + 95, pct: margin + 125, target: margin + 148, var: margin + 172 };
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 100, 100);
+  doc.text('CONCEPTO', cols.label, y);
+  doc.text('MONTO ($AUD)', cols.monto, y, { align: 'right' });
+  doc.text('% REV', cols.pct, y, { align: 'right' });
+  doc.text('TARGET', cols.target, y, { align: 'right' });
+  doc.text('VAR', cols.var, y, { align: 'right' });
+  y += 2;
+  doc.setDrawColor(180, 180, 180);
+  doc.line(margin, y, margin + colW, y);
+  y += 4;
+
+  // Row renderer
+  function plRow(label, value, pctRev, target, isHeader, indent, valueColor) {
+    y = addPageIfNeeded(doc, y, 8);
+    if (isHeader) {
+      doc.setFillColor(28, 32, 27);
+      doc.rect(margin, y - 3.5, colW, 7, 'F');
+    }
+    doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
+    doc.setFontSize(isHeader ? 7.5 : 7);
+
+    // On dark background (header): use colors. On white background: use black.
+    const labelColor = isHeader ? C.white : [20, 20, 20];
+    const numColor   = isHeader
+      ? (valueColor || (value < 0 ? C.danger : C.white))
+      : [20, 20, 20];
+    const pctColor   = isHeader ? C.grey : [80, 80, 80];
+    const targetColor = isHeader ? C.darkgrey : [120, 120, 120];
+
+    doc.setTextColor(...labelColor);
+    doc.text((indent ? '    ' : '') + label, cols.label + (indent ? 4 : 0), y);
+
+    doc.setTextColor(...numColor);
+    doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
+    doc.text(fmt$(value), cols.monto, y, { align: 'right' });
+
+    doc.setTextColor(...pctColor);
+    if (pctRev !== null) doc.text(fmtPct(pctRev), cols.pct, y, { align: 'right' });
+
+    if (target !== null) {
+      doc.setTextColor(...targetColor);
+      doc.text(fmtPct(target), cols.target, y, { align: 'right' });
+      if (pctRev !== null) {
+        const varVal = (pctRev - target) * 100;
+        // Var vs target: keep color always (it's meaningful signal even on white bg)
+        doc.setTextColor(...(varVal >= 0 ? C.green : C.danger));
+        doc.text((varVal >= 0 ? '+' : '') + varVal.toFixed(1) + '%', cols.var, y, { align: 'right' });
+      }
+    }
+    y += 6.5;
+  }
+
+  function sectionLabel(label, color) {
+    y = addPageIfNeeded(doc, y, 10);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    // Use dark version of color for readability on white background
+    doc.setTextColor(60, 80, 30); // dark olive — readable on white, keeps identity
+    doc.text('▶  ' + label, cols.label, y);
+    y += 5.5;
+  }
+
+  function separator() {
+    y = addPageIfNeeded(doc, y, 6);
+    doc.setDrawColor(...C.darkgrey);
+    doc.setLineWidth(0.2);
+    doc.line(margin, y - 1, margin + colW, y - 1);
+    y += 2;
+  }
+
+  // ── INGRESOS ──
+  sectionLabel('INGRESOS', C.accent);
+  plRow('Cash recibido (sin refunds)', pl.cashTotal, null, null, false, true, C.accent);
+  plRow('GST Colectado', pl.gstTotal, null, null, false, true, C.grey);
+  plRow('REVENUE NETO Ex-GST  ★', pl.revenueNeto, 1.0, null, true, false, C.accent);
+
+  separator();
+
+  // ── COSTOS DIRECTOS ──
+  sectionLabel('COSTOS DIRECTOS', C.warn);
+  plRow('Labour (Salarios)', pl.labour, pl.revenueNeto > 0 ? pl.labour/pl.revenueNeto : 0, getParam('labour_max')/100, false, true, null);
+  plRow('Materials (Directo)', pl.materials, pl.revenueNeto > 0 ? pl.materials/pl.revenueNeto : 0, null, false, true, null);
+  if (pl.otherDirect > 0) plRow('Otros Direct', pl.otherDirect, pl.revenueNeto > 0 ? pl.otherDirect/pl.revenueNeto : 0, null, false, true, null);
+  plRow('TOTAL COSTO DIRECTO  ★', pl.totalDirect, pl.revenueNeto > 0 ? pl.totalDirect/pl.revenueNeto : 0, null, true, false, C.warn);
+
+  separator();
+
+  plRow('GROSS PROFIT  ★', pl.grossProfit, pl.revenueNeto > 0 ? pl.grossProfit/pl.revenueNeto : 0, getParam('markup')/100, true, false, pl.grossProfit >= 0 ? C.accent : C.danger);
+
+  separator();
+
+  // ── OVERHEAD ──
+  sectionLabel('OVERHEAD (Costos Fijos)', C.grey);
+  if (pl.transport > 0) plRow('Transport (Peajes, Nafta, Parking)', pl.transport, pl.revenueNeto > 0 ? pl.transport/pl.revenueNeto : 0, null, false, true, null);
+  if (pl.software > 0)  plRow('Software / Suscripciones', pl.software, pl.revenueNeto > 0 ? pl.software/pl.revenueNeto : 0, null, false, true, null);
+  if (pl.rent > 0)      plRow('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent/pl.revenueNeto : 0, null, false, true, null);
+  if (pl.tools > 0)     plRow('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools/pl.revenueNeto : 0, null, false, true, null);
+  if (pl.matGen > 0)    plRow('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen/pl.revenueNeto : 0, null, false, true, null);
+  if (pl.otherOH > 0)   plRow('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH/pl.revenueNeto : 0, null, false, true, null);
+  plRow('TOTAL OVERHEAD  ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH/pl.revenueNeto : 0, getParam('overhead')/100, true, false, null);
+
+  separator();
+
+  plRow('NET PROFIT  ★', pl.netProfit, pl.revenueNeto > 0 ? pl.netProfit/pl.revenueNeto : 0, getParam('min_margin')/100, true, false, pl.netProfit >= 0 ? C.accent : C.danger);
+
+  separator();
+
+  // ── VALIDACIÓN PRICING ──
+  y = addPageIfNeeded(doc, y, 12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(60, 60, 60);
+  doc.text('▶  VALIDACIÓN PRICING', cols.label, y);
+  y += 5.5;
+
+  function validRow(label, valStr, targetStr, ok, okLabel) {
+    y = addPageIfNeeded(doc, y, 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(20, 20, 20);
+    doc.text(label, cols.label + 4, y);
+    doc.setTextColor(20, 20, 20);
+    doc.text(valStr, cols.monto, y, { align: 'right' });
+    doc.setTextColor(100, 100, 100);
+    doc.text('Target: ' + targetStr, cols.pct + 10, y, { align: 'right' });
+    doc.setTextColor(...(ok ? C.green : C.danger));
+    doc.text(okLabel, cols.var, y, { align: 'right' });
+    y += 6;
+  }
+
+  validRow('Labour % Revenue', fmtPct(pl.labourPct), getParam('labour_max') + '%', pl.labourPct <= getParam('labour_max')/100, pl.labourPct <= getParam('labour_max')/100 ? '✓ OK' : '✗ Sobre límite');
+  validRow('Overhead % Revenue', fmtPct(pl.ohPct), getParam('overhead') + '%', pl.ohPct <= getParam('overhead')/100, pl.ohPct <= getParam('overhead')/100 ? '✓ OK' : '✗ Sobre límite');
+  validRow('Net Margin %', fmtPct(pl.netMarginPct), getParam('min_margin') + '%', pl.netMarginPct >= getParam('min_margin')/100, pl.netMarginPct >= getParam('min_margin')/100 ? '✓ OK' : '✗ Bajo límite');
+  validRow('Proyectos subpreciados', String(pl.subpricedCount), '0', pl.subpricedCount === 0, pl.subpricedCount === 0 ? '✓ OK' : '✗ Revisar pricing');
+  validRow('Avg Margen Proyectos', fmtPct(pl.avgMargin), '35%', pl.avgMargin >= 0.35, pl.avgMargin >= 0.35 ? '✓ OK' : '✗ Bajo objetivo');
+
+  // ── PAGE 2: KPI DASHBOARD ────────────────────────────────
+  doc.addPage();
+
+  // Header page 2
+  doc.setFillColor(...C.black);
+  doc.rect(0, 0, W, 28, 'F');
+  doc.setFillColor(...C.accent);
+  doc.rect(0, 0, 4, 28, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(...C.accent);
+  doc.text('TaskPro', margin, 11);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...C.grey);
+  doc.text('Project Control System', margin, 17);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...C.white);
+  doc.text('KPI DASHBOARD — ' + title, W - margin, 11, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...C.grey);
+  doc.text('Comparativo vs mes anterior: ' + getPrevMonth(monthKey), W - margin, 18, { align: 'right' });
+
+  y = 36;
+
+  // ── KPI CARDS (2x4 grid) ──────────────────────────────────
+  const kpis = [
+    { icon: '💰', label: 'Revenue Neto (Ex-GST)', val: pl.revenueNeto, prev: plPrev.revenueNeto, target: null, fmt: '$', good: 'high' },
+    { icon: '📈', label: 'Avg Margen Proyectos', val: pl.avgMargin, prev: plPrev.avgMargin, target: 0.35, fmt: '%', good: 'high' },
+    { icon: '🏗', label: 'Overhead % Revenue', val: pl.ohPct, prev: plPrev.ohPct, target: getParam('overhead')/100, fmt: '%', good: 'low' },
+    { icon: '✅', label: 'Net Profit %', val: pl.netMarginPct, prev: plPrev.netMarginPct, target: getParam('min_margin')/100, fmt: '%', good: 'high' },
+    { icon: '👷', label: 'Labour % Revenue', val: pl.labourPct, prev: plPrev.labourPct, target: getParam('labour_max')/100, fmt: '%', good: 'low' },
+    { icon: '⚠', label: 'Proyectos Subpreciados', val: pl.subpricedCount, prev: plPrev.subpricedCount, target: 0, fmt: 'n', good: 'low' },
+    { icon: '📋', label: 'Pipeline (precio acordado)', val: pl.pipeline, prev: plPrev.pipeline, target: null, fmt: '$', good: 'high' },
+    { icon: '🏠', label: 'Net Profit del Mes', val: pl.netProfit, prev: plPrev.netProfit, target: 0, fmt: '$', good: 'high' },
+  ];
+
+  const cardW = (colW - 6) / 2;
+  const cardH = 24;
+  const cardGap = 3;
+
+  kpis.forEach((k, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const cx = margin + col * (cardW + cardGap);
+    const cy = y + row * (cardH + cardGap);
+
+    // Status color
+    let statusColor = C.accent;
+    if (k.target !== null) {
+      const ok = k.good === 'high' ? k.val >= k.target : k.val <= k.target;
+      const warn = k.good === 'high' ? k.val >= k.target * 0.85 : k.val <= k.target * 1.15;
+      statusColor = ok ? C.accent : (warn ? C.warn : C.danger);
+    }
+
+    // Card bg
+    doc.setFillColor(...C.surface);
+    doc.roundedRect(cx, cy, cardW, cardH, 2, 2, 'F');
+    // Top border accent
+    doc.setFillColor(...statusColor);
+    doc.rect(cx, cy, cardW, 1.2, 'F');
+
+    // Label
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.grey);
+    doc.text(k.label.toUpperCase(), cx + 6, cy + 7);
+
+    // Value
+    const valStr = k.fmt === '$' ? '$' + Math.abs(k.val).toFixed(0) : k.fmt === '%' ? fmtPct(k.val) : String(k.val);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...statusColor);
+    doc.text(valStr, cx + 6, cy + 17);
+
+    // Target
+    if (k.target !== null) {
+      const targetStr = k.fmt === '$' ? '$' + k.target.toFixed(0) : k.fmt === '%' ? fmtPct(k.target) : String(k.target);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(...C.darkgrey);
+      doc.text('Obj: ' + targetStr, cx + cardW - 6, cy + 7, { align: 'right' });
+    }
+
+    // Delta vs prev
+    const delta = k.val - k.prev;
+    const deltaStr = k.fmt === '$' ? (delta >= 0 ? '+$' : '-$') + Math.abs(delta).toFixed(0)
+      : k.fmt === '%' ? (delta >= 0 ? '+' : '') + (delta * 100).toFixed(1) + '%'
+      : (delta >= 0 ? '+' : '') + delta.toFixed(0);
+    const deltaColor = (k.good === 'high' ? delta >= 0 : delta <= 0) ? C.green : C.danger;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...deltaColor);
+    doc.text(deltaStr + ' vs ant', cx + cardW - 6, cy + 17, { align: 'right' });
+  });
+
+  y += 4 * (cardH + cardGap) + 8;
+
+  // ── ALERTS TABLE ─────────────────────────────────────────
+  y = addPageIfNeeded(doc, y, 16);
+  doc.setFillColor(...C.surface);
+  doc.rect(margin, y, colW, 8, 'F');
+  doc.setFillColor(...C.accent);
+  doc.rect(margin, y, 3, 8, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...C.accent);
+  doc.text('SEMÁFORO DE ALERTAS', margin + 6, y + 5.5);
+  y += 12;
+
+  // Alert header row
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(100, 100, 100);
+  doc.text('INDICADOR', margin, y);
+  doc.text('VALOR', margin + 95, y, { align: 'right' });
+  doc.text('UMBRAL', margin + 120, y, { align: 'right' });
+  doc.text('ESTADO', margin + 148, y, { align: 'right' });
+  doc.text('ACCIÓN', margin + colW, y, { align: 'right' });
+  y += 3;
+  doc.setDrawColor(180, 180, 180);
+  doc.line(margin, y, margin + colW, y);
+  y += 4;
+
+  const alertDefs = [
+    { label: 'Net Profit del mes', val: pl.netProfit, target: 0, good: 'high', umbral: '> $0', fmt: '$', accion: 'Revision urgente: costos > ingresos' },
+    { label: 'Net Margin %', val: pl.netMarginPct, target: getParam('min_margin')/100, good: 'high', umbral: '> ' + getParam('min_margin') + '%', fmt: '%', accion: 'Reducir overhead o subir precios' },
+    { label: 'Overhead % Revenue', val: pl.ohPct, target: getParam('overhead')/100, good: 'low', umbral: '< ' + getParam('overhead') + '%', fmt: '%', accion: 'Identificar y cortar overhead' },
+    { label: 'Labour % Revenue', val: pl.labourPct, target: getParam('labour_max')/100, good: 'low', umbral: '< ' + getParam('labour_max') + '%', fmt: '%', accion: 'Capacidad operativa bajo presión' },
+    { label: 'Avg Margen Proyectos', val: pl.avgMargin, target: 0.35, good: 'high', umbral: '> 35%', fmt: '%', accion: 'Modelo de pricing no funciona' },
+    { label: 'Proyectos Subpreciados', val: pl.subpricedCount, target: 0, good: 'low', umbral: '= 0', fmt: 'n', accion: 'Revisar pricing de proyectos' },
+  ];
+
+  alertDefs.forEach(a => {
+    y = addPageIfNeeded(doc, y, 8);
+    const ok = a.good === 'high' ? a.val >= a.target : a.val <= a.target;
+    const warn = a.good === 'high' ? a.val >= a.target * 0.85 : a.val <= a.target * 1.15;
+    const nivel = ok ? 'OK' : (warn ? 'ALERTA' : 'CRITICO');
+    const nivelColor = ok ? C.green : (warn ? C.warn : C.danger);
+    const bgColor = ok ? [30, 40, 28] : (warn ? [40, 36, 20] : [40, 22, 22]);
+    const valStr = a.fmt === '$' ? fmt$(a.val) : a.fmt === '%' ? fmtPct(a.val) : String(a.val);
+
+    doc.setFillColor(...bgColor);
+    doc.rect(margin, y - 3.5, colW, 7, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...C.grey);
+    doc.text(a.label, margin + 2, y);
+    doc.setTextColor(...nivelColor);
+    doc.text(valStr, margin + 95, y, { align: 'right' });
+    doc.setTextColor(...C.darkgrey);
+    doc.text(a.umbral, margin + 120, y, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...nivelColor);
+    doc.text(nivel, margin + 148, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.grey);
+    doc.text(a.accion, margin + colW, y, { align: 'right' });
+    y += 7;
+  });
+
+  // ── FOOTER ───────────────────────────────────────────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(...C.black);
+    doc.rect(0, 286, W, 11, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...C.grey);
+    doc.text('TaskPro | Reporte Ejecutivo ' + title, margin, 292);
+    doc.text('Página ' + p + ' de ' + totalPages, W - margin, 292, { align: 'right' });
+  }
+
+  // ── SAVE ─────────────────────────────────────────────────
+  const safeMes = title.replace(/\s+/g, '_');
+  doc.save('TaskPro_Ejecutivo_' + safeMes + '.pdf');
 }
 
 // ═══════════════════════════════════════════════════════════
