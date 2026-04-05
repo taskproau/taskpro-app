@@ -4807,11 +4807,22 @@ function populateExpenseDataLists() {
   const pl = document.getElementById('exp_proyecto_list');
   if (pl) pl.innerHTML = FIXED_AREAS.map(a => '<option value="' + a + '">').join('');
 
-  // Proveedores from history
+  // Proveedores: load from Firebase memory + current history
   const provs = new Set();
   Object.values(finState.expenses).forEach(r => { if (r.proveedor) provs.add(r.proveedor); });
-  const prl = document.getElementById('exp_prov_list');
-  if (prl) prl.innerHTML = Array.from(provs).map(p => '<option value="' + p + '">').join('');
+  // Also load from Firebase proveedores node
+  db.ref('taskpro/finance/proveedores').get().then(snap => {
+    const saved = snap.val() || {};
+    Object.values(saved).forEach(p => { if (p) provs.add(p); });
+    const prl = document.getElementById('exp_prov_list');
+    if (prl) prl.innerHTML = Array.from(provs).sort().map(p => '<option value="' + p + '">').join('');
+    // Also update edit modal datalist
+    const prl2 = document.getElementById('ee_prov_list');
+    if (prl2) prl2.innerHTML = prl ? prl.innerHTML : '';
+  }).catch(() => {
+    const prl = document.getElementById('exp_prov_list');
+    if (prl) prl.innerHTML = Array.from(provs).sort().map(p => '<option value="' + p + '">').join('');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4959,6 +4970,10 @@ function addExpense() {
     mes:       dateToMonthKey(date)
   };
 
+  // Save new provider to Firebase memory
+  const prov = document.getElementById('exp_proveedor').value.trim();
+  if (prov) db.ref('taskpro/finance/proveedores/' + prov.replace(/[^a-zA-Z0-9]/g,'_')).set(prov).catch(()=>{});
+
   db.ref('taskpro/finance/expenses/' + record.id).set(record)
     .then(() => {
       showSyncBanner('Gasto registrado: $' + monto.toFixed(2), 'success');
@@ -5076,11 +5091,15 @@ function calcPL(monthKey) {
     ? projEntries.reduce((s,p) => { const c = calcPricing(p); return s + (c.margin||0); }, 0) / projEntries.length / 100
     : 0;
 
+  // Pipeline: sum of clientPrice for projects in month
+  const pipeline = projEntries.reduce((s, p) => s + (p.pricing ? parseFloat(p.pricing.clientPrice)||0 : 0), 0);
+  const totalSugerido = projEntries.reduce((s, p) => { const c = calcPricing(p); return s + (c.total||0); }, 0);
+
   return {
     cashTotal, refunds, gstTotal, revenueNeto,
     labour, materials, otherDirect, totalDirect, grossProfit,
     transport, software, rent, tools, matGen, otherOH, totalOH,
-    netProfit, personal,
+    netProfit, personal, pipeline, totalSugerido,
     labourPct:    revenueNeto > 0 ? labour / revenueNeto : 0,
     ohPct:        revenueNeto > 0 ? totalOH / revenueNeto : 0,
     netMarginPct: revenueNeto > 0 ? netProfit / revenueNeto : 0,
@@ -5298,13 +5317,31 @@ function renderKPIDashboard() {
       + '<text x="' + p.mx + '" y="' + (chartH - 8) + '" text-anchor="middle" fill="#5a635a" font-size="8">' + p.k.split('-')[0] + '</text>').join('')
     + '</svg>';
 
+  // Proyeccion card
+  const proy = '<div class="card" style="border-color:rgba(90,245,160,0.3);text-align:center;grid-column:span 2;">'
+    + '<div style="font-size:20px;margin-bottom:4px;">🎯</div>'
+    + '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">Proyeccion de Ventas del Mes</div>'
+    + '<div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;">'
+    + '<div><div style="font-size:11px;color:var(--text3);">Precio acordado (cobrado/a cobrar)</div>'
+      + '<div style="font-size:24px;font-weight:800;color:var(--accent2);">$' + pl.pipeline.toFixed(0) + '</div></div>'
+    + '<div><div style="font-size:11px;color:var(--text3);">Total sugerido sistema</div>'
+      + '<div style="font-size:24px;font-weight:800;color:var(--accent);">$' + pl.totalSugerido.toFixed(0) + '</div></div>'
+    + '<div><div style="font-size:11px;color:var(--text3);">Cash recibido (real)</div>'
+      + '<div style="font-size:24px;font-weight:800;color:' + (pl.revenueNeto > 0 ? 'var(--accent)' : 'var(--text2)') + ';">$' + pl.revenueNeto.toFixed(0) + '</div></div>'
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--text3);margin-top:8px;">' + pl.projCount + ' proyectos en el mes</div>'
+    + '</div>';
+
   container.innerHTML = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">'
+    + proy
     + kpiCard('💰','Revenue Neto (Ex-GST)', pl.revenueNeto, 0, plPrev.revenueNeto, '$', 'high')
     + kpiCard('📈','Avg Margen Proyectos', pl.avgMargin, 0.35, plPrev.avgMargin, '%', 'high')
     + kpiCard('🏗','Overhead % Revenue', pl.ohPct, getParam('overhead')/100, plPrev.ohPct, '%', 'low')
     + kpiCard('✅','Net Profit %', pl.netMarginPct, getParam('min_margin')/100, plPrev.netMarginPct, '%', 'high')
     + kpiCard('👷','Labour % Revenue', pl.labourPct, getParam('labour_max')/100, plPrev.labourPct, '%', 'low')
     + kpiCard('⚠️','Proyectos Subpreciados', pl.subpricedCount, 0, plPrev.subpricedCount, 'n', 'low')
+    + kpiCard('📋','Pipeline (precio acordado)', pl.pipeline, 0, plPrev.pipeline, '$', 'high')
+    + kpiCard('🏠','Gastos Personales (info)', pl.personal, 0, plPrev.personal, '$', 'low')
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
     + '<div class="card"><div class="card-title">📊 Revenue vs Costos (6 meses)</div>'
@@ -5698,6 +5735,10 @@ function renderAlerts() {
         const tipo  = document.getElementById('ee_tipo').value.trim();
         const cat   = document.getElementById('ee_cat').value.trim();
         if (!fecha || !monto || !tipo || !cat) { alert('Fecha, monto, tipo y categoria son requeridos.'); return; }
+        // Save new provider to Firebase memory
+        const eprov = document.getElementById('ee_proveedor').value.trim();
+        if (eprov) db.ref('taskpro/finance/proveedores/' + eprov.replace(/[^a-zA-Z0-9]/g,'_')).set(eprov).catch(()=>{});
+
         const updated = {
           ...finState.expenses[id],
           fecha,
@@ -5911,7 +5952,7 @@ function renderAlerts() {
             </datalist></div>
       <div class="form-group"><label>Tipo de Costo</label><input type="text" id="ee_tipo" list="ee_tipo_list"><datalist id="ee_tipo_list"><option value="Direct Project"><option value="Fixed Operating"><option value="Personal"></datalist></div>
       <div class="form-group"><label>Categoria</label><input type="text" id="ee_cat" list="ee_cat_list"><datalist id="ee_cat_list"><option value="Labour"><option value="Materials"><option value="Transport"><option value="Tools"><option value="Software/Suscripciones"><option value="Admin"><option value="Rent"><option value="Utilities"><option value="Herramienta"><option value="Other"></datalist></div>
-      <div class="form-group"><label>Proveedor</label><input type="text" id="ee_proveedor" placeholder="Opcional"></div>
+      <div class="form-group"><label>Proveedor</label><input type="text" id="ee_proveedor" placeholder="Opcional" list="ee_prov_list"><datalist id="ee_prov_list"></datalist></div>
       <div class="form-group"><label>Monto ($)</label><input type="number" id="ee_monto" min="0" step="0.01"></div>
       <div class="form-group"><label>Metodo de Pago</label><select id="ee_metodo"><option value="Transferencia">Transferencia</option><option value="Tarjeta">Tarjeta</option><option value="Cash">Cash</option><option value="Afterpay">Afterpay</option></select></div>
       <div class="form-group"><label>Ciclo</label><input type="text" id="ee_ciclo" placeholder="Mensual, Unico..."></div>
