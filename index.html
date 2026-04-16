@@ -6546,7 +6546,7 @@ function renderAlerts() {
       // ═══════════════════════════════════════════
       const EMAILJS_PUBLIC_KEY  = 'rg4GX14-i_4Z4EAeh';
       const EMAILJS_SERVICE_ID  = 'service_14p8989';
-      const EMAILJS_TEMPLATE_ID = 'template_nwmpquf';
+      const EMAILJS_TEMPLATE_ID = 'nwmpquf';
 
       // ═══════════════════════════════════════════
       // CLIENTS CRUD
@@ -6986,15 +6986,46 @@ function renderAlerts() {
             total_amount:   d.total.toFixed(2),
             pdf_attachment: pdfBase64
           };
-          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
-          // Send copy if checked
-          if (d.sendCopy) {
-            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { ...params, to_email: 'info@taskproau.com' });
+
+          // Try sending with PDF attachment first, fallback without if plan doesn't support it
+          let sent = false;
+          try {
+            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
+            sent = true;
+          } catch(e1) {
+            // Attachment may not be supported on free plan — retry without
+            try {
+              const paramsNoAttach = { ...params };
+              delete paramsNoAttach.pdf_attachment;
+              await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, paramsNoAttach);
+              sent = true;
+              statusEl.style.color = 'var(--warn)';
+              statusEl.textContent = '⚠ Email enviado sin adjunto (plan EmailJS no soporta adjuntos). El PDF se descargará localmente.';
+            } catch(e2) {
+              throw e2;
+            }
           }
-          statusEl.style.color = 'var(--accent)';
-          statusEl.textContent = '✅ Invoice enviado a ' + d.toEmail + (d.sendCopy ? ' + copia a info@taskproau.com' : '');
-          doc.save('TaskPro_Invoice_' + d.invNum + '_' + (d.clientName||'').replace(/\s+/g,'_') + '.pdf');
-          setTimeout(() => closeModal('sendInvoiceModal'), 3000);
+
+          if (sent) {
+            // Send copy if checked
+            if (d.sendCopy) {
+              try {
+                await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { ...params, to_email: 'info@taskproau.com' });
+              } catch(ec) {
+                try {
+                  const p2 = { ...params, to_email: 'info@taskproau.com' };
+                  delete p2.pdf_attachment;
+                  await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, p2);
+                } catch(_) { /* copy failed silently */ }
+              }
+            }
+            if (statusEl.style.color !== 'var(--warn)') {
+              statusEl.style.color = 'var(--accent)';
+              statusEl.textContent = '✅ Invoice enviado a ' + d.toEmail + (d.sendCopy ? ' + copia a info@taskproau.com' : '');
+            }
+            doc.save('TaskPro_Invoice_' + d.invNum + '_' + (d.clientName||'').replace(/\s+/g,'_') + '.pdf');
+            setTimeout(() => closeModal('sendInvoiceModal'), 3000);
+          }
         } catch(err) {
           statusEl.style.color = 'var(--danger)';
           statusEl.textContent = '❌ Error: ' + (err.text || err.message || JSON.stringify(err));
