@@ -1330,6 +1330,10 @@
                 <label>Tiempo admin (HH:MM)</label>
                 <input type="text" id="tl_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
               </div>
+              <div class="form-group">
+                <label>Desplazamiento (HH:MM)</label>
+                <input type="text" id="tl_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
+              </div>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-primary" onclick="addTimeEntry()">Registrar jornada</button>
@@ -2956,6 +2960,7 @@
         // pp dates initialized when section opens (setPagosThisMonth)
         setupHHMMInput('tl_break');
         setupHHMMInput('tl_admin');
+        setupHHMMInput('tl_travel');
         showLoadingState();
 
         const migrated = await migrateFromLocalStorage();
@@ -3246,6 +3251,7 @@
         const end = document.getElementById('tl_end').value;
         const breakH = timeToMins(document.getElementById('tl_break').value || '00:00') / 60;
         const adminH = timeToMins(document.getElementById('tl_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('tl_travel').value || '00:00') / 60;
 
         if (!date || !personId || !start || !end) { alert('Completa fecha, persona, entrada y salida.'); return; }
 
@@ -3258,12 +3264,12 @@
 
         const totalH = (endMins - startMins) / 60;
         const productiveH = Math.max(0, totalH - breakH - adminH);
-        const pay = productiveH * worker.rate;
+        const pay = (productiveH + travelH) * worker.rate;
 
         const entry = {
           id: 'tl_' + Date.now(),
           date, personId, personName: worker.name, rate: worker.rate,
-          start, end, breakH, adminH, totalH, productiveH, pay
+          start, end, breakH, adminH, travelH, totalH, productiveH, pay
         };
 
         p.timelog.push(entry);
@@ -3276,6 +3282,7 @@
         ['tl_start', 'tl_end'].forEach(fid => document.getElementById(fid).value = '');
         document.getElementById('tl_break').value = '00:00';
         document.getElementById('tl_admin').value = '00:00';
+        document.getElementById('tl_travel').value = '00:00';
       }
 
       function removeTimeEntry(eid) {
@@ -3310,19 +3317,21 @@
         sorted.forEach(e => {
           const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
           e.productiveH = Math.max(0, totalH - (parseFloat(e.breakH) || 0) - (parseFloat(e.adminH) || 0));
-          e.pay = e.productiveH * (parseFloat(e.rate) || 0);
+          e.pay = (e.productiveH + (parseFloat(e.travelH) || 0)) * (parseFloat(e.rate) || 0);
         });
 
         const totalProductiveH = sorted.reduce((s, e) => s + e.productiveH, 0);
+        const totalTravelH = sorted.reduce((s, e) => s + (parseFloat(e.travelH) || 0), 0);
         const totalPay = sorted.reduce((s, e) => s + e.pay, 0);
         const days = [...new Set(sorted.map(e => e.date))].length;
         const persons = [...new Set(sorted.map(e => e.personName))];
 
         container.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <table class="data-table" style="min-width:580px;">
+    <table class="data-table" style="min-width:640px;">
       <thead><tr>
         <th>Fecha</th><th>Persona</th><th>Entrada</th><th>Salida</th>
         <th>Break</th><th>Admin</th><th class="num">Prod. (h)</th>
+        <th class="num" style="color:var(--warn);">Desplaz.</th>
         <th class="num">Tarifa</th><th class="num">Subtotal</th><th></th>
       </tr></thead>
       <tbody>
@@ -3335,6 +3344,7 @@
             <td style="font-family:'DM Mono',monospace;">${minsToHHMM(Math.round((parseFloat(e.breakH) || 0) * 60))}</td>
             <td style="font-family:'DM Mono',monospace;">${minsToHHMM(Math.round((parseFloat(e.adminH) || 0) * 60))}</td>
             <td class="num"><strong>${e.productiveH.toFixed(2)}h</strong></td>
+            <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round((parseFloat(e.travelH) || 0) * 60))}</td>
             <td class="num">$${(parseFloat(e.rate) || 0).toFixed(0)}</td>
             <td class="num"><strong>$${e.pay.toFixed(2)}</strong></td>
             <td><button class="btn btn-danger btn-sm" onclick="removeTimeEntry('${e.id}')">✕</button></td>
@@ -3342,6 +3352,7 @@
         <tr class="total-row">
           <td colspan="6"><strong>TOTAL</strong></td>
           <td class="num"><strong>${totalProductiveH.toFixed(2)}h</strong></td>
+          <td class="num" style="color:var(--warn);"><strong>${minsToHHMM(Math.round(totalTravelH * 60))}</strong></td>
           <td></td>
           <td class="num"><strong>$${totalPay.toFixed(2)}</strong></td>
           <td></td>
@@ -3455,7 +3466,8 @@
           const endMins = timeToMins(e.end || '00:00');
           const totalH = endMins > startMins ? (endMins - startMins) / 60 : 0;
           e.productiveH = Math.max(0, totalH - (parseFloat(e.breakH) || 0) - (parseFloat(e.adminH) || 0));
-          e.pay = e.productiveH * (parseFloat(e.rate) || 0);
+          const travelH = parseFloat(e.travelH) || 0;
+          e.pay = (e.productiveH + travelH) * (parseFloat(e.rate) || 0);
         });
 
         const labour = timelog.reduce((s, e) => s + e.pay, 0);
@@ -4037,13 +4049,14 @@
         Object.values(state.projects).forEach(p => {
           toArr(p.timelog).forEach(e => {
             if (!inRange(e.date, from, to)) return;
-            const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
-            const breakH = parseFloat(e.breakH) || 0;
-            const adminH = parseFloat(e.adminH) || 0;
-            const prodH = Math.max(0, totalH - breakH - adminH);
+            const totalH  = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
+            const breakH  = parseFloat(e.breakH)  || 0;
+            const adminH  = parseFloat(e.adminH)  || 0;
+            const travelH = parseFloat(e.travelH) || 0;
+            const prodH   = Math.max(0, totalH - breakH - adminH);
             allEntries.push({
               date: e.date, person: e.personName,
-              prodH, breakH, adminH,
+              prodH, breakH, adminH, travelH,
               project: p.name
             });
           });
@@ -4055,34 +4068,37 @@
         // ── Build per-person summary ──
         const TEAM = ['Santiago', 'Carlos', 'Paula'];
         const personData = {};
-        TEAM.forEach(name => { personData[name] = { prodH: 0, breakH: 0, adminH: 0, extAdminH: 0 }; });
+        TEAM.forEach(name => { personData[name] = { prodH: 0, breakH: 0, adminH: 0, travelH: 0, extAdminH: 0 }; });
 
         allEntries.forEach(e => {
-          if (!personData[e.person]) personData[e.person] = { prodH: 0, breakH: 0, adminH: 0, extAdminH: 0 };
-          personData[e.person].prodH += e.prodH;
-          personData[e.person].breakH += e.breakH;
-          personData[e.person].adminH += e.adminH;
+          if (!personData[e.person]) personData[e.person] = { prodH: 0, breakH: 0, adminH: 0, travelH: 0, extAdminH: 0 };
+          personData[e.person].prodH   += e.prodH;
+          personData[e.person].breakH  += e.breakH;
+          personData[e.person].adminH  += e.adminH;
+          personData[e.person].travelH += e.travelH;
         });
         extInRange.forEach(e => {
-          if (!personData[e.person]) personData[e.person] = { prodH: 0, breakH: 0, adminH: 0, extAdminH: 0 };
+          if (!personData[e.person]) personData[e.person] = { prodH: 0, breakH: 0, adminH: 0, travelH: 0, extAdminH: 0 };
           personData[e.person].extAdminH += timeToMins(e.timeHHMM || '00:00') / 60;
         });
 
         // ── Render summary table ──
         const resumen = document.getElementById('tiemposResumen');
-        const rows = Object.entries(personData).filter(([, d]) => d.prodH + d.breakH + d.adminH + d.extAdminH > 0);
+        const rows = Object.entries(personData).filter(([, d]) => d.prodH + d.breakH + d.adminH + d.travelH + d.extAdminH > 0);
         if (!rows.length) {
           resumen.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin datos en este rango.</p></div>';
         } else {
-          const totProd = rows.reduce((s, [, d]) => s + d.prodH, 0);
-          const totBreak = rows.reduce((s, [, d]) => s + d.breakH, 0);
-          const totAdmin = rows.reduce((s, [, d]) => s + d.adminH, 0);
-          const totExt = rows.reduce((s, [, d]) => s + d.extAdminH, 0);
+          const totProd   = rows.reduce((s, [, d]) => s + d.prodH,   0);
+          const totBreak  = rows.reduce((s, [, d]) => s + d.breakH,  0);
+          const totAdmin  = rows.reduce((s, [, d]) => s + d.adminH,  0);
+          const totTravel = rows.reduce((s, [, d]) => s + d.travelH, 0);
+          const totExt    = rows.reduce((s, [, d]) => s + d.extAdminH, 0);
           resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table class="data-table" style="min-width:520px;">
+      <table class="data-table" style="min-width:600px;">
         <thead><tr>
           <th>Persona</th>
           <th class="num">Productivo</th>
+          <th class="num" style="color:var(--warn);">Desplaz.</th>
           <th class="num">Break</th>
           <th class="num">Admin (proyectos)</th>
           <th class="num">Admin (externo)</th>
@@ -4092,10 +4108,11 @@
         <tbody>
           ${rows.map(([name, d]) => {
             const adminTotal = d.adminH + d.extAdminH;
-            const total = d.prodH + d.breakH + adminTotal;
+            const total = d.prodH + d.breakH + d.travelH + adminTotal;
             return `<tr>
               <td><span class="person-tag">👷 ${name}</span></td>
               <td class="num" style="color:var(--accent);"><strong>${minsToHHMM(Math.round(d.prodH * 60))}</strong></td>
+              <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.travelH * 60))}</td>
               <td class="num">${minsToHHMM(Math.round(d.breakH * 60))}</td>
               <td class="num">${minsToHHMM(Math.round(d.adminH * 60))}</td>
               <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.extAdminH * 60))}</td>
@@ -4106,11 +4123,12 @@
           <tr class="total-row">
             <td><strong>TOTAL</strong></td>
             <td class="num"><strong>${minsToHHMM(Math.round(totProd * 60))}</strong></td>
+            <td class="num" style="color:var(--warn);"><strong>${minsToHHMM(Math.round(totTravel * 60))}</strong></td>
             <td class="num"><strong>${minsToHHMM(Math.round(totBreak * 60))}</strong></td>
             <td class="num"><strong>${minsToHHMM(Math.round(totAdmin * 60))}</strong></td>
             <td class="num"><strong>${minsToHHMM(Math.round(totExt * 60))}</strong></td>
             <td class="num"><strong>${minsToHHMM(Math.round((totAdmin + totExt) * 60))}</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round((totProd + totBreak + totAdmin + totExt) * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round((totProd + totBreak + totTravel + totAdmin + totExt) * 60))}</strong></td>
           </tr>
         </tbody>
       </table></div>`;
@@ -4222,24 +4240,26 @@
           toArr(p.timelog).forEach(e => {
             if (!inRange(e.date, from, to)) return;
             const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
-            const breakH = parseFloat(e.breakH) || 0;
-            const adminH = parseFloat(e.adminH) || 0;
-            const prodH  = Math.max(0, totalH - breakH - adminH);
-            const rate   = parseFloat(e.rate) || 0;
-            const name   = e.personName;
+            const breakH  = parseFloat(e.breakH)  || 0;
+            const adminH  = parseFloat(e.adminH)  || 0;
+            const travelH = parseFloat(e.travelH) || 0;
+            const prodH   = Math.max(0, totalH - breakH - adminH);
+            const rate    = parseFloat(e.rate) || 0;
+            const name    = e.personName;
 
-            if (!data[name]) data[name] = { entries: [], prodH: 0, breakH: 0, adminH: 0, breakPaid: 0, companyBreakH: 0, pay: 0 };
+            if (!data[name]) data[name] = { entries: [], prodH: 0, breakH: 0, adminH: 0, travelH: 0, breakPaid: 0, companyBreakH: 0, pay: 0 };
             data[name].entries.push({
               project: p.name, date: e.date,
               start: e.start || '', end: e.end || '',
-              rate, prodH, breakH, adminH,
+              rate, prodH, breakH, adminH, travelH,
               companyBreakH: 0,  // set in step 2
               breakUnpaidH:  0,  // set in step 2
               pay: 0
             });
-            data[name].prodH  += prodH;
-            data[name].breakH += breakH;
-            data[name].adminH += adminH;
+            data[name].prodH   += prodH;
+            data[name].breakH  += breakH;
+            data[name].adminH  += adminH;
+            data[name].travelH += travelH;
           });
         });
 
@@ -4292,13 +4312,13 @@
       }
 
       // Recalculate pay using company break rule
-      // Pay per entry = (prodH + adminH + companyBreakH) * rate
+      // Pay per entry = (prodH + adminH + companyBreakH + travelH) * rate
       function recalcPayData(data) {
         Object.entries(data).forEach(([name, d]) => {
           d.breakPaid = d.companyBreakH || 0;
           d.pay = 0;
           d.entries.forEach(e => {
-            e.pay = (e.prodH + e.adminH + (e.companyBreakH || 0)) * e.rate;
+            e.pay = (e.prodH + e.adminH + (e.companyBreakH || 0) + (e.travelH || 0)) * e.rate;
             d.pay += e.pay;
           });
         });
@@ -4329,6 +4349,7 @@
         <th>Persona</th>
         <th class="num">Prod.</th>
         <th class="num">Admin</th>
+        <th class="num" style="color:var(--warn);">Desplaz.</th>
         <th class="num">Break total</th>
         <th class="num" style="white-space:nowrap;">Break empresa</th>
         <th class="num" style="white-space:nowrap;">Break no pagado</th>
@@ -4352,11 +4373,12 @@
 
       function updatePagosResumen(data, persons) {
         recalcPayData(data);
-        const totProd = persons.reduce((s, n) => s + data[n].prodH, 0);
-        const totAdmin = persons.reduce((s, n) => s + data[n].adminH, 0);
-        const totBreak = persons.reduce((s, n) => s + data[n].breakH, 0);
+        const totProd      = persons.reduce((s, n) => s + data[n].prodH, 0);
+        const totAdmin     = persons.reduce((s, n) => s + data[n].adminH, 0);
+        const totTravel    = persons.reduce((s, n) => s + (data[n].travelH || 0), 0);
+        const totBreak     = persons.reduce((s, n) => s + data[n].breakH, 0);
         const totBreakPaid = persons.reduce((s, n) => s + data[n].breakPaid, 0);
-        const totPay = persons.reduce((s, n) => s + data[n].pay, 0);
+        const totPay       = persons.reduce((s, n) => s + data[n].pay, 0);
 
         const tbody = document.getElementById('pagosResumenBody');
         if (!tbody) return;
@@ -4368,8 +4390,9 @@
         onclick="renderPagoDetalle('${name}')">👷 ${name}</span></td>
       <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round(d.prodH * 60))}</td>
       <td class="num">${minsToHHMM(Math.round(d.adminH * 60))}</td>
+      <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round((d.travelH || 0) * 60))}</td>
       <td class="num">${minsToHHMM(Math.round(d.breakH * 60))}</td>
-      <td class="num" style="color:var(--accent);" id="bpaid_${safeId}" title="Break pagado por TaskPro (min entre lo que corresponde y lo tomado)">
+      <td class="num" style="color:var(--accent);" id="bpaid_${safeId}" title="Break pagado por TaskPro">
         ${minsToHHMM(Math.round((d.companyBreakH || 0) * 60))}
         <div style="font-size:9px;color:var(--text2);margin-top:2px;">
           ${Math.floor((d.prodH + d.adminH) / 4)} x 15min
@@ -4386,6 +4409,7 @@
       <td><strong>TOTAL</strong></td>
       <td class="num"><strong>${minsToHHMM(Math.round(totProd * 60))}</strong></td>
       <td class="num"><strong>${minsToHHMM(Math.round(totAdmin * 60))}</strong></td>
+      <td class="num" style="color:var(--warn);"><strong>${minsToHHMM(Math.round(totTravel * 60))}</strong></td>
       <td class="num"><strong>${minsToHHMM(Math.round(totBreak * 60))}</strong></td>
       <td class="num" id="tot_breakpaid"><strong>${minsToHHMM(Math.round(totBreakPaid * 60))}</strong></td>
       <td class="num"><strong>—</strong></td>
@@ -4431,12 +4455,13 @@
       <button class="btn btn-primary btn-sm" onclick="exportPagoPDF('${personName}')">↓ PDF</button>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <table class="data-table" style="min-width:620px;">
+    <table class="data-table" style="min-width:680px;">
       <thead><tr>
         <th>Fecha</th><th>Proyecto</th>
         <th class="num">Entrada</th><th class="num">Salida</th>
         <th class="num">Rate/h</th>
         <th class="num">Prod (h)</th>
+        <th class="num" style="color:var(--warn);">Desplaz.</th>
         <th class="num">Break total</th>
         <th class="num">Break empresa</th>
         <th class="num">Break no pagado</th>
@@ -4452,6 +4477,7 @@
             <td class="num" style="font-family:'DM Mono',monospace;color:var(--text2);">${e.end || '—'}</td>
             <td class="num">$${e.rate.toFixed(0)}</td>
             <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round(e.prodH * 60))}</td>
+            <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round((e.travelH || 0) * 60))}</td>
             <td class="num">${minsToHHMM(Math.round(e.breakH * 60))}</td>
             <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round((e.companyBreakH || 0) * 60))}</td>
             <td class="num" style="color:var(--text3);">${minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60))}</td>
@@ -4462,6 +4488,7 @@
           <td colspan="4"><strong>TOTAL ${personName.toUpperCase()}</strong></td>
           <td class="num"></td>
           <td class="num"><strong>${minsToHHMM(Math.round(d.prodH * 60))}</strong></td>
+          <td class="num" style="color:var(--warn);"><strong>${minsToHHMM(Math.round((d.travelH || 0) * 60))}</strong></td>
           <td class="num"><strong>${minsToHHMM(Math.round(d.breakH * 60))}</strong></td>
           <td class="num" style="color:var(--accent);"><strong>${minsToHHMM(Math.round((d.companyBreakH || 0) * 60))}</strong></td>
           <td class="num" style="color:var(--text3);"><strong>${minsToHHMM(Math.round(Math.max(0, d.breakH - (d.companyBreakH || 0)) * 60))}</strong></td>
@@ -4527,7 +4554,7 @@
 
         doc.autoTable({
           startY: y, margin: { left: margin, right: margin },
-          head: [['Fecha', 'Proyecto', 'Entrada', 'Salida', 'Rate/h', 'Prod (h)', 'Break total', 'Break empresa', 'No pagado', 'Admin', 'Total']],
+          head: [['Fecha', 'Proyecto', 'Entrada', 'Salida', 'Rate/h', 'Prod (h)', 'Desplaz.', 'Break total', 'Break empresa', 'No pagado', 'Admin', 'Total']],
           body: d.entries.map(e => [
             e.date,
             e.project,
@@ -4535,25 +4562,27 @@
             e.end || '—',
             '$' + e.rate.toFixed(0) + '/h',
             minsToHHMM(Math.round(e.prodH * 60)),
+            minsToHHMM(Math.round((e.travelH || 0) * 60)),
             minsToHHMM(Math.round(e.breakH * 60)),
             minsToHHMM(Math.round((e.companyBreakH || 0) * 60)),
             minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60)),
             minsToHHMM(Math.round(e.adminH * 60)),
             '$' + e.pay.toFixed(2)
           ]),
-          foot: [['', 'TOTAL', '', '', '',
+          foot: [['', 'TOTAL', '', '', '', '',
             minsToHHMM(Math.round(d.prodH * 60)),
+            minsToHHMM(Math.round((d.travelH || 0) * 60)),
             minsToHHMM(Math.round(d.breakH * 60)),
             minsToHHMM(Math.round((d.companyBreakH || 0) * 60)),
             minsToHHMM(Math.round(Math.max(0, d.breakH - (d.companyBreakH || 0)) * 60)),
             minsToHHMM(Math.round(d.adminH * 60)),
             '$' + d.pay.toFixed(2)
           ]],
-          styles: { fontSize: 7, cellPadding: 2, textColor: [30, 35, 30], overflow: 'linebreak' },
-          headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 6.5 },
+          styles: { fontSize: 6.5, cellPadding: 2, textColor: [30, 35, 30], overflow: 'linebreak' },
+          headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 6 },
           footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
           alternateRowStyles: { fillColor: [245, 250, 242] },
-          columnStyles: { 1: { cellWidth: 42 }, 10: { halign: 'right', fontStyle: 'bold' }, 4: { halign: 'center' } }
+          columnStyles: { 1: { cellWidth: 38 }, 11: { halign: 'right', fontStyle: 'bold' }, 4: { halign: 'center' } }
         });
 
         // Footer
