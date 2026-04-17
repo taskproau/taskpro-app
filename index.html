@@ -216,6 +216,8 @@
     .main {
       padding: 28px;
       overflow-y: auto;
+      overflow-x: hidden;
+      min-width: 0;
     }
 
     .section {
@@ -231,6 +233,8 @@
       font-weight: 800;
       letter-spacing: -0.5px;
       margin-bottom: 6px;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     .section-sub {
@@ -238,6 +242,8 @@
       font-size: 13px;
       margin-bottom: 24px;
       font-family: 'DM Mono', monospace;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     /* CARDS */
@@ -2771,8 +2777,8 @@
             container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Sin usuarios registrados.</p></div>';
             return;
           }
-          container.innerHTML = `
-      <table class="data-table">
+          container.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="data-table" style="min-width:460px;">
         <thead><tr>
           <th>Usuario</th><th>Rol</th><th>Vinculado</th><th>Cambiar rol</th><th></th>
         </tr></thead>
@@ -2808,7 +2814,7 @@
               + '</tr>';
           }).join('')}
         </tbody>
-      </table>`;
+      </table></div>`;
         }).catch(() => {
           container.innerHTML = '<div class="empty-state" style="padding:20px;"><p>Error cargando usuarios.</p></div>';
         });
@@ -3313,8 +3319,8 @@
         const days = [...new Set(sorted.map(e => e.date))].length;
         const persons = [...new Set(sorted.map(e => e.personName))];
 
-        container.innerHTML = `
-    <table class="data-table">
+        container.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="data-table" style="min-width:580px;">
       <thead><tr>
         <th>Fecha</th><th>Persona</th><th>Entrada</th><th>Salida</th>
         <th>Break</th><th>Admin</th><th class="num">Prod. (h)</th>
@@ -3342,7 +3348,7 @@
           <td></td>
         </tr>
       </tbody>
-    </table>`;
+    </table></div>`;
 
         statsContainer.innerHTML = `
     <div class="stat-card"><div class="stat-label">Total mano de obra</div><div class="stat-value accent">$${totalPay.toFixed(0)}</div></div>
@@ -3517,7 +3523,7 @@
         const totalPersonPay = personRows.reduce((s, [, d]) => s + d.pay, 0);
 
         container.innerHTML = `
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="stats-grid" >
       <div class="stat-card"><div class="stat-label">Precio sugerido</div><div class="stat-value accent">$${c.total.toFixed(0)}</div></div>
       <div class="stat-card"><div class="stat-label">Precio cliente</div>
         <div class="stat-value ${c.clientPrice > 0 ? '' : 'warn'}">${c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—'}</div></div>
@@ -4070,8 +4076,8 @@
           const totBreak = rows.reduce((s, [, d]) => s + d.breakH, 0);
           const totAdmin = rows.reduce((s, [, d]) => s + d.adminH, 0);
           const totExt = rows.reduce((s, [, d]) => s + d.extAdminH, 0);
-          resumen.innerHTML = `
-      <table class="data-table">
+          resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="data-table" style="min-width:520px;">
         <thead><tr>
           <th>Persona</th>
           <th class="num">Productivo</th>
@@ -4105,7 +4111,7 @@
             <td class="num"><strong>${minsToHHMM(Math.round((totProd + totBreak + totAdmin + totExt) * 60))}</strong></td>
           </tr>
         </tbody>
-      </table>`;
+      </table></div>`;
         }
 
         renderExternalAdminTable(from, to);
@@ -4151,8 +4157,8 @@
           container.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin registros de admin externo en este rango.</p></div>';
           return;
         }
-        container.innerHTML = `
-    <table class="data-table">
+        container.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="data-table" style="min-width:380px;">
       <thead><tr>
         <th>Fecha</th><th>Persona</th><th>Descripción</th><th class="num">Tiempo</th><th></th>
       </tr></thead>
@@ -4166,7 +4172,7 @@
             <td><button class="btn btn-danger btn-sm" onclick="removeExternalAdmin('${e.id}')">✕</button></td>
           </tr>`).join('')}
       </tbody>
-    </table>`;
+    </table></div>`;
       }
 
       // ═══════════════════════════════════════════
@@ -4315,8 +4321,8 @@
 
         // ── Render resumen with per-person break % inputs ──
         // We render the table with inputs first, then recalc on change
-        resumen.innerHTML = `
-    <table class="data-table">
+        resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="data-table" style="min-width:540px;">
       <thead><tr>
         <th>Persona</th>
         <th class="num">Prod.</th>
@@ -4327,7 +4333,7 @@
         <th class="num">Total a pagar</th>
       </tr></thead>
       <tbody id="pagosResumenBody"></tbody>
-    </table>`;
+    </table></div>`;
 
         // Render person buttons
         btns.innerHTML = persons.map(name =>
@@ -4422,7 +4428,8 @@
       </div>
       <button class="btn btn-primary btn-sm" onclick="exportPagoPDF('${personName}')">↓ PDF</button>
     </div>
-    <table class="data-table">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="data-table" style="min-width:620px;">
       <thead><tr>
         <th>Fecha</th><th>Proyecto</th>
         <th class="num">Entrada</th><th class="num">Salida</th>
@@ -4460,7 +4467,7 @@
           <td class="num" style="color:var(--accent);font-size:15px;"><strong>$${d.pay.toFixed(2)}</strong></td>
         </tr>
       </tbody>
-    </table>`;
+    </table></div>`;
       }
 
       function exportPagoPDF(personName) {
