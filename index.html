@@ -605,6 +605,25 @@
       margin-top: 16px;
     }
 
+    /* KPI Dashboard grids */
+    .kpi-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .kpi-charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* Invoice modal 2-col */
+    .invoice-modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
     .compare-side {
       background: var(--surface2);
       border-radius: var(--radius);
@@ -853,6 +872,89 @@
       /* Progress bars */
       .progress-wrap {
         height: 5px;
+      }
+
+      /* ── MOBILE GRID OVERRIDES ──
+         Inline style grid-template-columns can't be overridden without !important.
+         These rules collapse multi-column inline grids to single column on mobile. */
+
+      /* All .form-grid with inline grid-template-columns → 1 col */
+      .form-grid[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* form-group span overrides — reset on mobile */
+      .form-group[style*="grid-column"] {
+        grid-column: span 1 !important;
+      }
+
+      /* Invoice modal 2-col layout → stack vertically */
+      #sendInvoiceModal .modal > div[style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+      }
+
+      /* KPI dashboard JS-rendered grids */
+      #kpi_content > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr 1fr !important;
+      }
+
+      /* Pago Personal resumen summary table — tighter */
+      #pagosResumen .data-table {
+        font-size: 9px;
+        min-width: 480px;
+      }
+
+      /* Time Log entry rows */
+      #timelogEntries .data-table {
+        min-width: 500px;
+      }
+
+      /* Section filter bars with auto-fit grids — keep them wrapping */
+      div[style*="grid-template-columns:repeat(auto-fit"] {
+        grid-template-columns: 1fr 1fr !important;
+      }
+
+      /* Tiempos equipo resumen table */
+      #tiemposResumen .data-table {
+        min-width: 520px;
+      }
+
+      /* Clients / Users / Base team form grids */
+      #section-fin-clients .form-grid,
+      #section-users .form-grid,
+      #section-equipobase .form-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* KPI chart containers — full width */
+      #kpi_content > div[style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Pricing section compare grid */
+      #section-pricing .compare-section {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* KPI grids — 1 col on mobile */
+      .kpi-cards-grid {
+        grid-template-columns: 1fr 1fr !important;
+      }
+
+      .kpi-charts-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Invoice modal — stack vertically on mobile */
+      .invoice-modal-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+      }
+
+      /* Inline 3-col guide grid in expenses */
+      div[style*="grid-template-columns:repeat(3,1fr)"] {
+        grid-template-columns: 1fr 1fr !important;
       }
     }
 
@@ -1970,7 +2072,7 @@
         <div class="modal-title">🧾 Invoice — <span id="si_invoice_number_display"></span></div>
 
         <!-- TWO COLUMN LAYOUT -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:16px;">
+        <div class="invoice-modal-grid" style="margin-bottom:16px;gap:24px;">
 
           <!-- LEFT: Invoice details -->
           <div>
@@ -6063,7 +6165,7 @@ function renderKPIDashboard() {
     + '<div style="font-size:10px;color:var(--text3);margin-top:8px;">' + pl.projCount + ' proyectos en el mes</div>'
     + '</div>';
 
-  container.innerHTML = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">'
+  container.innerHTML = '<div class="kpi-cards-grid" style="margin-bottom:16px;">'
     + proy
     + kpiCard('💰','Revenue Neto (Ex-GST)', pl.revenueNeto, 0, plPrev.revenueNeto, '$', 'high')
     + kpiCard('📈','Avg Margen Proyectos', pl.avgMargin, 0.35, plPrev.avgMargin, '%', 'high')
@@ -6074,7 +6176,7 @@ function renderKPIDashboard() {
     + kpiCard('📋','Pipeline (precio acordado)', pl.pipeline, 0, plPrev.pipeline, '$', 'high')
     + kpiCard('🏠','Gastos Personales (info)', pl.personal, 0, plPrev.personal, '$', 'low')
     + '</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    + '<div class="kpi-charts-grid">'
     + '<div class="card"><div class="card-title">📊 Revenue vs Costos (6 meses)</div>'
     + '<div style="display:flex;gap:12px;margin-bottom:8px;font-size:10px;color:var(--text2);">'
     + '<span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:8px;background:rgba(184,245,90,0.3);display:inline-block;border-radius:2px;"></span>Revenue</span>'
