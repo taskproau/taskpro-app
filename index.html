@@ -216,7 +216,6 @@
     .main {
       padding: 28px;
       overflow-y: auto;
-      overflow-x: hidden;
       min-width: 0;
     }
 
@@ -3621,7 +3620,8 @@
               ? '<thead><tr><th>Concepto</th><th class="num">% Obj.</th><th class="num">Ideal</th><th class="num">Real $</th><th class="num">% Real</th><th class="num">Cobertura</th></tr></thead>'
               : '<thead><tr><th>Concepto</th><th class="num">% Obj.</th><th class="num">Ideal</th><th class="num">Real $</th><th class="num">% Real</th><th class="num">Cobertura</th></tr></thead>';
 
-            return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="data-table" style="min-width:300px;"><tbody>'
+            return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+              + '<table class="data-table" style="min-width:300px;"><tbody>'
               + '<tr><td>Mano de obra</td><td colspan="3" class="num">$' + c.labour.toFixed(2) + '</td></tr>'
               + '<tr><td>Materiales & costos directos</td><td colspan="3" class="num">$' + c.materials.toFixed(2) + '</td></tr>'
               + '</tbody></table>'
