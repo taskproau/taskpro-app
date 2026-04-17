@@ -3621,11 +3621,11 @@
               ? '<thead><tr><th>Concepto</th><th class="num">% Obj.</th><th class="num">Ideal</th><th class="num">Real $</th><th class="num">% Real</th><th class="num">Cobertura</th></tr></thead>'
               : '<thead><tr><th>Concepto</th><th class="num">% Obj.</th><th class="num">Ideal</th><th class="num">Real $</th><th class="num">% Real</th><th class="num">Cobertura</th></tr></thead>';
 
-            return '<table class="data-table"><tbody>'
+            return '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="data-table" style="min-width:300px;"><tbody>'
               + '<tr><td>Mano de obra</td><td colspan="3" class="num">$' + c.labour.toFixed(2) + '</td></tr>'
               + '<tr><td>Materiales & costos directos</td><td colspan="3" class="num">$' + c.materials.toFixed(2) + '</td></tr>'
               + '</tbody></table>'
-              + '<table class="data-table" style="margin-top:12px;">' + header + '<tbody>'
+              + '<table class="data-table" style="margin-top:12px;min-width:420px;">' + header + '<tbody>'
               + rows
               + '<tr class="total-row"><td><strong>PRECIO TOTAL SUGERIDO</strong></td>'
               + '<td class="num">—</td>'
@@ -3634,7 +3634,7 @@
               + '$' + (c.clientPrice > 0 ? c.clientPrice.toFixed(2) : c.total.toFixed(2)) + '</td>'
               + '<td class="num">—</td>'
               + '<td></td></tr>'
-              + '</tbody></table>';
+              + '</tbody></table></div>';
           })()}
     </div>
 
@@ -3653,7 +3653,8 @@
     ${personRows.length ? `
     <div class="card">
       <div class="card-title">👷 Pago por persona</div>
-      <table class="data-table">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="data-table" style="min-width:380px;">
         <thead><tr><th>Persona</th><th class="num">Tarifa/h</th><th class="num">Horas productivas</th><th class="num">Total a pagar</th></tr></thead>
         <tbody>
           ${personRows.map(([name, d]) => `
@@ -3672,6 +3673,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>` : ''}
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
