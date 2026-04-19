@@ -4263,7 +4263,7 @@
           });
         });
 
-        // Step 2: calculate companyBreakH per DAY per person, distribute proportionally
+        // Step 2: calculate companyBreakH per DAY per person
         Object.values(data).forEach(personData => {
           personData.entries.sort((a, b) => a.date.localeCompare(b.date));
 
@@ -4279,30 +4279,23 @@
             const dayAdminH = dayEntries.reduce((s, e) => s + e.adminH, 0);
             const dayBreakH = dayEntries.reduce((s, e) => s + e.breakH, 0);
 
-            // Company break earned for the full day
+            // Company break earned for the full day based on total hours worked
             const dayWorkedH       = dayProdH + dayAdminH;
             const dayCompanyBreakH = Math.min(
               Math.floor(dayWorkedH / 4) * (15 / 60),
-              dayBreakH
+              dayBreakH  // can't pay more than actual break taken across the day
             );
 
-            if (dayEntries.length === 1) {
-              dayEntries[0].companyBreakH = dayCompanyBreakH;
-              dayEntries[0].breakUnpaidH  = Math.max(0, dayEntries[0].breakH - dayCompanyBreakH);
-            } else {
-              // Distribute proportionally by worked hours, cap by each entry's own break
-              const totalWorked = dayWorkedH || 1;
-              let assigned = 0;
-              dayEntries.forEach((e, idx) => {
-                const isLast = idx === dayEntries.length - 1;
-                const share  = isLast
-                  ? Math.max(0, dayCompanyBreakH - assigned)
-                  : Math.round(dayCompanyBreakH * ((e.prodH + e.adminH) / totalWorked) * 3600) / 3600;
-                e.companyBreakH = Math.min(Math.max(0, share), e.breakH);
-                e.breakUnpaidH  = Math.max(0, e.breakH - e.companyBreakH);
-                assigned += e.companyBreakH;
-              });
-            }
+            // Distribute: fill entries that have break recorded, in order.
+            // This prevents losing minutes when the last entry has no break but
+            // earlier entries do — all earned break gets assigned correctly.
+            let remaining = dayCompanyBreakH;
+            dayEntries.forEach(e => {
+              const canReceive    = Math.min(e.breakH, remaining);
+              e.companyBreakH     = Math.max(0, canReceive);
+              e.breakUnpaidH      = Math.max(0, e.breakH - e.companyBreakH);
+              remaining          -= e.companyBreakH;
+            });
 
             dayEntries.forEach(e => { personData.companyBreakH += e.companyBreakH; });
           });
