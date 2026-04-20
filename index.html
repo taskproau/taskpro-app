@@ -4310,50 +4310,49 @@
           });
 
           const si = (col) => window._teSort.col === col ? (window._teSort.asc ? ' ↑' : ' ↓') : ' ⇅';
-          const sh = (col, label, style) =>
-            `<th${style ? ' style="'+style+'"' : ''} class="num" style="cursor:pointer;white-space:nowrap;${style||''}" onclick="window._teSort={col:'${col}',asc:window._teSort.col==='${col}'?!window._teSort.asc:false};renderTiempos()">${label}${si(col)}</th>`;
+          const sh = (col, label, extraStyle) =>
+            '<th class="num" style="cursor:pointer;white-space:nowrap;' + (extraStyle||'') + '" onclick="window._teSort={col:\'' + col + '\',asc:window._teSort.col===\'' + col + '\'?!window._teSort.asc:false};renderTiempos()">' + label + si(col) + '</th>';
           const shFirst = (col, label) =>
-            `<th style="cursor:pointer;white-space:nowrap;" onclick="window._teSort={col:'${col}',asc:window._teSort.col==='${col}'?!window._teSort.asc:true};renderTiempos()">Persona${si(col)}</th>`;
+            '<th style="cursor:pointer;white-space:nowrap;" onclick="window._teSort={col:\'' + col + '\',asc:window._teSort.col===\'' + col + '\'?!window._teSort.asc:true};renderTiempos()">' + label + si(col) + '</th>';
 
-          resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table class="data-table" style="min-width:600px;">
-        <thead><tr>
-          ${shFirst('name','Persona')}
-          ${sh('prod','Productivo')}
-          ${sh('travel','Desplaz.','color:var(--warn);')}
-          ${sh('break','Break')}
-          ${sh('admin','Admin (proyectos)')}
-          ${sh('ext','Admin (externo)')}
-          ${sh('atot','Admin total')}
-          ${sh('total','Total general')}
-        </tr></thead>
-        <tbody>
-          ${rows.map(([name, d]) => {
-            const adminTotal = d.adminH + d.extAdminH;
-            const total = d.prodH + d.breakH + d.travelH + adminTotal;
-            return `<tr>
-              <td><span class="person-tag">👷 ${name}</span></td>
-              <td class="num" style="color:var(--accent);"><strong>${minsToHHMM(Math.round(d.prodH * 60))}</strong></td>
-              <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.travelH * 60))}</td>
-              <td class="num">${minsToHHMM(Math.round(d.breakH * 60))}</td>
-              <td class="num">${minsToHHMM(Math.round(d.adminH * 60))}</td>
-              <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.extAdminH * 60))}</td>
-              <td class="num"><strong>${minsToHHMM(Math.round(adminTotal * 60))}</strong></td>
-              <td class="num"><strong>${minsToHHMM(Math.round(total * 60))}</strong></td>
-            </tr>`;
-          }).join('')}
-          <tr class="total-row">
-            <td><strong>TOTAL</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round(totProd * 60))}</strong></td>
-            <td class="num" style="color:var(--warn);"><strong>${minsToHHMM(Math.round(totTravel * 60))}</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round(totBreak * 60))}</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round(totAdmin * 60))}</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round(totExt * 60))}</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round((totAdmin + totExt) * 60))}</strong></td>
-            <td class="num"><strong>${minsToHHMM(Math.round((totProd + totBreak + totTravel + totAdmin + totExt) * 60))}</strong></td>
-          </tr>
-        </tbody>
-      </table></div>`;
+          resumen.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+            + '<table class="data-table" style="min-width:600px;">'
+            + '<thead><tr>'
+            + shFirst('name', 'Persona')
+            + sh('prod',   'Productivo')
+            + sh('travel', 'Desplaz.',         'color:var(--warn);')
+            + sh('break',  'Break')
+            + sh('admin',  'Admin (proyectos)')
+            + sh('ext',    'Admin (externo)',   'color:var(--warn);')
+            + sh('atot',   'Admin total')
+            + sh('total',  'Total general')
+            + '</tr></thead>'
+            + '<tbody>'
+            + rows.map(([name, d]) => {
+                const adminTotal = d.adminH + d.extAdminH;
+                const total = d.prodH + d.breakH + d.travelH + adminTotal;
+                return '<tr>'
+                  + '<td><span class="person-tag">👷 ' + name + '</span></td>'
+                  + '<td class="num" style="color:var(--accent);"><strong>' + minsToHHMM(Math.round(d.prodH * 60)) + '</strong></td>'
+                  + '<td class="num" style="color:var(--warn);">' + minsToHHMM(Math.round(d.travelH * 60)) + '</td>'
+                  + '<td class="num">' + minsToHHMM(Math.round(d.breakH * 60)) + '</td>'
+                  + '<td class="num">' + minsToHHMM(Math.round(d.adminH * 60)) + '</td>'
+                  + '<td class="num" style="color:var(--warn);">' + minsToHHMM(Math.round(d.extAdminH * 60)) + '</td>'
+                  + '<td class="num"><strong>' + minsToHHMM(Math.round(adminTotal * 60)) + '</strong></td>'
+                  + '<td class="num"><strong>' + minsToHHMM(Math.round(total * 60)) + '</strong></td>'
+                  + '</tr>';
+              }).join('')
+            + '<tr class="total-row">'
+            + '<td><strong>TOTAL</strong></td>'
+            + '<td class="num"><strong>' + minsToHHMM(Math.round(totProd * 60)) + '</strong></td>'
+            + '<td class="num" style="color:var(--warn);"><strong>' + minsToHHMM(Math.round(totTravel * 60)) + '</strong></td>'
+            + '<td class="num"><strong>' + minsToHHMM(Math.round(totBreak * 60)) + '</strong></td>'
+            + '<td class="num"><strong>' + minsToHHMM(Math.round(totAdmin * 60)) + '</strong></td>'
+            + '<td class="num"><strong>' + minsToHHMM(Math.round(totExt * 60)) + '</strong></td>'
+            + '<td class="num"><strong>' + minsToHHMM(Math.round((totAdmin + totExt) * 60)) + '</strong></td>'
+            + '<td class="num"><strong>' + minsToHHMM(Math.round((totProd + totBreak + totTravel + totAdmin + totExt) * 60)) + '</strong></td>'
+            + '</tr>'
+            + '</tbody></table></div>';
         }
 
         renderExternalAdminTable(from, to);
@@ -4573,24 +4572,23 @@
         }
 
         const si = (col) => _ppSort.col === col ? (_ppSort.asc ? ' ↑' : ' ↓') : ' ⇅';
-        const sh = (col, label, cls) => `<th${cls ? ' class="'+cls+'"' : ''} style="cursor:pointer;white-space:nowrap;" onclick="_ppSortBy('${col}')">${label}${si(col)}</th>`;
+        const sh = (col, label, cls) =>
+          '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_ppSortBy(\'' + col + '\')">' + label + si(col) + '</th>';
 
-        resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <table class="data-table" style="min-width:540px;">
-      <thead>
-        <tr>
-          ${sh('name','Persona')}
-          ${sh('prod','Prod.','num')}
-          ${sh('admin','Admin','num')}
-          ${sh('travel','Desplaz.','num')}
-          ${sh('break','Break total','num')}
-          ${sh('bpaid','Break empresa','num')}
-          ${sh('bunpaid','Break no pagado','num')}
-          ${sh('pay','Total a pagar','num')}
-        </tr>
-      </thead>
-      <tbody id="pagosResumenBody"></tbody>
-    </table></div>`;
+        resumen.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+          + '<table class="data-table" style="min-width:540px;">'
+          + '<thead><tr>'
+          + sh('name',    'Persona')
+          + sh('prod',    'Prod.',            'num')
+          + sh('admin',   'Admin',            'num')
+          + sh('travel',  'Desplaz.',         'num')
+          + sh('break',   'Break total',      'num')
+          + sh('bpaid',   'Break empresa',    'num')
+          + sh('bunpaid', 'Break no pagado',  'num')
+          + sh('pay',     'Total a pagar',    'num')
+          + '</tr></thead>'
+          + '<tbody id="pagosResumenBody"></tbody>'
+          + '</table></div>';
 
         // Render person buttons
         btns.innerHTML = persons.map(name =>
