@@ -95,9 +95,7 @@
     /* Searchable project dropdown */
     .proj-search-wrap {
       position: relative;
-      min-width: 320px;
-      flex: 1 1 320px;
-      max-width: 560px;
+      min-width: 200px;
     }
     .proj-search-input {
       width: 100%;
@@ -3876,11 +3874,6 @@
       // State for all-projects table filters
       const _apFilters = { name: '', client: '', status: '', sort: 'date_desc' };
 
-      function _apSort(col) {
-        _apFilters.sort = _apFilters.sort === col + '_asc' ? col + '_desc' : col + '_asc';
-        renderAllProjects();
-      }
-
       function renderAllProjects() {
         const container = document.getElementById('allProjectsList');
         let projects = Object.entries(state.projects);
@@ -3897,40 +3890,26 @@
         if (fClient) projects = projects.filter(([,p]) => (p.client||'').toLowerCase().includes(fClient));
         if (fStatus) projects = projects.filter(([,p]) => (p.status||'In Progress') === fStatus);
 
-        // Sort — precompute pricing only once per project
-        const withCalc = projects.map(([id, p]) => ({ id, p, c: calcPricing(p) }));
+        // Sort
         const s = _apFilters.sort;
-        withCalc.sort((a, b) => {
-          const asc = s.endsWith('_asc');
-          const col = s.replace(/_asc$|_desc$/, '');
-          let va, vb;
-          if (col === 'name')    { va = a.p.name||'';          vb = b.p.name||''; }
-          else if (col === 'client')  { va = a.p.client||'';        vb = b.p.client||''; }
-          else if (col === 'date')    { va = a.p.start||'';         vb = b.p.start||''; }
-          else if (col === 'labour')  { va = a.c.labour;            vb = b.c.labour; }
-          else if (col === 'mat')     { va = a.c.materials;         vb = b.c.materials; }
-          else if (col === 'total')   { va = a.c.total;             vb = b.c.total; }
-          else if (col === 'client_price') { va = a.c.clientPrice;  vb = b.c.clientPrice; }
-          else if (col === 'diff')    { va = a.c.profitVsClient;    vb = b.c.profitVsClient; }
-          else if (col === 'status')  { va = a.p.status||'';        vb = b.p.status||''; }
-          else { va = a.p.start||''; vb = b.p.start||''; } // default
-          if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-          return asc ? va - vb : vb - va;
+        projects.sort((a, b) => {
+          if (s === 'date_desc') return (b[1].start||'').localeCompare(a[1].start||'');
+          if (s === 'date_asc')  return (a[1].start||'').localeCompare(b[1].start||'');
+          if (s === 'name_asc')  return (a[1].name||'').localeCompare(b[1].name||'');
+          return (b[1].start||'').localeCompare(a[1].start||'');
         });
 
+        // Unique clients + statuses for dropdowns
+        const allClients  = [...new Set(Object.values(state.projects).map(p => p.client||'').filter(Boolean))].sort();
         const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
-        const si = (col) => {
-          const cur = _apFilters.sort;
-          if (cur === col + '_asc')  return ' ↑';
-          if (cur === col + '_desc') return ' ↓';
-          return ' ⇅';
-        };
-        const sh = (col, label, cls) =>
-          '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_apSort(\'' + col + '\')">' + label + si(col) + '</th>';
+
+        const sortIcon = (col) => _apFilters.sort.startsWith(col)
+          ? (_apFilters.sort.endsWith('asc') ? ' ↑' : ' ↓') : ' ⇅';
 
         let rows = '';
-        withCalc.forEach(({ id, p, c }) => {
-          const st   = p.status || 'In Progress';
+        projects.forEach(([id, p]) => {
+          const c   = calcPricing(p);
+          const st  = p.status || 'In Progress';
           const diff = c.profitVsClient;
           const diffBadge = c.clientPrice > 0
             ? '<span class="badge ' + (diff >= 0 || Math.abs(diff) < 0.5 ? 'badge-green' : 'badge-red') + '">'
@@ -3954,13 +3933,15 @@
             + '</tr>';
         });
 
-        const inpStyle = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:10px;box-sizing:border-box;';
-        const selStyle = 'font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;width:100%;';
         const filterRow = '<tr style="background:var(--surface2);">'
-          + '<td><input type="text" placeholder="Nombre..." value="' + _apFilters.name.replace(/"/g,'&quot;') + '" oninput="_apFilters.name=this.value;renderAllProjects()" style="' + inpStyle + '"></td>'
-          + '<td><input type="text" placeholder="Cliente..." value="' + _apFilters.client.replace(/"/g,'&quot;') + '" oninput="_apFilters.client=this.value;renderAllProjects()" style="' + inpStyle + '"></td>'
+          + '<td><input type="text" placeholder="Buscar proyecto..." value="' + _apFilters.name.replace(/"/g,'&quot;') + '"'
+          +   ' oninput="_apFilters.name=this.value;renderAllProjects()"'
+          +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:10px;"></td>'
+          + '<td><input type="text" placeholder="Cliente..." value="' + _apFilters.client.replace(/"/g,'&quot;') + '"'
+          +   ' oninput="_apFilters.client=this.value;renderAllProjects()"'
+          +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:10px;"></td>'
           + '<td></td><td></td><td></td><td></td><td></td><td></td>'
-          + '<td><select onchange="_apFilters.status=this.value;renderAllProjects()" style="' + selStyle + '">'
+          + '<td><select onchange="_apFilters.status=this.value;renderAllProjects()" style="font-size:10px;padding:4px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
           +   '<option value="">Todos</option>'
           +   allStatuses.map(st => '<option value="' + st + '"' + (_apFilters.status === st ? ' selected' : '') + '>' + st + '</option>').join('')
           + '</select></td>'
@@ -3968,21 +3949,18 @@
           + '</tr>';
 
         container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
-          + '<thead><tr>'
-          + sh('name',         'Proyecto')
-          + sh('client',       'Cliente')
-          + sh('date',         'Inicio')
-          + sh('labour',       'Labour',       'num')
-          + sh('mat',          'Materiales',   'num')
-          + sh('total',        'Total sugerido','num')
-          + sh('client_price', 'Precio cliente','num')
-          + sh('diff',         'Diferencia',   'num')
-          + sh('status',       'Status')
-          + '<th></th></tr>'
+          + '<thead>'
+          + '<tr>'
+          + '<th style="cursor:pointer;" onclick="_apFilters.sort=_apFilters.sort===\'name_asc\'?\'name_desc\':\'name_asc\';renderAllProjects()">Proyecto' + sortIcon('name') + '</th>'
+          + '<th>Cliente</th>'
+          + '<th style="cursor:pointer;" onclick="_apFilters.sort=_apFilters.sort===\'date_asc\'?\'date_desc\':\'date_asc\';renderAllProjects()">Inicio' + sortIcon('date') + '</th>'
+          + '<th class="num">Labour</th><th class="num">Materiales</th>'
+          + '<th class="num">Total sugerido</th><th class="num">Precio cliente</th>'
+          + '<th class="num">Diferencia</th><th>Status</th><th></th></tr>'
           + filterRow
           + '</thead>'
           + '<tbody>' + rows + '</tbody></table></div>'
-          + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + withCalc.length + ' proyecto(s)</div>';
+          + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + projects.length + ' proyecto(s)</div>';
       }
 
       // ═══════════════════════════════════════════
@@ -4281,7 +4259,7 @@
 
         // ── Render summary table ──
         const resumen = document.getElementById('tiemposResumen');
-        let rows = Object.entries(personData).filter(([, d]) => d.prodH + d.breakH + d.adminH + d.travelH + d.extAdminH > 0);
+        const rows = Object.entries(personData).filter(([, d]) => d.prodH + d.breakH + d.adminH + d.travelH + d.extAdminH > 0);
         if (!rows.length) {
           resumen.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin datos en este rango.</p></div>';
         } else {
@@ -4290,69 +4268,45 @@
           const totAdmin  = rows.reduce((s, [, d]) => s + d.adminH,  0);
           const totTravel = rows.reduce((s, [, d]) => s + d.travelH, 0);
           const totExt    = rows.reduce((s, [, d]) => s + d.extAdminH, 0);
-
-          // Sort
-          if (!window._teSort) window._teSort = { col: 'prod', asc: false };
-          rows.sort(([na, da], [nb, db]) => {
-            const col = window._teSort.col;
-            let va, vb;
-            if      (col === 'name')   { va = na; vb = nb; }
-            else if (col === 'prod')   { va = da.prodH; vb = db.prodH; }
-            else if (col === 'travel') { va = da.travelH; vb = db.travelH; }
-            else if (col === 'break')  { va = da.breakH; vb = db.breakH; }
-            else if (col === 'admin')  { va = da.adminH; vb = db.adminH; }
-            else if (col === 'ext')    { va = da.extAdminH; vb = db.extAdminH; }
-            else if (col === 'atot')   { va = da.adminH + da.extAdminH; vb = db.adminH + db.extAdminH; }
-            else if (col === 'total')  { va = da.prodH + da.breakH + da.travelH + da.adminH + da.extAdminH; vb = db.prodH + db.breakH + db.travelH + db.adminH + db.extAdminH; }
-            else { va = da.prodH; vb = db.prodH; }
-            const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
-            return window._teSort.asc ? cmp : -cmp;
-          });
-
-          const si = (col) => window._teSort.col === col ? (window._teSort.asc ? ' ↑' : ' ↓') : ' ⇅';
-          const sh = (col, label, extraStyle) =>
-            '<th class="num" style="cursor:pointer;white-space:nowrap;' + (extraStyle||'') + '" onclick="window._teSort={col:\'' + col + '\',asc:window._teSort.col===\'' + col + '\'?!window._teSort.asc:false};renderTiempos()">' + label + si(col) + '</th>';
-          const shFirst = (col, label) =>
-            '<th style="cursor:pointer;white-space:nowrap;" onclick="window._teSort={col:\'' + col + '\',asc:window._teSort.col===\'' + col + '\'?!window._teSort.asc:true};renderTiempos()">' + label + si(col) + '</th>';
-
-          resumen.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-            + '<table class="data-table" style="min-width:600px;">'
-            + '<thead><tr>'
-            + shFirst('name', 'Persona')
-            + sh('prod',   'Productivo')
-            + sh('travel', 'Desplaz.',         'color:var(--warn);')
-            + sh('break',  'Break')
-            + sh('admin',  'Admin (proyectos)')
-            + sh('ext',    'Admin (externo)',   'color:var(--warn);')
-            + sh('atot',   'Admin total')
-            + sh('total',  'Total general')
-            + '</tr></thead>'
-            + '<tbody>'
-            + rows.map(([name, d]) => {
-                const adminTotal = d.adminH + d.extAdminH;
-                const total = d.prodH + d.breakH + d.travelH + adminTotal;
-                return '<tr>'
-                  + '<td><span class="person-tag">👷 ' + name + '</span></td>'
-                  + '<td class="num" style="color:var(--accent);"><strong>' + minsToHHMM(Math.round(d.prodH * 60)) + '</strong></td>'
-                  + '<td class="num" style="color:var(--warn);">' + minsToHHMM(Math.round(d.travelH * 60)) + '</td>'
-                  + '<td class="num">' + minsToHHMM(Math.round(d.breakH * 60)) + '</td>'
-                  + '<td class="num">' + minsToHHMM(Math.round(d.adminH * 60)) + '</td>'
-                  + '<td class="num" style="color:var(--warn);">' + minsToHHMM(Math.round(d.extAdminH * 60)) + '</td>'
-                  + '<td class="num"><strong>' + minsToHHMM(Math.round(adminTotal * 60)) + '</strong></td>'
-                  + '<td class="num"><strong>' + minsToHHMM(Math.round(total * 60)) + '</strong></td>'
-                  + '</tr>';
-              }).join('')
-            + '<tr class="total-row">'
-            + '<td><strong>TOTAL</strong></td>'
-            + '<td class="num"><strong>' + minsToHHMM(Math.round(totProd * 60)) + '</strong></td>'
-            + '<td class="num" style="color:var(--warn);"><strong>' + minsToHHMM(Math.round(totTravel * 60)) + '</strong></td>'
-            + '<td class="num"><strong>' + minsToHHMM(Math.round(totBreak * 60)) + '</strong></td>'
-            + '<td class="num"><strong>' + minsToHHMM(Math.round(totAdmin * 60)) + '</strong></td>'
-            + '<td class="num"><strong>' + minsToHHMM(Math.round(totExt * 60)) + '</strong></td>'
-            + '<td class="num"><strong>' + minsToHHMM(Math.round((totAdmin + totExt) * 60)) + '</strong></td>'
-            + '<td class="num"><strong>' + minsToHHMM(Math.round((totProd + totBreak + totTravel + totAdmin + totExt) * 60)) + '</strong></td>'
-            + '</tr>'
-            + '</tbody></table></div>';
+          resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="data-table" style="min-width:600px;">
+        <thead><tr>
+          <th>Persona</th>
+          <th class="num">Productivo</th>
+          <th class="num" style="color:var(--warn);">Desplaz.</th>
+          <th class="num">Break</th>
+          <th class="num">Admin (proyectos)</th>
+          <th class="num">Admin (externo)</th>
+          <th class="num">Admin total</th>
+          <th class="num">Total general</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(([name, d]) => {
+            const adminTotal = d.adminH + d.extAdminH;
+            const total = d.prodH + d.breakH + d.travelH + adminTotal;
+            return `<tr>
+              <td><span class="person-tag">👷 ${name}</span></td>
+              <td class="num" style="color:var(--accent);"><strong>${minsToHHMM(Math.round(d.prodH * 60))}</strong></td>
+              <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.travelH * 60))}</td>
+              <td class="num">${minsToHHMM(Math.round(d.breakH * 60))}</td>
+              <td class="num">${minsToHHMM(Math.round(d.adminH * 60))}</td>
+              <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round(d.extAdminH * 60))}</td>
+              <td class="num"><strong>${minsToHHMM(Math.round(adminTotal * 60))}</strong></td>
+              <td class="num"><strong>${minsToHHMM(Math.round(total * 60))}</strong></td>
+            </tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totProd * 60))}</strong></td>
+            <td class="num" style="color:var(--warn);"><strong>${minsToHHMM(Math.round(totTravel * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totBreak * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totAdmin * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round(totExt * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round((totAdmin + totExt) * 60))}</strong></td>
+            <td class="num"><strong>${minsToHHMM(Math.round((totProd + totBreak + totTravel + totAdmin + totExt) * 60))}</strong></td>
+          </tr>
+        </tbody>
+      </table></div>`;
         }
 
         renderExternalAdminTable(from, to);
@@ -4551,10 +4505,6 @@
         return data;
       }
 
-      // Pago Personal resumen sort state
-      const _ppSort = { col: 'name', asc: true };
-      function _ppSortBy(col) { _ppSort.asc = _ppSort.col === col ? !_ppSort.asc : true; _ppSort.col = col; updatePagosResumen(window._ppData, window._ppPersons); }
-
       function renderPagos() {
         const from = document.getElementById('pp_from').value;
         const to = document.getElementById('pp_to').value;
@@ -4571,34 +4521,28 @@
           return;
         }
 
-        const si = (col) => _ppSort.col === col ? (_ppSort.asc ? ' ↑' : ' ↓') : ' ⇅';
-        const sh = (col, label, cls) =>
-          '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_ppSortBy(\'' + col + '\')">' + label + si(col) + '</th>';
-
-        resumen.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-          + '<table class="data-table" style="min-width:540px;">'
-          + '<thead><tr>'
-          + sh('name',    'Persona')
-          + sh('prod',    'Prod.',            'num')
-          + sh('admin',   'Admin',            'num')
-          + sh('travel',  'Desplaz.',         'num')
-          + sh('break',   'Break total',      'num')
-          + sh('bpaid',   'Break empresa',    'num')
-          + sh('bunpaid', 'Break no pagado',  'num')
-          + sh('pay',     'Total a pagar',    'num')
-          + '</tr></thead>'
-          + '<tbody id="pagosResumenBody"></tbody>'
-          + '</table></div>';
+        // ── Render resumen with per-person break % inputs ──
+        // We render the table with inputs first, then recalc on change
+        resumen.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table class="data-table" style="min-width:540px;">
+      <thead><tr>
+        <th>Persona</th>
+        <th class="num">Prod.</th>
+        <th class="num">Admin</th>
+        <th class="num" style="color:var(--warn);">Desplaz.</th>
+        <th class="num">Break total</th>
+        <th class="num" style="white-space:nowrap;">Break empresa</th>
+        <th class="num" style="white-space:nowrap;">Break no pagado</th>
+        <th class="num">Total a pagar</th>
+      </tr></thead>
+      <tbody id="pagosResumenBody"></tbody>
+    </table></div>`;
 
         // Render person buttons
         btns.innerHTML = persons.map(name =>
           `<button class="btn btn-ghost btn-sm" onclick="renderPagoDetalle('${name}')"
       id="btn_pago_${name.replace(/\s+/g, '_')}">👷 ${name}</button>`
         ).join('');
-
-        // Store for re-sort
-        window._ppData = data;
-        window._ppPersons = persons;
 
         // Populate rows with inputs and initial calc
         updatePagosResumen(data, persons);
@@ -4616,27 +4560,9 @@
         const totBreakPaid = persons.reduce((s, n) => s + data[n].breakPaid, 0);
         const totPay       = persons.reduce((s, n) => s + data[n].pay, 0);
 
-        // Apply sort
-        const sorted = [...persons].sort((a, b) => {
-          const da = data[a], db = data[b];
-          const col = _ppSort.col;
-          let va, vb;
-          if      (col === 'name')    { va = a;                         vb = b; }
-          else if (col === 'prod')    { va = da.prodH;                  vb = db.prodH; }
-          else if (col === 'admin')   { va = da.adminH;                 vb = db.adminH; }
-          else if (col === 'travel')  { va = da.travelH||0;             vb = db.travelH||0; }
-          else if (col === 'break')   { va = da.breakH;                 vb = db.breakH; }
-          else if (col === 'bpaid')   { va = da.companyBreakH||0;       vb = db.companyBreakH||0; }
-          else if (col === 'bunpaid') { va = Math.max(0,da.breakH-(da.companyBreakH||0)); vb = Math.max(0,db.breakH-(db.companyBreakH||0)); }
-          else if (col === 'pay')     { va = da.pay;                    vb = db.pay; }
-          else { va = a; vb = b; }
-          const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
-          return _ppSort.asc ? cmp : -cmp;
-        });
-
         const tbody = document.getElementById('pagosResumenBody');
         if (!tbody) return;
-        tbody.innerHTML = sorted.map(name => {
+        tbody.innerHTML = persons.map(name => {
           const d = data[name];
           const safeId = name.replace(/\s+/g, '_');
           return `<tr>
@@ -5793,12 +5719,7 @@ function calcPL(monthKey) {
 // ═══════════════════════════════════════════════════════════
 // FIN PROJECTS TABLE
 // ═══════════════════════════════════════════════════════════
-const _fpFilters = { name: '', client: '', status: '', month: '', sort: 'date_desc' };
-
-function _fpSort(col) {
-  _fpFilters.sort = _fpFilters.sort === col + '_asc' ? col + '_desc' : col + '_asc';
-  renderFinProjects();
-}
+const _fpFilters = { name: '', client: '', status: '', month: '' };
 
 function renderFinProjects() {
   const container = document.getElementById('fin_projects_table');
@@ -5806,36 +5727,14 @@ function renderFinProjects() {
 
   let projects = Object.entries(state.projects).map(([id, p]) => ({ id, ...p }));
 
+  // Apply filters
   if (_fpFilters.name)   projects = projects.filter(p => (p.name||'').toLowerCase().includes(_fpFilters.name.toLowerCase()));
   if (_fpFilters.client) projects = projects.filter(p => (p.client||'').toLowerCase().includes(_fpFilters.client.toLowerCase()));
   if (_fpFilters.status) projects = projects.filter(p => (p.status||'In Progress') === _fpFilters.status);
   if (_fpFilters.month)  projects = projects.filter(p => dateToMonthKey(p.start) === _fpFilters.month);
+  projects.sort((a,b) => (b.start||'').localeCompare(a.start||''));
 
-  // Precompute pricing, then sort
-  const withCalc = projects.map(p => ({ p, c: calcPricing(p) }));
-  const s = _fpFilters.sort;
-  withCalc.sort((a, b) => {
-    const asc = s.endsWith('_asc');
-    const col = s.replace(/_asc$|_desc$/, '');
-    let va, vb;
-    if      (col === 'date')   { va = a.p.start||'';       vb = b.p.start||''; }
-    else if (col === 'name')   { va = a.p.name||'';        vb = b.p.name||''; }
-    else if (col === 'client') { va = a.p.client||'';      vb = b.p.client||''; }
-    else if (col === 'labour') { va = a.c.labour;          vb = b.c.labour; }
-    else if (col === 'mat')    { va = a.c.materials;       vb = b.c.materials; }
-    else if (col === 'cost')   { va = a.c.totalCost;       vb = b.c.totalCost; }
-    else if (col === 'sug')    { va = a.c.total;           vb = b.c.total; }
-    else if (col === 'cp')     { va = a.c.clientPrice;     vb = b.c.clientPrice; }
-    else if (col === 'diff')   { va = a.c.profitVsClient;  vb = b.c.profitVsClient; }
-    else if (col === 'margin') { va = a.c.margin;          vb = b.c.margin; }
-    else if (col === 'status') { va = a.p.status||'';      vb = b.p.status||''; }
-    else if (col === 'month')  { va = dateToMonthKey(a.p.start)||''; vb = dateToMonthKey(b.p.start)||''; }
-    else { va = a.p.start||''; vb = b.p.start||''; }
-    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-    return asc ? va - vb : vb - va;
-  });
-
-  if (!withCalc.length) {
+  if (!projects.length) {
     container.innerHTML = '<div class="empty-state"><p>Sin proyectos con los filtros aplicados.</p></div>';
     return;
   }
@@ -5843,45 +5742,36 @@ function renderFinProjects() {
   const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
   const allMonths = [...new Set(Object.values(state.projects).map(p => dateToMonthKey(p.start)).filter(Boolean))].sort().reverse();
 
-  const si = (col) => s === col + '_asc' ? ' ↑' : s === col + '_desc' ? ' ↓' : ' ⇅';
-  const sh = (col, label, cls) =>
-    '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_fpSort(\'' + col + '\')">' + label + si(col) + '</th>';
-
-  const inpSt = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;box-sizing:border-box;';
-  const selSt = 'font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;width:100%;';
-
   const filterRow = '<tr style="background:var(--surface2);">'
     + '<td></td>'
-    + '<td><input type="text" placeholder="Nombre..." value="' + _fpFilters.name.replace(/"/g,'&quot;') + '" oninput="_fpFilters.name=this.value;renderFinProjects()" style="' + inpSt + '"></td>'
-    + '<td><input type="text" placeholder="Cliente..." value="' + _fpFilters.client.replace(/"/g,'&quot;') + '" oninput="_fpFilters.client=this.value;renderFinProjects()" style="' + inpSt + '"></td>'
+    + '<td><input type="text" placeholder="Buscar..." value="' + _fpFilters.name.replace(/"/g,'&quot;') + '"'
+    +   ' oninput="_fpFilters.name=this.value;renderFinProjects()"'
+    +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;"></td>'
+    + '<td><input type="text" placeholder="Cliente..." value="' + _fpFilters.client.replace(/"/g,'&quot;') + '"'
+    +   ' oninput="_fpFilters.client=this.value;renderFinProjects()"'
+    +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;"></td>'
     + '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
-    + '<td><select onchange="_fpFilters.status=this.value;renderFinProjects()" style="' + selSt + '">'
+    + '<td><select onchange="_fpFilters.status=this.value;renderFinProjects()" style="font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
     +   '<option value="">Todos</option>'
-    +   allStatuses.map(st => '<option value="' + st + '"' + (_fpFilters.status===st?' selected':'') + '>' + st + '</option>').join('')
+    +   allStatuses.map(s => '<option value="' + s + '"' + (_fpFilters.status===s?' selected':'') + '>' + s + '</option>').join('')
     + '</select></td>'
-    + '<td><select onchange="_fpFilters.month=this.value;renderFinProjects()" style="' + selSt + '">'
-    +   '<option value="">Todos</option>'
+    + '<td><select onchange="_fpFilters.month=this.value;renderFinProjects()" style="font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
+    +   '<option value="">Todos los meses</option>'
     +   allMonths.map(m => '<option value="' + m + '"' + (_fpFilters.month===m?' selected':'') + '>' + m + '</option>').join('')
     + '</select>'
     + '<button onclick="_fpFilters.name=\'\';_fpFilters.client=\'\';_fpFilters.status=\'\';_fpFilters.month=\'\';renderFinProjects()" style="font-size:9px;margin-left:4px;padding:2px 5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:3px;cursor:pointer;">✕</button>'
-    + '</td></tr>';
+    + '</td>'
+    + '</tr>';
 
   container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
-    + '<thead><tr>'
-    + sh('date',   'Fecha')
-    + sh('name',   'Proyecto')
-    + sh('client', 'Cliente')
-    + sh('labour', 'Labour',        'num')
-    + sh('mat',    'Materiales',    'num')
-    + sh('cost',   'Costo Total',   'num')
-    + sh('sug',    'Precio Sug.',   'num')
-    + sh('cp',     'Precio Cliente','num')
-    + sh('diff',   'Diferencia',    'num')
-    + sh('margin', 'Margen',        'num')
-    + sh('status', 'Status')
-    + sh('month',  'Mes')
-    + '</tr>' + filterRow + '</thead><tbody>'
-    + withCalc.map(({ p, c }) => {
+    + '<thead><tr><th>Fecha</th><th>Proyecto</th><th>Cliente</th>'
+    + '<th class="num">Labour</th><th class="num">Materiales</th><th class="num">Costo Total</th>'
+    + '<th class="num">Precio Sugerido</th><th class="num">Precio Cliente</th>'
+    + '<th class="num">Diferencia</th><th class="num">Margen Real</th><th>Status</th><th>Mes</th></tr>'
+    + filterRow
+    + '</thead><tbody>'
+    + projects.map(p => {
+      const c = calcPricing(p);
       const diff = c.profitVsClient;
       const diffColor = diff >= 0 ? 'var(--accent)' : 'var(--danger)';
       const mes = dateToMonthKey(p.start);
@@ -5902,11 +5792,8 @@ function renderFinProjects() {
         + '</tr>';
     }).join('')
     + '</tbody></table></div>'
-    + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + withCalc.length + ' proyecto(s)</div>';
+    + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + projects.length + ' proyecto(s)</div>';
 }
-
-  if (!projects.length) {
-
 
 // ═══════════════════════════════════════════════════════════
 // MONTHLY SUMMARY RENDER
