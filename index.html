@@ -1624,6 +1624,7 @@
               <div style="display:flex;gap:8px;padding-bottom:1px;flex-wrap:wrap;">
                 <button class="btn btn-primary btn-sm" onclick="renderPagos()">Aplicar</button>
                 <button class="btn btn-ghost btn-sm" onclick="setPagosThisMonth()">Este mes</button>
+                <button class="btn btn-ghost btn-sm" onclick="setPagosThisWeek()">Esta semana</button>
                 <button class="btn btn-ghost btn-sm" onclick="setPagosAll()">Todo</button>
               </div>
             </div>
@@ -4208,6 +4209,18 @@
         renderPagos();
       }
 
+      function setPagosThisWeek() {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon...
+        const diffToMon = (day === 0 ? -6 : 1 - day); // days to go back to Monday
+        const mon = new Date(now); mon.setDate(now.getDate() + diffToMon);
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        const fmt = d => d.toISOString().slice(0, 10);
+        document.getElementById('pp_from').value = fmt(mon);
+        document.getElementById('pp_to').value = fmt(sun);
+        renderPagos();
+      }
+
       function setPagosAll() {
         document.getElementById('pp_from').value = '';
         document.getElementById('pp_to').value = '';
@@ -4562,7 +4575,7 @@
             minsToHHMM(Math.round(e.adminH * 60)),
             '$' + e.pay.toFixed(2)
           ]),
-          foot: [['', 'TOTAL', '', '', '', '',
+          foot: [['', 'TOTAL', '', '', '',
             minsToHHMM(Math.round(d.prodH * 60)),
             minsToHHMM(Math.round((d.travelH || 0) * 60)),
             minsToHHMM(Math.round(d.breakH * 60)),
