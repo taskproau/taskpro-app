@@ -92,6 +92,57 @@
       min-width: 200px;
     }
 
+    /* Searchable project dropdown */
+    .proj-search-wrap {
+      position: relative;
+      min-width: 200px;
+    }
+    .proj-search-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 28px 7px 12px;
+      border-radius: var(--radius);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .proj-search-input:focus { outline: none; border-color: var(--accent); }
+    .proj-search-arrow {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      pointer-events: none; color: var(--text2); font-size: 10px;
+    }
+    .proj-search-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      min-width: 100%;
+      max-width: 460px;
+      max-height: 280px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      z-index: 9999;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .proj-search-dropdown.open { display: block; }
+    .proj-dd-item {
+      padding: 8px 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .proj-dd-item:hover, .proj-dd-item.active { background: var(--surface2); color: var(--accent); }
+    .proj-dd-item.selected { color: var(--accent); font-weight: 700; }
+
     .btn {
       padding: 7px 14px;
       border-radius: var(--radius);
@@ -751,11 +802,15 @@
         order: 3;
       }
 
-      .project-selector select {
+      .project-selector select,
+      .proj-search-wrap {
         min-width: 0;
         flex: 1 1 140px;
-        font-size: 11px;
         max-width: calc(100vw - 120px);
+      }
+
+      .proj-search-input {
+        font-size: 11px;
       }
 
       /* Hide user pill text on mobile, keep avatar only */
@@ -1189,9 +1244,15 @@
           style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:8px;vertical-align:middle;"
           title="Conectado a Firebase"></span></div>
       <div class="project-selector">
-        <select id="projectSelect" onchange="loadProject(this.value)">
-          <option value="">— Seleccionar proyecto —</option>
-        </select>
+        <div class="proj-search-wrap" id="projSearchWrap">
+          <input type="text" class="proj-search-input" id="projSearchInput"
+            placeholder="— Seleccionar proyecto —"
+            autocomplete="off"
+            onfocus="openProjDropdown()"
+            oninput="filterProjDropdown(this.value)">
+          <span class="proj-search-arrow">▼</span>
+          <div class="proj-search-dropdown" id="projSearchDropdown"></div>
+        </div>
         <button class="btn btn-ghost btn-sm" id="btn_new_project" onclick="openNewProjectModal()">＋ Nuevo</button>
         <button class="btn btn-export btn-sm" onclick="exportCSV()">↓ Exportar CSV</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCurrentProject()" id="btn_delete_project">🗑</button>
@@ -1862,6 +1923,7 @@
           <button class="btn btn-ghost btn-sm" onclick="clearIncFilters()" style="font-size:10px;">✕ Limpiar filtros</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;">
+          <input type="text" id="inc_filter_text" placeholder="🔍 Buscar (cliente, proyecto, notas...)" oninput="renderIncomeTable()" style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius);grid-column:1/-1;">
           <select id="inc_filter_month" onchange="renderIncomeTable()" style="font-size:11px;"><option value="">Todos los meses</option></select>
           <select id="inc_filter_cliente" onchange="renderIncomeTable()" style="font-size:11px;"><option value="">Todos los clientes</option></select>
           <select id="inc_filter_tipo" onchange="renderIncomeTable()" style="font-size:11px;"><option value="">Todos los tipos</option><option value="B2B">B2B</option><option value="B2C">B2C</option></select>
@@ -1919,6 +1981,7 @@
           <button class="btn btn-ghost btn-sm" onclick="clearExpFilters()" style="font-size:10px;">✕ Limpiar filtros</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;">
+          <input type="text" id="exp_filter_text" placeholder="🔍 Buscar (proveedor, notas, área...)" oninput="renderExpenseTable()" style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius);grid-column:1/-1;">
           <select id="exp_filter_month" onchange="renderExpenseTable()" style="font-size:11px;"><option value="">Todos los meses</option></select>
           <select id="exp_filter_area" onchange="renderExpenseTable()" style="font-size:11px;"><option value="">Todas las áreas</option><option value="ADMIN_GENERAL">ADMIN_GENERAL</option><option value="SALARY">SALARY</option><option value="MATERIALES_PROYECTO">MATERIALES_PROYECTO</option><option value="ARRIENDO CASA">ARRIENDO CASA</option><option value="PERSONAL">PERSONAL</option></select>
           <select id="exp_filter_tipo" onchange="renderExpenseTable()" style="font-size:11px;"><option value="">Todos los tipos</option><option value="Direct Project">Direct Project</option><option value="Fixed Operating">Fixed Operating</option><option value="Personal">Personal</option></select>
@@ -2263,8 +2326,8 @@
         }
         if (menuEmailEl) menuEmailEl.textContent = currentUser.email;
 
-        // Operador: hide project selector, show simplified header
-        const sel = document.getElementById('projectSelect');
+        // Operador: hide new/export buttons
+        const sel = document.getElementById('projSearchWrap');
         const newBtn = document.querySelector('[onclick="openNewProjectModal()"]');
         const csvBtn = document.querySelector('[onclick="exportCSV()"]');
         if (currentUser.role === 'operador') {
@@ -3016,7 +3079,7 @@
         document.getElementById('projectTitle').textContent = p.name;
         document.getElementById('projectMeta').textContent = (p.client || '—') + ' · ' + (p.start || '—');
         document.getElementById('summaryMeta').textContent = (p.client || '—') + ' · ' + (p.start || '—');
-        document.getElementById('projectSelect').value = state.currentId;
+        // projSearchInput updated by renderProjectSelect()
         document.getElementById('p_overhead').value = p.pricing.overhead;
         document.getElementById('p_contingency').value = p.pricing.contingency;
         document.getElementById('p_markup').value = p.pricing.markup;
@@ -3102,22 +3165,82 @@
       }
 
       function renderProjectSelect() {
-        const sel = document.getElementById('projectSelect');
-        sel.innerHTML = '<option value="">— Seleccionar proyecto —</option>';
-        Object.entries(state.projects).forEach(([id, p]) => {
-          // Operador: only show projects where they are assigned as a worker
-          if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
-            const workers = Array.isArray(p.workers) ? p.workers : Object.values(p.workers || {});
-            const isAssigned = workers.some(w => w.name === currentUser.linkedName);
-            if (!isAssigned) return;
-          }
-          const opt = document.createElement('option');
-          opt.value = id;
-          opt.textContent = p.name + (p.client ? ` — ${p.client}` : '');
-          if (id === state.currentId) opt.selected = true;
-          sel.appendChild(opt);
-        });
+        // Build sorted list: most recent start date first
+        const entries = Object.entries(state.projects)
+          .filter(([id, p]) => {
+            if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
+              const workers = Array.isArray(p.workers) ? p.workers : Object.values(p.workers || {});
+              return workers.some(w => w.name === currentUser.linkedName);
+            }
+            return true;
+          })
+          .sort((a, b) => (b[1].start || '').localeCompare(a[1].start || ''));
+
+        // Store globally for filtering
+        window._projList = entries.map(([id, p]) => ({
+          id, label: (p.name || id) + (p.client ? ` — ${p.client}` : '')
+        }));
+
+        renderProjDropdownItems(window._projList);
+
+        // Update input display to show current project
+        if (state.currentId && state.projects[state.currentId]) {
+          const p = state.projects[state.currentId];
+          document.getElementById('projSearchInput').value =
+            (p.name || state.currentId) + (p.client ? ` — ${p.client}` : '');
+        }
       }
+
+      function renderProjDropdownItems(list) {
+        const dd = document.getElementById('projSearchDropdown');
+        if (!dd) return;
+        dd.innerHTML = '<div class="proj-dd-item" data-pid="" onclick="selectProjItem(this)">— Seleccionar proyecto —</div>'
+          + list.map(item =>
+            '<div class="proj-dd-item' + (item.id === state.currentId ? ' selected' : '') + '"'
+            + ' data-pid="' + item.id + '" onclick="selectProjItem(this)"'
+            + ' title="' + item.label.replace(/"/g, '&quot;') + '">'
+            + item.label + '</div>'
+          ).join('');
+      }
+
+      function openProjDropdown() {
+        filterProjDropdown('');
+        document.getElementById('projSearchDropdown').classList.add('open');
+        document.getElementById('projSearchInput').select();
+      }
+
+      function filterProjDropdown(query) {
+        const q = query.toLowerCase();
+        const filtered = (window._projList || []).filter(item =>
+          !q || item.label.toLowerCase().includes(q)
+        );
+        renderProjDropdownItems(filtered);
+        document.getElementById('projSearchDropdown').classList.add('open');
+      }
+
+      function selectProjItem(el) {
+        const pid = el.getAttribute('data-pid');
+        document.getElementById('projSearchDropdown').classList.remove('open');
+        if (!pid) {
+          document.getElementById('projSearchInput').value = '— Seleccionar proyecto —';
+          return;
+        }
+        loadProject(pid);
+      }
+
+      // Close dropdown on outside click
+      document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('projSearchWrap');
+        if (wrap && !wrap.contains(e.target)) {
+          document.getElementById('projSearchDropdown')?.classList.remove('open');
+          // Restore display name if user typed partial text
+          if (state.currentId && state.projects[state.currentId]) {
+            const p = state.projects[state.currentId];
+            document.getElementById('projSearchInput').value =
+              (p.name || state.currentId) + (p.client ? ` — ${p.client}` : '');
+          }
+        }
+      });
 
       // ═══════════════════════════════════════════
       // WORKERS
@@ -3732,7 +3855,7 @@
           document.getElementById('projectTitle').textContent = name;
           document.getElementById('projectMeta').textContent = (client || '—') + ' · ' + (p.start || '—');
           document.getElementById('summaryMeta').textContent = (client || '—') + ' · ' + (p.start || '—');
-          document.getElementById('projectSelect').value = id;
+          // projSearchInput updated by renderProjectSelect()
         }
         closeModal('editProjectModal');
         renderProjectSelect();
@@ -3748,13 +3871,41 @@
         return '<span class="badge ' + col + '" style="font-size:9px;">' + st + '</span>';
       }
 
+      // State for all-projects table filters
+      const _apFilters = { name: '', client: '', status: '', sort: 'date_desc' };
+
       function renderAllProjects() {
         const container = document.getElementById('allProjectsList');
-        const projects = Object.entries(state.projects);
+        let projects = Object.entries(state.projects);
         if (!projects.length) {
           container.innerHTML = '<div class="empty-state"><div class="icon">📁</div><p>Sin proyectos aun.</p></div>';
           return;
         }
+
+        // Apply filters
+        const fName   = _apFilters.name.toLowerCase();
+        const fClient = _apFilters.client.toLowerCase();
+        const fStatus = _apFilters.status;
+        if (fName)   projects = projects.filter(([,p]) => (p.name||'').toLowerCase().includes(fName));
+        if (fClient) projects = projects.filter(([,p]) => (p.client||'').toLowerCase().includes(fClient));
+        if (fStatus) projects = projects.filter(([,p]) => (p.status||'In Progress') === fStatus);
+
+        // Sort
+        const s = _apFilters.sort;
+        projects.sort((a, b) => {
+          if (s === 'date_desc') return (b[1].start||'').localeCompare(a[1].start||'');
+          if (s === 'date_asc')  return (a[1].start||'').localeCompare(b[1].start||'');
+          if (s === 'name_asc')  return (a[1].name||'').localeCompare(b[1].name||'');
+          return (b[1].start||'').localeCompare(a[1].start||'');
+        });
+
+        // Unique clients + statuses for dropdowns
+        const allClients  = [...new Set(Object.values(state.projects).map(p => p.client||'').filter(Boolean))].sort();
+        const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
+
+        const sortIcon = (col) => _apFilters.sort.startsWith(col)
+          ? (_apFilters.sort.endsWith('asc') ? ' ↑' : ' ↓') : ' ⇅';
+
         let rows = '';
         projects.forEach(([id, p]) => {
           const c   = calcPricing(p);
@@ -3781,12 +3932,35 @@
             + '<td style="display:flex;gap:5px;align-items:center;">' + btnVer + btnEdit + btnInv + btnEmail + '</td>'
             + '</tr>';
         });
+
+        const filterRow = '<tr style="background:var(--surface2);">'
+          + '<td><input type="text" placeholder="Buscar proyecto..." value="' + _apFilters.name.replace(/"/g,'&quot;') + '"'
+          +   ' oninput="_apFilters.name=this.value;renderAllProjects()"'
+          +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:10px;"></td>'
+          + '<td><input type="text" placeholder="Cliente..." value="' + _apFilters.client.replace(/"/g,'&quot;') + '"'
+          +   ' oninput="_apFilters.client=this.value;renderAllProjects()"'
+          +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:10px;"></td>'
+          + '<td></td><td></td><td></td><td></td><td></td><td></td>'
+          + '<td><select onchange="_apFilters.status=this.value;renderAllProjects()" style="font-size:10px;padding:4px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
+          +   '<option value="">Todos</option>'
+          +   allStatuses.map(st => '<option value="' + st + '"' + (_apFilters.status === st ? ' selected' : '') + '>' + st + '</option>').join('')
+          + '</select></td>'
+          + '<td><button class="btn btn-ghost btn-sm" style="font-size:9px;padding:3px 6px;" onclick="_apFilters.name=\'\';_apFilters.client=\'\';_apFilters.status=\'\';renderAllProjects()">✕</button></td>'
+          + '</tr>';
+
         container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
-          + '<thead><tr><th>Proyecto</th><th>Cliente</th><th>Inicio</th>'
+          + '<thead>'
+          + '<tr>'
+          + '<th style="cursor:pointer;" onclick="_apFilters.sort=_apFilters.sort===\'name_asc\'?\'name_desc\':\'name_asc\';renderAllProjects()">Proyecto' + sortIcon('name') + '</th>'
+          + '<th>Cliente</th>'
+          + '<th style="cursor:pointer;" onclick="_apFilters.sort=_apFilters.sort===\'date_asc\'?\'date_desc\':\'date_asc\';renderAllProjects()">Inicio' + sortIcon('date') + '</th>'
           + '<th class="num">Labour</th><th class="num">Materiales</th>'
           + '<th class="num">Total sugerido</th><th class="num">Precio cliente</th>'
-          + '<th class="num">Diferencia</th><th>Status</th><th></th></tr></thead>'
-          + '<tbody>' + rows + '</tbody></table></div>';
+          + '<th class="num">Diferencia</th><th>Status</th><th></th></tr>'
+          + filterRow
+          + '</thead>'
+          + '<tbody>' + rows + '</tbody></table></div>'
+          + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + projects.length + ' proyecto(s)</div>';
       }
 
       // ═══════════════════════════════════════════
@@ -5255,6 +5429,7 @@ function renderIncomeTable() {
   const filterCliente = document.getElementById('inc_filter_cliente')?.value || '';
   const filterTipo    = document.getElementById('inc_filter_tipo')?.value || '';
   const filterMetodo  = document.getElementById('inc_filter_metodo')?.value || '';
+  const filterText    = (document.getElementById('inc_filter_text')?.value || '').toLowerCase();
   const sort          = document.getElementById('inc_sort')?.value || 'fecha_desc';
 
   let records = Object.values(finState.income);
@@ -5262,6 +5437,12 @@ function renderIncomeTable() {
   if (filterCliente) records = records.filter(r => (r.cliente||'') === filterCliente);
   if (filterTipo)    records = records.filter(r => (r.tipo||'') === filterTipo);
   if (filterMetodo)  records = records.filter(r => (r.metodo||'') === filterMetodo);
+  if (filterText)    records = records.filter(r =>
+    (r.cliente||'').toLowerCase().includes(filterText) ||
+    (r.proyecto||'').toLowerCase().includes(filterText) ||
+    (r.notas||'').toLowerCase().includes(filterText) ||
+    (r.invoice||'').toLowerCase().includes(filterText)
+  );
 
   // Sort
   records.sort((a,b) => {
@@ -5319,7 +5500,7 @@ function renderIncomeTable() {
 }
 
 function clearIncFilters() {
-  ['inc_filter_month','inc_filter_cliente','inc_filter_tipo','inc_filter_metodo'].forEach(id => {
+  ['inc_filter_month','inc_filter_cliente','inc_filter_tipo','inc_filter_metodo','inc_filter_text'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const s = document.getElementById('inc_sort'); if (s) s.value = 'fecha_desc';
@@ -5388,6 +5569,7 @@ function renderExpenseTable() {
   const filterArea  = document.getElementById('exp_filter_area')?.value || '';
   const filterTipo  = document.getElementById('exp_filter_tipo')?.value || '';
   const filterCat   = document.getElementById('exp_filter_cat')?.value || '';
+  const filterText  = (document.getElementById('exp_filter_text')?.value || '').toLowerCase();
   const sort        = document.getElementById('exp_sort')?.value || 'fecha_desc';
 
   let records = Object.values(finState.expenses);
@@ -5395,6 +5577,12 @@ function renderExpenseTable() {
   if (filterArea)  records = records.filter(r => (r.proyecto||'') === filterArea);
   if (filterTipo)  records = records.filter(r => (r.tipo||'') === filterTipo);
   if (filterCat)   records = records.filter(r => (r.categoria||'') === filterCat);
+  if (filterText)  records = records.filter(r =>
+    (r.proveedor||'').toLowerCase().includes(filterText) ||
+    (r.proyecto||'').toLowerCase().includes(filterText) ||
+    (r.notas||'').toLowerCase().includes(filterText) ||
+    (r.categoria||'').toLowerCase().includes(filterText)
+  );
 
   // Sort
   records.sort((a,b) => {
@@ -5438,7 +5626,7 @@ function renderExpenseTable() {
 }
 
 function clearExpFilters() {
-  ['exp_filter_month','exp_filter_area','exp_filter_tipo','exp_filter_cat'].forEach(id => {
+  ['exp_filter_month','exp_filter_area','exp_filter_tipo','exp_filter_cat','exp_filter_text'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   const s = document.getElementById('exp_sort'); if (s) s.value = 'fecha_desc';
@@ -5531,27 +5719,57 @@ function calcPL(monthKey) {
 // ═══════════════════════════════════════════════════════════
 // FIN PROJECTS TABLE
 // ═══════════════════════════════════════════════════════════
+const _fpFilters = { name: '', client: '', status: '', month: '' };
+
 function renderFinProjects() {
   const container = document.getElementById('fin_projects_table');
   if (!container) return;
-  const filterMonth  = document.getElementById('fin_proj_month')?.value || '';
-  const filterStatus = document.getElementById('fin_proj_status')?.value || '';
 
   let projects = Object.entries(state.projects).map(([id, p]) => ({ id, ...p }));
-  if (filterMonth) projects = projects.filter(p => dateToMonthKey(p.start) === filterMonth);
-  if (filterStatus) projects = projects.filter(p => (p.status||'In Progress') === filterStatus);
+
+  // Apply filters
+  if (_fpFilters.name)   projects = projects.filter(p => (p.name||'').toLowerCase().includes(_fpFilters.name.toLowerCase()));
+  if (_fpFilters.client) projects = projects.filter(p => (p.client||'').toLowerCase().includes(_fpFilters.client.toLowerCase()));
+  if (_fpFilters.status) projects = projects.filter(p => (p.status||'In Progress') === _fpFilters.status);
+  if (_fpFilters.month)  projects = projects.filter(p => dateToMonthKey(p.start) === _fpFilters.month);
   projects.sort((a,b) => (b.start||'').localeCompare(a.start||''));
 
   if (!projects.length) {
-    container.innerHTML = '<div class="empty-state"><p>Sin proyectos en este rango.</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Sin proyectos con los filtros aplicados.</p></div>';
     return;
   }
+
+  const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
+  const allMonths = [...new Set(Object.values(state.projects).map(p => dateToMonthKey(p.start)).filter(Boolean))].sort().reverse();
+
+  const filterRow = '<tr style="background:var(--surface2);">'
+    + '<td></td>'
+    + '<td><input type="text" placeholder="Buscar..." value="' + _fpFilters.name.replace(/"/g,'&quot;') + '"'
+    +   ' oninput="_fpFilters.name=this.value;renderFinProjects()"'
+    +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;"></td>'
+    + '<td><input type="text" placeholder="Cliente..." value="' + _fpFilters.client.replace(/"/g,'&quot;') + '"'
+    +   ' oninput="_fpFilters.client=this.value;renderFinProjects()"'
+    +   ' style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;"></td>'
+    + '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
+    + '<td><select onchange="_fpFilters.status=this.value;renderFinProjects()" style="font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
+    +   '<option value="">Todos</option>'
+    +   allStatuses.map(s => '<option value="' + s + '"' + (_fpFilters.status===s?' selected':'') + '>' + s + '</option>').join('')
+    + '</select></td>'
+    + '<td><select onchange="_fpFilters.month=this.value;renderFinProjects()" style="font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
+    +   '<option value="">Todos los meses</option>'
+    +   allMonths.map(m => '<option value="' + m + '"' + (_fpFilters.month===m?' selected':'') + '>' + m + '</option>').join('')
+    + '</select>'
+    + '<button onclick="_fpFilters.name=\'\';_fpFilters.client=\'\';_fpFilters.status=\'\';_fpFilters.month=\'\';renderFinProjects()" style="font-size:9px;margin-left:4px;padding:2px 5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:3px;cursor:pointer;">✕</button>'
+    + '</td>'
+    + '</tr>';
 
   container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
     + '<thead><tr><th>Fecha</th><th>Proyecto</th><th>Cliente</th>'
     + '<th class="num">Labour</th><th class="num">Materiales</th><th class="num">Costo Total</th>'
     + '<th class="num">Precio Sugerido</th><th class="num">Precio Cliente</th>'
-    + '<th class="num">Diferencia</th><th class="num">Margen Real</th><th>Status</th><th>Mes</th></tr></thead><tbody>'
+    + '<th class="num">Diferencia</th><th class="num">Margen Real</th><th>Status</th><th>Mes</th></tr>'
+    + filterRow
+    + '</thead><tbody>'
     + projects.map(p => {
       const c = calcPricing(p);
       const diff = c.profitVsClient;
@@ -5573,7 +5791,8 @@ function renderFinProjects() {
         + '<td style="font-size:10px;font-family:monospace;">' + (mes||'—') + '</td>'
         + '</tr>';
     }).join('')
-    + '</tbody></table></div>';
+    + '</tbody></table></div>'
+    + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + projects.length + ' proyecto(s)</div>';
 }
 
 // ═══════════════════════════════════════════════════════════
