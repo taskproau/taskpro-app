@@ -1568,7 +1568,7 @@
 
       <div class="card">
         <div class="card-title">➕ Agregar persona al equipo base</div>
-        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
           <div class="form-group">
             <label>Nombre completo</label>
             <input type="text" id="eb_name" placeholder="Ej: Carlos Perez">
@@ -1580,6 +1580,10 @@
           <div class="form-group">
             <label>Tarifa base ($/h)</label>
             <input type="number" id="eb_rate" min="0" step="0.5" placeholder="35.00">
+          </div>
+          <div class="form-group">
+            <label>ABN (opcional)</label>
+            <input type="text" id="eb_abn" placeholder="11 222 333 444" maxlength="14">
           </div>
         </div>
         <button class="btn btn-primary" onclick="addBaseTeamMember()">Agregar al equipo base</button>
@@ -2013,7 +2017,8 @@
           <div class="form-group"><label>Teléfono</label><input type="text" id="cli_phone" placeholder="04xx xxx xxx"></div>
           <div class="form-group" style="grid-column:span 2;"><label>Dirección</label><input type="text" id="cli_address" placeholder="Calle, Suburb, Estado, Postcode"></div>
           <div class="form-group"><label>ABN</label><input type="text" id="cli_abn" placeholder="Opcional"></div>
-          <div class="form-group" style="grid-column:span 3;"><label>Notas</label><input type="text" id="cli_notes" placeholder="Opcional"></div>
+          <div class="form-group"><label>Días de vencimiento (default)</label><input type="number" id="cli_duedays" min="1" max="90" value="7" placeholder="7"></div>
+          <div class="form-group" style="grid-column:span 2;"><label>Notas</label><input type="text" id="cli_notes" placeholder="Opcional"></div>
         </div>
         <button class="btn btn-primary" style="margin-top:12px;" onclick="addClient()">Registrar cliente</button>
       </div>
@@ -2127,6 +2132,10 @@
           <div class="form-group">
             <label>Fecha Cobro</label>
             <input type="date" id="ep_fechacobro">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Dirección del trabajo</label>
+            <input type="text" id="ep_address" placeholder="Ej: 12 Darlington Court, Roxburgh Park VIC 3064">
           </div>
           <div class="form-group" style="grid-column:span 2;">
             <label>Notas</label>
@@ -2496,14 +2505,16 @@
         const name = document.getElementById('eb_name').value.trim();
         const role = document.getElementById('eb_role').value.trim();
         const rate = parseFloat(document.getElementById('eb_rate').value) || 0;
+        const abn  = document.getElementById('eb_abn').value.trim();
         if (!name) { alert('Ingresa el nombre del miembro.'); return; }
-        const member = { id: 'eb_' + Date.now(), name, role, rate };
+        const member = { id: 'eb_' + Date.now(), name, role, rate, abn };
         db.ref('taskpro/equipoBase/' + member.id).set(member)
           .then(() => { showSyncBanner('Miembro agregado al equipo base', 'success'); renderBaseTeam(); })
           .catch(err => showSyncBanner('Error guardando: ' + err.message, 'warn'));
         document.getElementById('eb_name').value = '';
         document.getElementById('eb_role').value = '';
         document.getElementById('eb_rate').value = '';
+        document.getElementById('eb_abn').value = '';
       }
 
       function removeBaseTeamMember(id) {
@@ -2526,16 +2537,17 @@
           }
           container.innerHTML = `
             <table class="data-table">
-              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th></th></tr></thead>
               <tbody>
                 ${entries.map(([id, m]) => `
                   <tr>
                     <td><span class="person-tag">👷 ${m.name}</span></td>
                     <td style="color:var(--text2);">${m.role || '—'}</td>
                     <td class="num">$${(m.rate||0).toFixed(0)}/h</td>
+                    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);">${m.abn || '—'}</td>
                     <td style="white-space:nowrap;">
                       <button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"
-                        data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role||''}" data-ebrate="${m.rate||0}"
+                        data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role||''}" data-ebrate="${m.rate||0}" data-ebabn="${m.abn||''}"
                         onclick="openEditBaseModalFromBtn(this)">✏️</button>
                       <button class="btn btn-danger btn-sm" onclick="removeBaseTeamMember('${id}')">✕</button>
                     </td>
@@ -2595,15 +2607,17 @@
           btn.getAttribute('data-ebid'),
           btn.getAttribute('data-ebname'),
           btn.getAttribute('data-ebrole'),
-          btn.getAttribute('data-ebrate')
+          btn.getAttribute('data-ebrate'),
+          btn.getAttribute('data-ebabn')
         );
       }
 
-      function openEditBaseModal(id, name, role, rate) {
+      function openEditBaseModal(id, name, role, rate, abn) {
         document.getElementById('ebm_id').value   = id;
         document.getElementById('ebm_name').value = name;
         document.getElementById('ebm_role').value = role;
         document.getElementById('ebm_rate').value = rate;
+        document.getElementById('ebm_abn').value  = abn || '';
         document.getElementById('editBaseMsg').textContent = '';
         document.getElementById('editBaseModal').classList.add('open');
       }
@@ -2613,11 +2627,12 @@
         const name = document.getElementById('ebm_name').value.trim();
         const role = document.getElementById('ebm_role').value.trim();
         const rate = parseFloat(document.getElementById('ebm_rate').value) || 0;
+        const abn  = document.getElementById('ebm_abn').value.trim();
         const msg  = document.getElementById('editBaseMsg');
         if (!name) { msg.style.color='var(--danger)'; msg.textContent='El nombre es requerido.'; return; }
         msg.style.color='var(--text2)'; msg.textContent='Guardando...';
         try {
-          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate });
+          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn });
           msg.style.color='var(--accent)'; msg.textContent='Actualizado correctamente.';
           // Refresh all dropdowns
           populateWorkerBaseDropdown();
@@ -3833,6 +3848,7 @@
         document.getElementById('ep_status').value = p.status || 'In Progress';
         document.getElementById('ep_start').value = p.start || '';
         document.getElementById('ep_fechacobro').value = p.fechaCobro || '';
+        document.getElementById('ep_address').value = p.address || '';
         document.getElementById('ep_notas').value = p.notas || '';
         document.getElementById('editProjectModal').classList.add('open');
       }
@@ -3844,6 +3860,7 @@
         const status = document.getElementById('ep_status').value;
         const start  = document.getElementById('ep_start').value;
         const fechaCobro = document.getElementById('ep_fechacobro').value;
+        const address = document.getElementById('ep_address').value.trim();
         const notas  = document.getElementById('ep_notas').value.trim();
         if (!name) { alert('El nombre no puede estar vacío.'); return; }
         const p = state.projects[id];
@@ -3851,6 +3868,7 @@
         p.name = name; p.client = client; p.status = status;
         if (start) p.start = start;
         p.fechaCobro = fechaCobro;
+        p.address = address;
         p.notas = notas;
         saveProject(id);
         if (state.currentId === id) {
@@ -7034,15 +7052,17 @@ function renderAlerts() {
         const address = document.getElementById('cli_address').value.trim();
         const abn     = document.getElementById('cli_abn').value.trim();
         const notes   = document.getElementById('cli_notes').value.trim();
+        const dueDays = parseInt(document.getElementById('cli_duedays').value) || 7;
         if (!name || !email) { alert('Nombre y email son obligatorios.'); return; }
         const id = 'cli_' + Date.now();
-        const record = { id, name, email, phone, address, abn, notes, createdAt: new Date().toISOString() };
+        const record = { id, name, email, phone, address, abn, notes, defaultDueDays: dueDays, createdAt: new Date().toISOString() };
         db.ref('taskpro/finance/clients/' + id).set(record)
           .then(() => {
             showSyncBanner('Cliente registrado: ' + name, 'success');
             ['cli_name','cli_email','cli_phone','cli_address','cli_abn','cli_notes'].forEach(f => {
               const el = document.getElementById(f); if (el) el.value = '';
             });
+            document.getElementById('cli_duedays').value = '7';
           })
           .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
       }
@@ -7064,17 +7084,25 @@ function renderAlerts() {
         }
         clients.sort((a,b) => (a.name||'').localeCompare(b.name||''));
         container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
-          + '<thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Dirección</th><th>ABN</th><th>Notas</th><th></th></tr></thead><tbody>'
+          + '<thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Dirección</th><th>ABN</th><th class="num">Due days</th><th>Notas</th><th></th></tr></thead><tbody>'
           + clients.map(c => '<tr>'
             + '<td><strong>' + (c.name||'—') + '</strong></td>'
             + '<td style="font-size:11px;">' + (c.email||'—') + '</td>'
             + '<td style="font-size:11px;">' + (c.phone||'—') + '</td>'
             + '<td style="font-size:11px;color:var(--text2);">' + (c.address||'—') + '</td>'
             + '<td style="font-size:11px;color:var(--text2);">' + (c.abn||'—') + '</td>'
+            + '<td class="num"><input type="number" min="1" max="90" value="' + (c.defaultDueDays||7) + '" style="width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;text-align:right;" onchange="updateClientDueDays(\'' + c.id + '\', this.value)"></td>'
             + '<td style="font-size:11px;color:var(--text2);">' + (c.notes||'—') + '</td>'
             + '<td><button class="btn btn-danger btn-sm" style="padding:3px 8px;" onclick="deleteClient(\'' + c.id + '\')">✕</button></td>'
             + '</tr>').join('')
           + '</tbody></table></div>';
+      }
+
+      function updateClientDueDays(id, val) {
+        const days = parseInt(val) || 7;
+        db.ref('taskpro/finance/clients/' + id).update({ defaultDueDays: days })
+          .then(() => showSyncBanner('Días actualizados', 'success'))
+          .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
       }
 
       function getClientByName(name) {
@@ -7530,7 +7558,7 @@ function renderAlerts() {
   <div class="modal">
     <div class="modal-title">✏️ Editar miembro del equipo base</div>
     <input type="hidden" id="ebm_id">
-    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
       <div class="form-group">
         <label>Nombre completo</label>
         <input type="text" id="ebm_name" placeholder="Ej: Carlos Perez">
@@ -7542,6 +7570,10 @@ function renderAlerts() {
       <div class="form-group">
         <label>Tarifa base ($/h)</label>
         <input type="number" id="ebm_rate" min="0" step="0.5">
+      </div>
+      <div class="form-group">
+        <label>ABN</label>
+        <input type="text" id="ebm_abn" placeholder="11 222 333 444" maxlength="14">
       </div>
     </div>
     <div id="editBaseMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
