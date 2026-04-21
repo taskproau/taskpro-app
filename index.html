@@ -1333,6 +1333,9 @@
         <div class="nav-item" onclick="showSection('fin-clients')" id="nav-fin-clients" style="display:none;">
           <span class="nav-icon">👥</span> Clientes
         </div>
+        <div class="nav-item" onclick="showSection('fin-invoices')" id="nav-fin-invoices" style="display:none;">
+          <span class="nav-icon">🧾</span> Invoices
+        </div>
         <div class="nav-item" onclick="showSection('fin-summary')" id="nav-fin-summary" style="display:none;">
           <span class="nav-icon">📊</span> Resumen Mensual
         </div>
@@ -2028,6 +2031,35 @@
       </div>
     </div>
 
+    <!-- ══════════ FIN: INVOICES TRACKING ══════════ -->
+    <div class="section" id="section-fin-invoices">
+      <div class="section-title">🧾 Invoices — Seguimiento</div>
+      <div class="section-sub">Estado de pago de invoices emitidos · Auto-match por número cuando se registra un ingreso</div>
+      <div class="card">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <div id="inv_stats" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;"></div>
+          <div style="flex:1;"></div>
+          <button class="btn btn-ghost btn-sm" onclick="autoUpdateInvoiceStatuses()" title="Re-evaluar estado de todos los invoices">🔄 Refrescar</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearInvoiceFilters()">✕ Limpiar filtros</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;">
+          <input type="text" id="inv_filter_text" placeholder="🔍 Buscar (cliente, número, proyecto...)" oninput="renderInvoicesTable()" style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:var(--radius);grid-column:1/-1;">
+          <select id="inv_filter_status" onchange="renderInvoicesTable()" style="font-size:11px;">
+            <option value="">Todos los estados</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+          </select>
+          <select id="inv_filter_type" onchange="renderInvoicesTable()" style="font-size:11px;">
+            <option value="">Todos los tipos</option>
+            <option value="client">Cliente</option>
+            <option value="personal">Personal</option>
+          </select>
+        </div>
+        <div id="inv_table"><div class="empty-state"><p>Sin invoices registrados aún.</p></div></div>
+      </div>
+    </div>
+
     <!-- ══════════ FIN: MONTHLY SUMMARY ══════════ -->
     <div class="section" id="section-fin-summary">
       <div class="section-title">📊 Resumen Mensual</div>
@@ -2281,7 +2313,7 @@
       // Role permissions
       const ROLE_PERMS = {
         admin: {
-          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-summary', 'fin-kpi', 'fin-alerts'],
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts'],
           canDelete: true, canEdit: true
         },
         supervisor: {
@@ -2309,7 +2341,7 @@
         const perms = getRolePerms();
 
         // Show/hide nav items
-        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-summary', 'fin-kpi', 'fin-alerts'].forEach(id => {
+        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts'].forEach(id => {
           const el = document.getElementById('nav-' + id);
           if (el) el.style.display = perms.nav.includes(id) ? '' : 'none';
         });
@@ -3270,7 +3302,8 @@
           const members = snap.val() || {};
           sel.innerHTML = '<option value="">— Elegir del equipo base —</option>';
           Object.entries(members).forEach(([id, m]) => {
-            sel.innerHTML += `<option value="${id}|${m.name}|${m.rate}|${m.role||''}">${m.name} — ${m.role||'Sin rol'} ($${m.rate||0}/h)</option>`;
+            const abn = (m.abn || '').replace(/\|/g, '');
+            sel.innerHTML += `<option value="${id}|${m.name}|${m.rate}|${m.role||''}|${abn}">${m.name} — ${m.role||'Sin rol'} ($${m.rate||0}/h)</option>`;
           });
         });
       }
@@ -3283,9 +3316,12 @@
         const name = parts[1] || '';
         const rate = parts[2] || '';
         const role = parts[3] || '';
+        const abn  = parts[4] || '';
         document.getElementById('w_name').value = name;
         document.getElementById('w_rate').value = rate;
         document.getElementById('w_role').value = role;
+        // Store abn for the next addWorker call (hidden)
+        window._wSelectedAbn = abn;
       }
 
       function addWorker() {
@@ -3296,7 +3332,22 @@
         const role = document.getElementById('w_role').value.trim();
         if (!name || !rate) { alert('Ingresa nombre y tarifa.'); return; }
 
-        const worker = { id: 'w_' + Date.now(), name, rate, role };
+        // Try to find ABN: from dropdown selection OR from equipoBase by name match
+        let abn = window._wSelectedAbn || '';
+        if (!abn) {
+          // Lookup in equipoBase by name
+          db.ref('taskpro/equipoBase').get().then(snap => {
+            const members = snap.val() || {};
+            const match = Object.values(members).find(m => m.name && m.name.toLowerCase() === name.toLowerCase());
+            const foundAbn = match ? (match.abn || '') : '';
+            _addWorkerCommit(p, { id: 'w_' + Date.now(), name, rate, role, abn: foundAbn });
+          });
+          return;
+        }
+        _addWorkerCommit(p, { id: 'w_' + Date.now(), name, rate, role, abn });
+      }
+
+      function _addWorkerCommit(p, worker) {
         p.workers.push(worker);
         saveProject(state.currentId);
         renderWorkers();
@@ -3304,6 +3355,7 @@
         ['w_name', 'w_rate', 'w_role'].forEach(fid => document.getElementById(fid).value = '');
         const basesel = document.getElementById('w_base_select');
         if (basesel) basesel.value = '';
+        window._wSelectedAbn = '';
       }
 
       function removeWorker(wid) {
@@ -4717,14 +4769,17 @@
         }
 
         document.getElementById('pagosDetalle').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
       <div>
         <span style="font-size:16px;font-weight:800;">👷 ${personName}</span>
         <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);margin-left:10px;">
           ${from || 'inicio'} &rarr; ${to || 'hoy'} &nbsp;|&nbsp; Break empresa: 15min por cada 4h trabajadas
         </span>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="exportPagoPDF('${personName}')">↓ PDF</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="exportPagoTimesheetPDF('${personName}')" title="Plantilla de horarios (detalle por proyecto)">↓ Plantilla Horario</button>
+        <button class="btn btn-primary btn-sm" onclick="exportPagoInvoicePDF('${personName}')" title="Invoice formal AU con ABN del trabajador">↓ Invoice Personal</button>
+      </div>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
     <table class="data-table" style="min-width:680px;">
@@ -4771,7 +4826,7 @@
     </table></div>`;
       }
 
-      function exportPagoPDF(personName) {
+      function exportPagoTimesheetPDF(personName) {
         const from = document.getElementById('pp_from').value;
         const to = document.getElementById('pp_to').value;
         const breakPct = getPersonBreakPct(personName);
@@ -4867,7 +4922,188 @@
             pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' }
           );
         }
-        doc.save(`TaskPro_Pago_${personName.replace(/\s+/g, '_')}_${from || 'all'}_${to || 'all'}.pdf`);
+        doc.save(`TaskPro_PlantillaHorario_${personName.replace(/\s+/g, '_')}_${from || 'all'}_${to || 'all'}.pdf`);
+      }
+
+      // ═══════════════════════════════════════════
+      // INVOICE PERSONAL PDF — formal AU invoice with person's ABN (no GST)
+      // TaskPro is the bill-to party; the person is the contractor issuing the invoice
+      // ═══════════════════════════════════════════
+      async function exportPagoInvoicePDF(personName) {
+        const from = document.getElementById('pp_from').value;
+        const to = document.getElementById('pp_to').value;
+        const data = buildPayData(from, to);
+        recalcPayData(data);
+        const d = data[personName];
+        if (!d) { alert('Sin datos de pago para ' + personName); return; }
+
+        // Fetch ABN
+        const abn = await fetchPersonAbn(personName);
+        if (!abn) {
+          if (!confirm('No se encontró ABN para ' + personName + '. ¿Generar invoice sin ABN?\n\nRecomendación: agrega el ABN en Equipo Base antes de generar invoices formales.')) return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 20;
+        const GREEN = [184, 245, 90];
+        const DARK = [30, 33, 36];
+        const MUTED = [120, 125, 130];
+
+        // Invoice number
+        await new Promise(resolve => {
+          getNextInvoiceNumber(async (invoiceNum) => {
+            // Dates
+            const today = new Date();
+            const issueDate = today.toISOString().slice(0, 10);
+            const dueDate = new Date(today.getTime() + 7*24*60*60*1000).toISOString().slice(0, 10);
+            const periodLabel = (from || 'inicio') + ' → ' + (to || 'hoy');
+
+            // Header — green band
+            doc.setFillColor(...GREEN);
+            doc.rect(0, 0, pageW, 35, 'F');
+            doc.setTextColor(...DARK);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(24);
+            doc.text('TAX INVOICE', margin, 22);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text('No GST charged', margin, 29);
+
+            // Contractor details (issuer) — right side
+            doc.setTextColor(...DARK);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text(personName, pageW - margin, 14, { align: 'right' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.text('Contractor', pageW - margin, 19, { align: 'right' });
+            doc.text('ABN: ' + (abn || 'N/A'), pageW - margin, 24, { align: 'right' });
+            doc.text('Not registered for GST', pageW - margin, 29, { align: 'right' });
+
+            // Invoice meta box
+            let y = 48;
+            doc.setFillColor(245, 247, 250);
+            doc.rect(margin, y, pageW - 2*margin, 30, 'F');
+            doc.setTextColor(...DARK);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text('INVOICE NO.', margin + 4, y + 6);
+            doc.text('ISSUE DATE', margin + 55, y + 6);
+            doc.text('DUE DATE', margin + 105, y + 6);
+            doc.text('PERIOD', margin + 150, y + 6);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(invoiceNum, margin + 4, y + 14);
+            doc.text(issueDate, margin + 55, y + 14);
+            doc.text(dueDate, margin + 105, y + 14);
+            doc.setFontSize(8);
+            doc.text(periodLabel, margin + 150, y + 14);
+
+            // Bill to (TaskPro)
+            y = 90;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(...MUTED);
+            doc.text('BILL TO', margin, y);
+            doc.setTextColor(...DARK);
+            doc.setFontSize(12);
+            doc.text('TaskPro', margin, y + 7);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text('info@taskproau.com', margin, y + 13);
+            doc.text('Melbourne, VIC, Australia', margin, y + 18);
+
+            // Line items table
+            y = 120;
+            doc.setFillColor(...DARK);
+            doc.rect(margin, y, pageW - 2*margin, 9, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text('DESCRIPTION', margin + 3, y + 6);
+            doc.text('AMOUNT (AUD)', pageW - margin - 3, y + 6, { align: 'right' });
+
+            y += 15;
+            doc.setTextColor(...DARK);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text('Servicios de instalación', margin + 3, y);
+            doc.setFontSize(8);
+            doc.setTextColor(...MUTED);
+            doc.text('Period: ' + periodLabel, margin + 3, y + 5);
+            doc.text('Prod: ' + (d.prodH||0).toFixed(2) + 'h · Admin: ' + (d.adminH||0).toFixed(2) + 'h · Desplaz.: ' + ((d.travelH||0)).toFixed(2) + 'h · Break empresa: ' + ((d.companyBreakH||0)).toFixed(2) + 'h', margin + 3, y + 10);
+            doc.setFontSize(11);
+            doc.setTextColor(...DARK);
+            doc.setFont('helvetica', 'bold');
+            doc.text('$' + (d.pay||0).toFixed(2), pageW - margin - 3, y, { align: 'right' });
+
+            // Total line
+            y += 25;
+            doc.setDrawColor(...DARK);
+            doc.setLineWidth(0.3);
+            doc.line(margin, y, pageW - margin, y);
+            y += 8;
+            doc.setFillColor(...GREEN);
+            doc.rect(pageW - margin - 80, y, 80, 12, 'F');
+            doc.setTextColor(...DARK);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text('TOTAL', pageW - margin - 75, y + 8);
+            doc.setFontSize(13);
+            doc.text('$' + (d.pay||0).toFixed(2) + ' AUD', pageW - margin - 3, y + 8, { align: 'right' });
+
+            // Notes + payment info
+            y += 25;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(...MUTED);
+            doc.text('NOTES', margin, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...DARK);
+            doc.setFontSize(9);
+            y += 5;
+            doc.text('No GST has been charged on this invoice. The contractor is not registered for GST.', margin, y);
+            y += 5;
+            doc.text('Please process payment by due date: ' + dueDate, margin, y);
+
+            // Footer
+            doc.setDrawColor(200, 200, 200);
+            doc.line(margin, pageH - 20, pageW - margin, pageH - 20);
+            doc.setTextColor(...MUTED);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            doc.text('Generated by TaskPro Project Control · ' + new Date().toLocaleString('es-AU'), pageW/2, pageH - 14, { align: 'center' });
+
+            // Save invoice record to Firebase for tracking
+            const invRecord = {
+              id: 'inv_' + Date.now(),
+              number: invoiceNum,
+              type: 'personal',
+              contractorName: personName,
+              contractorAbn: abn || '',
+              clientName: 'TaskPro',
+              amount: d.pay || 0,
+              issueDate, dueDate,
+              periodFrom: from || '',
+              periodTo: to || '',
+              status: 'unpaid',
+              statusManual: false,
+              projectId: '',
+              createdAt: new Date().toISOString()
+            };
+            try {
+              await db.ref('taskpro/finance/invoices/' + invRecord.id).set(invRecord);
+            } catch(e) {
+              console.error('Error saving invoice record:', e);
+            }
+
+            doc.save(`TaskPro_Invoice_${personName.replace(/\s+/g,'_')}_${invoiceNum}.pdf`);
+            resolve();
+          });
+        });
       }
 
       // ═══════════════════════════════════════════
@@ -5196,6 +5432,7 @@
         if (id === 'fin-income')   { populateIncomeDataLists(); renderIncomeTable(); }
         if (id === 'fin-expenses') { populateExpenseDataLists(); renderExpenseTable(); }
         if (id === 'fin-clients')  { renderClientsTable(); }
+        if (id === 'fin-invoices') { renderInvoicesTable(); }
         if (id === 'fin-summary')  { setFinSummaryThisMonth(); }
         if (id === 'fin-kpi')      { setKPIThisMonth(); }
         if (id === 'fin-alerts')   { setAlertThisMonth(); }
@@ -5263,7 +5500,8 @@ let finState = {
   income:   {},
   expenses: {},
   params:   null,
-  clients:  {}
+  clients:  {},
+  invoices: {}
 };
 
 const FIN_DEFAULTS = {
@@ -5315,6 +5553,8 @@ function initFinanceListeners() {
   db.ref('taskpro/finance/income').on('value', snap => {
     finState.income = snap.val() || {};
     scheduleFinRender();
+    // Re-evaluate invoice statuses since an income might have matched
+    if (finState.invoices) autoUpdateInvoiceStatuses();
   });
   db.ref('taskpro/finance/expenses').on('value', snap => {
     finState.expenses = snap.val() || {};
@@ -5328,6 +5568,42 @@ function initFinanceListeners() {
   db.ref('taskpro/finance/clients').on('value', snap => {
     finState.clients = snap.val() || {};
     if (document.getElementById('section-fin-clients').classList.contains('active')) renderClientsTable();
+  });
+  db.ref('taskpro/finance/invoices').on('value', snap => {
+    finState.invoices = snap.val() || {};
+    // Auto-update status based on income match + overdue date
+    autoUpdateInvoiceStatuses();
+    if (document.getElementById('section-fin-invoices') && document.getElementById('section-fin-invoices').classList.contains('active')) {
+      renderInvoicesTable();
+    }
+  });
+}
+
+// Auto-update invoice status: match to income by invoice number, flag overdue by date
+function autoUpdateInvoiceStatuses() {
+  const today = new Date().toISOString().slice(0, 10);
+  Object.values(finState.invoices || {}).forEach(inv => {
+    if (inv.statusManual) return; // don't touch manual overrides
+    // Check if any income matches this invoice number
+    const match = Object.values(finState.income || {}).find(i =>
+      (i.invoice || '').toUpperCase() === (inv.number || '').toUpperCase()
+    );
+    let newStatus;
+    let paidDate = null;
+    if (match) {
+      newStatus = 'paid';
+      paidDate = match.fecha || today;
+    } else if (inv.dueDate && inv.dueDate < today) {
+      newStatus = 'overdue';
+    } else {
+      newStatus = 'unpaid';
+    }
+    if (inv.status !== newStatus || inv.paidDate !== paidDate) {
+      const updates = { status: newStatus };
+      if (paidDate) updates.paidDate = paidDate;
+      else updates.paidDate = null;
+      db.ref('taskpro/finance/invoices/' + inv.id).update(updates).catch(()=>{});
+    }
   });
 }
 
@@ -7105,8 +7381,169 @@ function renderAlerts() {
           .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
       }
 
+      // ═══════════════════════════════════════════
+      // INVOICES TRACKING
+      // ═══════════════════════════════════════════
+      function renderInvoicesTable() {
+        const container = document.getElementById('inv_table');
+        const stats = document.getElementById('inv_stats');
+        if (!container) return;
+
+        let invoices = Object.values(finState.invoices || {});
+
+        // Stats header
+        if (stats) {
+          const today = new Date().toISOString().slice(0,10);
+          let paid = 0, unpaid = 0, overdue = 0;
+          let paidAmt = 0, unpaidAmt = 0, overdueAmt = 0;
+          invoices.forEach(i => {
+            const s = i.status || 'unpaid';
+            if (s === 'paid') { paid++; paidAmt += (i.amount||0); }
+            else if (s === 'overdue') { overdue++; overdueAmt += (i.amount||0); }
+            else { unpaid++; unpaidAmt += (i.amount||0); }
+          });
+          stats.innerHTML =
+              '<span style="padding:5px 10px;border-radius:8px;background:rgba(184,245,90,0.15);color:var(--accent);"><strong>' + paid + '</strong> Paid · $' + paidAmt.toFixed(0) + '</span>'
+            + '<span style="padding:5px 10px;border-radius:8px;background:rgba(255,180,50,0.15);color:var(--warn);"><strong>' + unpaid + '</strong> Unpaid · $' + unpaidAmt.toFixed(0) + '</span>'
+            + '<span style="padding:5px 10px;border-radius:8px;background:rgba(255,80,80,0.15);color:var(--danger);"><strong>' + overdue + '</strong> Overdue · $' + overdueAmt.toFixed(0) + '</span>';
+        }
+
+        // Filters
+        const fText   = (document.getElementById('inv_filter_text')?.value || '').toLowerCase();
+        const fStatus = document.getElementById('inv_filter_status')?.value || '';
+        const fType   = document.getElementById('inv_filter_type')?.value || '';
+
+        if (fText)   invoices = invoices.filter(i =>
+          (i.number||'').toLowerCase().includes(fText) ||
+          (i.clientName||'').toLowerCase().includes(fText) ||
+          (i.contractorName||'').toLowerCase().includes(fText) ||
+          (i.reference||'').toLowerCase().includes(fText) ||
+          (i.jobAddress||'').toLowerCase().includes(fText)
+        );
+        if (fStatus) invoices = invoices.filter(i => (i.status||'unpaid') === fStatus);
+        if (fType)   invoices = invoices.filter(i => (i.type||'client') === fType);
+
+        // Sort: overdue first, then unpaid, then paid; within each, newest first by issueDate
+        const rank = { overdue: 0, unpaid: 1, paid: 2 };
+        invoices.sort((a, b) => {
+          const ra = rank[a.status||'unpaid'] ?? 3;
+          const rb = rank[b.status||'unpaid'] ?? 3;
+          if (ra !== rb) return ra - rb;
+          return (b.issueDate||'').localeCompare(a.issueDate||'');
+        });
+
+        if (!invoices.length) {
+          container.innerHTML = '<div class="empty-state"><p>Sin invoices con los filtros aplicados.</p></div>';
+          return;
+        }
+
+        const statusBadge = (s) => {
+          if (s === 'paid')    return '<span class="badge badge-green">PAID</span>';
+          if (s === 'overdue') return '<span class="badge badge-red">OVERDUE</span>';
+          return '<span class="badge badge-warn">UNPAID</span>';
+        };
+
+        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
+          + '<thead><tr>'
+          + '<th>Número</th><th>Tipo</th><th>Cliente / Contratista</th><th>Referencia</th>'
+          + '<th>Emitido</th><th>Vence</th><th class="num">Monto</th>'
+          + '<th>Estado</th><th>Pagado</th><th></th>'
+          + '</tr></thead><tbody>'
+          + invoices.map(i => {
+            const isPersonal = (i.type === 'personal');
+            const party = isPersonal
+              ? '<span style="color:var(--warn);">👷 ' + (i.contractorName||'—') + '</span>'
+              : '<strong>' + (i.clientName||'—') + '</strong>';
+            const ref = isPersonal
+              ? (i.periodFrom || '') + ' → ' + (i.periodTo || '')
+              : (i.reference || i.jobAddress || '—');
+            const manualFlag = i.statusManual ? ' <span title="Override manual" style="color:var(--text2);font-size:10px;">🔒</span>' : '';
+            return '<tr>'
+              + '<td><strong style="font-family:monospace;">' + (i.number||'—') + '</strong></td>'
+              + '<td><span style="font-size:10px;color:var(--text2);">' + (isPersonal ? 'Personal' : 'Cliente') + '</span></td>'
+              + '<td style="font-size:11px;">' + party + '</td>'
+              + '<td style="font-size:11px;color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + ref + '</td>'
+              + '<td style="font-family:monospace;font-size:10px;">' + (i.issueDate||'—') + '</td>'
+              + '<td style="font-family:monospace;font-size:10px;' + ((i.status==='overdue')?'color:var(--danger);font-weight:700;':'') + '">' + (i.dueDate||'—') + '</td>'
+              + '<td class="num"><strong>$' + (i.amount||0).toFixed(2) + '</strong></td>'
+              + '<td>' + statusBadge(i.status||'unpaid') + manualFlag + '</td>'
+              + '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (i.paidDate||'—') + '</td>'
+              + '<td style="white-space:nowrap;">'
+              + '<select onchange="setInvoiceStatusManual(\'' + i.id + '\', this.value)" style="font-size:10px;padding:3px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
+              +   '<option value="">-</option>'
+              +   '<option value="auto">🔄 Auto</option>'
+              +   '<option value="paid">✓ Paid</option>'
+              +   '<option value="unpaid">⏳ Unpaid</option>'
+              +   '<option value="overdue">⚠ Overdue</option>'
+              + '</select> '
+              + '<button class="btn btn-danger btn-sm" style="padding:3px 6px;font-size:10px;" onclick="deleteInvoiceRecord(\'' + i.id + '\')" title="Eliminar registro">✕</button>'
+              + '</td></tr>';
+          }).join('')
+          + '</tbody></table></div>'
+          + '<div style="font-size:10px;color:var(--text2);margin-top:8px;text-align:right;">' + invoices.length + ' invoice(s) · 🔒 = override manual activo · Refrescar para re-evaluar auto-match</div>';
+      }
+
+      function clearInvoiceFilters() {
+        ['inv_filter_text','inv_filter_status','inv_filter_type'].forEach(id => {
+          const el = document.getElementById(id); if (el) el.value = '';
+        });
+        renderInvoicesTable();
+      }
+
+      function setInvoiceStatusManual(id, val) {
+        if (!val) return;
+        if (val === 'auto') {
+          // Remove manual flag, let auto logic decide
+          db.ref('taskpro/finance/invoices/' + id).update({ statusManual: false })
+            .then(() => {
+              showSyncBanner('Override manual removido', 'success');
+              autoUpdateInvoiceStatuses();
+            })
+            .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
+          return;
+        }
+        const updates = { status: val, statusManual: true };
+        if (val === 'paid') updates.paidDate = new Date().toISOString().slice(0,10);
+        else updates.paidDate = null;
+        db.ref('taskpro/finance/invoices/' + id).update(updates)
+          .then(() => showSyncBanner('Estado actualizado: ' + val.toUpperCase(), 'success'))
+          .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
+      }
+
+      function deleteInvoiceRecord(id) {
+        if (!confirm('¿Eliminar este registro de invoice del seguimiento?\n(No afecta el PDF ya generado)')) return;
+        db.ref('taskpro/finance/invoices/' + id).remove()
+          .then(() => showSyncBanner('Invoice eliminado del seguimiento', 'success'))
+          .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
+      }
+
       function getClientByName(name) {
         return Object.values(finState.clients).find(c => c.name && c.name.toLowerCase() === (name||'').toLowerCase()) || null;
+      }
+
+      // Look up ABN for a person from any source: timelog entry, worker, or equipoBase
+      function getPersonAbn(personName) {
+        if (!personName) return '';
+        // 1. Check any worker in any project with this name that has ABN
+        for (const p of Object.values(state.projects)) {
+          const ws = Array.isArray(p.workers) ? p.workers : Object.values(p.workers || {});
+          const w = ws.find(w => w.name === personName && w.abn);
+          if (w && w.abn) return w.abn;
+        }
+        // 2. Fall back to equipoBase (loaded in state or Firebase cache)
+        return '';
+      }
+
+      // Async: fetch ABN from Firebase equipoBase if not found locally
+      async function fetchPersonAbn(personName) {
+        const local = getPersonAbn(personName);
+        if (local) return local;
+        try {
+          const snap = await db.ref('taskpro/equipoBase').get();
+          const members = snap.val() || {};
+          const match = Object.values(members).find(m => m.name && m.name.toLowerCase() === (personName||'').toLowerCase());
+          return match ? (match.abn || '') : '';
+        } catch(e) { return ''; }
       }
 
       // ═══════════════════════════════════════════
@@ -7458,6 +7895,60 @@ function renderAlerts() {
       function downloadInvoicePDFFromModal() {
         const d = buildInvoiceDataFromModal();
         generateInvoicePDFFromData(d, false);
+        // Save tracking record
+        saveProjectInvoiceRecord(d);
+      }
+
+      // Save a project invoice record to Firebase for tracking
+      function saveProjectInvoiceRecord(d) {
+        if (!d || !d.invNum) return;
+        const isoToday = new Date().toISOString().slice(0,10);
+        // Parse issueDate and dueDate from formatted "1 January 2026" format
+        const parseLocaleDate = (s) => {
+          if (!s || s === '—') return '';
+          const months = {January:'01',February:'02',March:'03',April:'04',May:'05',June:'06',July:'07',August:'08',September:'09',October:'10',November:'11',December:'12'};
+          const parts = s.split(' ');
+          if (parts.length !== 3) return '';
+          const day = parts[0].padStart(2, '0');
+          const month = months[parts[1]] || '';
+          const year = parts[2];
+          if (!month || !year) return '';
+          return year + '-' + month + '-' + day;
+        };
+        const issueDate = parseLocaleDate(d.invoiceDate) || isoToday;
+        let dueDate = parseLocaleDate(d.dueDate);
+        if (!dueDate) {
+          // Fall back to client's defaultDueDays or 7
+          const cli = getClientByName(d.clientName);
+          const days = (cli && cli.defaultDueDays) || 7;
+          dueDate = new Date(Date.now() + days*24*60*60*1000).toISOString().slice(0,10);
+        }
+        // Find projectId by matching the reference field (which is often project name) or jobAddress
+        let projectId = '';
+        if (d.reference) {
+          const match = Object.entries(state.projects).find(([, p]) => (p.name||'').toLowerCase() === (d.reference||'').toLowerCase());
+          if (match) projectId = match[0];
+        }
+        const rec = {
+          id: 'inv_' + Date.now(),
+          number: d.invNum,
+          type: 'client',
+          clientName: d.clientName || '',
+          jobAddress: d.jobAddress || '',
+          reference: d.reference || '',
+          projectId,
+          amount: d.total || 0,
+          subtotal: d.subtotal || 0,
+          gst: d.gst || 0,
+          issueDate,
+          dueDate,
+          status: 'unpaid',
+          statusManual: false,
+          createdAt: new Date().toISOString()
+        };
+        db.ref('taskpro/finance/invoices/' + rec.id).set(rec)
+          .then(() => showSyncBanner('Invoice ' + d.invNum + ' registrado en seguimiento', 'success'))
+          .catch(e => console.error('Invoice tracking save error:', e));
       }
 
       async function confirmSendInvoice() {
@@ -7473,6 +7964,8 @@ function renderAlerts() {
         if (!doc) { statusEl.textContent = '❌ Error generando PDF.'; return; }
         // Always download PDF locally
         doc.save('TaskPro_Invoice_' + d.invNum + '_' + (d.clientName||'').replace(/\s+/g,'_') + '.pdf');
+        // Save tracking record
+        saveProjectInvoiceRecord(d);
 
         statusEl.style.color = 'var(--text2)';
         statusEl.textContent = '⏳ Enviando email...';
