@@ -1864,6 +1864,27 @@
       </div>
 
       <div class="card" style="border-color:rgba(184,245,90,0.25);">
+        <div class="card-title">🔢 Contador de invoices</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
+          El próximo invoice que se genere llevará este número + 1.
+          Si hay colisión con un invoice existente, el sistema salta automáticamente al próximo número libre.
+        </p>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+          <div class="form-group" style="flex:0 0 160px;">
+            <label>Próximo número será:</label>
+            <div style="font-family:'DM Mono',monospace;font-size:18px;color:var(--accent);font-weight:700;padding:6px 10px;background:var(--surface2);border-radius:6px;" id="inv_next_preview">—</div>
+          </div>
+          <div class="form-group" style="flex:1 1 200px;min-width:200px;">
+            <label>Fijar contador en:</label>
+            <input type="number" id="inv_counter_input" min="1" step="1" placeholder="Ej: 110" style="font-family:'DM Mono',monospace;">
+            <span style="font-size:10px;color:var(--text2);display:block;margin-top:3px;">Ingresa el valor ACTUAL del contador. El próximo invoice será este + 1.<br>Ej: fijar en <strong>110</strong> → próximo invoice será <strong>IV00111</strong></span>
+          </div>
+          <button class="btn btn-primary" onclick="resetInvoiceCounter()" style="flex:0 0 auto;">Aplicar</button>
+        </div>
+        <div id="inv_counter_msg" style="font-size:11px;margin-top:10px;font-family:monospace;"></div>
+      </div>
+
+      <div class="card" style="border-color:rgba(184,245,90,0.25);">
         <div class="card-title">🗂 Listas de clasificación</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
           Gestiona las opciones que aparecen en los formularios de <strong>Ingresos</strong> y <strong>Egresos</strong>.
@@ -2230,8 +2251,8 @@
                 <input type="text" id="si_reference" placeholder="Opcional">
               </div>
               <div class="form-group">
-                <label>Invoice N°</label>
-                <input type="text" id="si_invoice_number" readonly style="background:var(--surface2);color:var(--accent);font-weight:700;">
+                <label>Invoice N° <span style="font-size:10px;color:var(--text2);font-weight:400;">(editable)</span></label>
+                <input type="text" id="si_invoice_number" style="background:var(--surface2);color:var(--accent);font-weight:700;font-family:'DM Mono',monospace;" oninput="document.getElementById('si_inv_num_stored').value = this.value.trim(); document.getElementById('si_invoice_number_display').textContent = this.value.trim(); const subj = document.getElementById('si_subject'); if (subj) subj.value = 'Invoice ' + this.value.trim() + ' from Task Pro';">
               </div>
             </div>
           </div>
@@ -5609,6 +5630,10 @@ function initFinanceListeners() {
     if (document.getElementById('section-fin-invoices') && document.getElementById('section-fin-invoices').classList.contains('active')) {
       renderInvoicesTable();
     }
+    // Also refresh counter preview if user is currently on Parámetros
+    if (document.getElementById('section-fin-setup') && document.getElementById('section-fin-setup').classList.contains('active')) {
+      loadInvoiceCounterPreview();
+    }
   });
 }
 
@@ -5655,6 +5680,7 @@ function loadFinParams() {
     if (el) el.value = p[k] !== undefined ? p[k] : FIN_DEFAULTS[k];
   });
   renderParamLists();
+  loadInvoiceCounterPreview();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5780,6 +5806,56 @@ function saveFinParams() {
       if (msg) { msg.textContent = 'Guardado automaticamente.'; setTimeout(() => { msg.textContent = ''; }, 2000); }
     });
   }, 800);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INVOICE COUNTER MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+function loadInvoiceCounterPreview() {
+  const preview = document.getElementById('inv_next_preview');
+  if (!preview) return;
+  db.ref('taskpro/finance/invoice_counter').get().then(snap => {
+    const current = snap.val() || 100;
+    // Collect used numbers to show the actual next free
+    const usedNums = new Set();
+    Object.values(finState.invoices || {}).forEach(iv => {
+      const n = (iv.number || '').toUpperCase();
+      const m = n.match(/^IV(\d+)$/);
+      if (m) usedNums.add(parseInt(m[1], 10));
+    });
+    let next = current + 1;
+    while (usedNums.has(next)) next++;
+    preview.textContent = 'IV' + String(next).padStart(5, '0');
+    const inputEl = document.getElementById('inv_counter_input');
+    if (inputEl && !inputEl.value) inputEl.placeholder = 'Actual: ' + current;
+  }).catch(() => {
+    preview.textContent = '—';
+  });
+}
+
+async function resetInvoiceCounter() {
+  const inputEl = document.getElementById('inv_counter_input');
+  const msg = document.getElementById('inv_counter_msg');
+  const val = parseInt(inputEl.value);
+  if (!val || val < 1) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Ingresa un número válido mayor a 0.';
+    return;
+  }
+  if (!confirm('¿Fijar el contador de invoices en ' + val + '?\n\nEl próximo invoice generado será IV' + String(val+1).padStart(5,'0') + ' (o el próximo libre si hay colisión).')) return;
+
+  msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
+  try {
+    await db.ref('taskpro/finance/invoice_counter').set(val);
+    msg.style.color = 'var(--accent)';
+    msg.textContent = 'Contador fijado en ' + val + '. Próximo invoice: IV' + String(val+1).padStart(5,'0') + ' (o superior si está en uso).';
+    inputEl.value = '';
+    loadInvoiceCounterPreview();
+    setTimeout(() => { msg.textContent = ''; }, 6000);
+  } catch(e) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Error: ' + e.message;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -7825,8 +7901,19 @@ function renderAlerts() {
       // ═══════════════════════════════════════════
       function getNextInvoiceNumber(callback) {
         const ref = db.ref('taskpro/finance/invoice_counter');
+        // Collect all in-use numbers (from invoices tracking)
+        const usedNums = new Set();
+        Object.values(finState.invoices || {}).forEach(iv => {
+          const n = (iv.number || '').toUpperCase();
+          const m = n.match(/^IV(\d+)$/);
+          if (m) usedNums.add(parseInt(m[1], 10));
+        });
+
         ref.transaction(current => {
-          return (current || 100) + 1;
+          // Start from current + 1 and skip used numbers
+          let next = (current || 100) + 1;
+          while (usedNums.has(next)) next++;
+          return next;
         }, (err, committed, snap) => {
           if (err || !committed) { callback('IV' + String(Date.now()).slice(-5)); return; }
           const num = snap.val();
@@ -7948,6 +8035,7 @@ function renderAlerts() {
         };
         return {
           invNum:      document.getElementById('si_inv_num_stored').value,
+          pid:         document.getElementById('si_pid').value,
           clientName:  document.getElementById('si_client_name').value.trim(),
           jobAddress:  document.getElementById('si_job_address').value.trim(),
           invoiceDate: fmtDate(document.getElementById('si_invoice_date').value),
@@ -8197,9 +8285,10 @@ function renderAlerts() {
           const days = (cli && cli.defaultDueDays) || 7;
           dueDate = new Date(Date.now() + days*24*60*60*1000).toISOString().slice(0,10);
         }
-        // Find projectId by matching the reference field (which is often project name) or jobAddress
-        let projectId = '';
-        if (d.reference) {
+        // Primary source: pid directly from modal (when opened from Todos los Proyectos)
+        // Fallback: match project by reference name
+        let projectId = d.pid || '';
+        if (!projectId && d.reference) {
           const match = Object.entries(state.projects).find(([, p]) => (p.name||'').toLowerCase() === (d.reference||'').toLowerCase());
           if (match) projectId = match[0];
         }
