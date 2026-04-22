@@ -3117,24 +3117,11 @@
         // firstLoad = true means: accept Firebase's currentId on first snapshot
         // After that, the user controls which project is active
         let firstLoad = true;
+        let _projectsLoaded = false;
+        let _currentIdLoaded = false;
 
-        db.ref('taskpro').on('value', snapshot => {
-          const data = snapshot.val() || {};
-
-          // Update projects, normalize each one
-          state.projects = {};
-          Object.entries(data.projects || {}).forEach(([id, p]) => {
-            state.projects[id] = normalizeProject(p);
-          });
-          state.globalWorkers = toArr(data.globalWorkers);
-          state.externalAdmin = toArr(data.externalAdmin);
-
-          if (firstLoad) {
-            state.currentId = data.currentId || null;
-            firstLoad = false;
-          }
-          // After first load: state.currentId is controlled by user actions only
-
+        // Central render function — called by each granular listener after it updates its slice
+        function _afterDataChange() {
           showSyncDot(true);
           renderProjectSelect();
 
@@ -3146,14 +3133,60 @@
           }
           renderAllProjects();
 
-          if (migrated) showMigrationBanner();
+          if (firstLoad && migrated) showMigrationBanner();
+        }
 
-        }, err => {
-          console.error('Firebase error:', err);
-          showSyncDot(false);
-          showSyncBanner('⚠️ Error conectando a Firebase. Verifica tu conexión.', 'warn');
-          resetNoProjectState();
-          showNoProjectState();
+        // During first load: only render after BOTH the projects tree AND currentId have loaded.
+        // This preserves the original behavior where everything rendered in a single, consistent snapshot.
+        function _maybeFirstRender() {
+          if (_projectsLoaded && _currentIdLoaded && firstLoad) {
+            firstLoad = false;
+            _afterDataChange();
+          }
+        }
+
+        function _firebaseErr(label) {
+          return err => {
+            console.error('Firebase ' + label + ' error:', err);
+            showSyncDot(false);
+            showSyncBanner('⚠️ Error conectando a Firebase (' + label + '). Verifica tu conexión o permisos.', 'warn');
+          };
+        }
+
+        // Listener 1: projects tree
+        db.ref('taskpro/projects').on('value', snap => {
+          const data = snap.val() || {};
+          state.projects = {};
+          Object.entries(data).forEach(([id, p]) => {
+            state.projects[id] = normalizeProject(p);
+          });
+          _projectsLoaded = true;
+          if (firstLoad) _maybeFirstRender();
+          else _afterDataChange();
+        }, _firebaseErr('projects'));
+
+        // Listener 2: globalWorkers (legacy — kept for compatibility)
+        db.ref('taskpro/globalWorkers').on('value', snap => {
+          state.globalWorkers = toArr(snap.val());
+        }, _firebaseErr('globalWorkers'));
+
+        // Listener 3: externalAdmin
+        db.ref('taskpro/externalAdmin').on('value', snap => {
+          state.externalAdmin = toArr(snap.val());
+          if (document.getElementById('section-tiempos') && document.getElementById('section-tiempos').classList.contains('active')) {
+            if (typeof renderTiempos === 'function') renderTiempos();
+          }
+        }, _firebaseErr('externalAdmin'));
+
+        // Listener 4: currentId — read once at first load, then user controls it locally
+        db.ref('taskpro/currentId').once('value').then(snap => {
+          state.currentId = snap.val() || null;
+          _currentIdLoaded = true;
+          _maybeFirstRender();
+        }).catch(err => {
+          console.warn('currentId load warning:', err);
+          _currentIdLoaded = true;
+          _maybeFirstRender();
         });
       }
 
