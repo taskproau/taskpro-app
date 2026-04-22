@@ -5694,11 +5694,13 @@ function renderParamLists() {
       +   '<button class="btn btn-primary btn-sm" style="padding:4px 10px;font-size:11px;" onclick="addParamItem(\'' + key + '\')">+</button>'
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto;">'
-      +   items.map(v =>
-           '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);padding:5px 8px;border-radius:4px;font-size:11px;">'
-         +   '<span style="color:var(--text);">' + v + '</span>'
-         +   '<button style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:0 4px;" onclick="removeParamItem(\'' + key + '\', ' + JSON.stringify(v) + ')">✕</button>'
-         + '</div>').join('')
+      +   items.map(v => {
+           const valEsc = String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+           return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);padding:5px 8px;border-radius:4px;font-size:11px;">'
+             + '<span style="color:var(--text);">' + String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>'
+             + '<button style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:0 4px;" onclick="removeParamItem(\'' + key + '\', \'' + valEsc + '\')">✕</button>'
+             + '</div>';
+         }).join('')
       + '</div>';
   });
 }
@@ -7711,12 +7713,37 @@ function renderAlerts() {
         document.getElementById('eiv_number').value = inv.number || '';
         document.getElementById('eiv_issue').value = inv.issueDate || '';
         document.getElementById('eiv_due').value = inv.dueDate || '';
-        document.getElementById('eiv_project_info').textContent =
-          inv.projectId
-            ? '🔗 Linkeado al proyecto: ' + ((state.projects[inv.projectId] && state.projects[inv.projectId].name) || inv.projectId)
-            : (inv.type === 'personal'
-                ? '👷 Invoice personal — contratista: ' + (inv.contractorName || '—')
-                : '⚠ Sin proyecto linkeado (cliente: ' + (inv.clientName || '—') + ')');
+
+        // Info line + project dropdown
+        const infoEl = document.getElementById('eiv_project_info');
+        if (inv.type === 'personal') {
+          infoEl.textContent = '👷 Invoice personal — contratista: ' + (inv.contractorName || '—') + ' (no linkeable a proyecto)';
+          document.getElementById('eiv_project_row').style.display = 'none';
+        } else {
+          infoEl.textContent = inv.projectId
+            ? '🔗 Actualmente linkeado a: ' + ((state.projects[inv.projectId] && state.projects[inv.projectId].name) || inv.projectId)
+            : '⚠ Sin proyecto linkeado (cliente: ' + (inv.clientName || '—') + ')';
+          document.getElementById('eiv_project_row').style.display = '';
+
+          // Build dropdown: projects that have no invoice OR have THIS invoice
+          const linkedProjectIds = new Set();
+          Object.values(finState.invoices || {}).forEach(iv => {
+            if (iv.id !== id && iv.projectId) linkedProjectIds.add(iv.projectId);
+          });
+          const allProjects = Object.entries(state.projects)
+            .map(([pid, p]) => ({ pid, name: p.name||'', client: p.client||'', start: p.start||'' }))
+            .filter(({ pid }) => !linkedProjectIds.has(pid))
+            .sort((a,b) => (b.start||'').localeCompare(a.start||''));
+
+          const sel = document.getElementById('eiv_project_id');
+          sel.innerHTML = '<option value="">— Sin proyecto linkeado —</option>'
+            + allProjects.map(({ pid, name, client, start }) =>
+                '<option value="' + pid + '"' + (pid === inv.projectId ? ' selected' : '') + '>'
+                + (name || pid) + (client ? ' · ' + client : '') + (start ? ' · ' + start : '')
+                + '</option>'
+              ).join('');
+        }
+
         document.getElementById('editInvoiceMsg').textContent = '';
         document.getElementById('editInvoiceModal').classList.add('open');
       }
@@ -7726,6 +7753,7 @@ function renderAlerts() {
         const number = document.getElementById('eiv_number').value.trim();
         const issue  = document.getElementById('eiv_issue').value;
         const due    = document.getElementById('eiv_due').value;
+        const projSelEl = document.getElementById('eiv_project_id');
         const msg    = document.getElementById('editInvoiceMsg');
         if (!number) { msg.style.color = 'var(--danger)'; msg.textContent = 'El número es requerido.'; return; }
         if (!issue || !due)  { msg.style.color = 'var(--danger)'; msg.textContent = 'Las fechas son requeridas.'; return; }
@@ -7733,22 +7761,29 @@ function renderAlerts() {
 
         msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
         const inv = finState.invoices[id] || {};
+
+        // Determine new projectId — only if not a personal invoice and dropdown is visible
+        let newProjectId = inv.projectId || '';
+        if (inv.type !== 'personal' && projSelEl) {
+          newProjectId = projSelEl.value || '';
+        }
+
         try {
-          // Update invoice record
-          await db.ref('taskpro/finance/invoices/' + id).update({
-            number,
-            issueDate: issue,
-            dueDate: due
-          });
-          // If linked to a project, also update the project's fechaCobro to match due date
-          if (inv.projectId && state.projects[inv.projectId]) {
-            const p = state.projects[inv.projectId];
+          const updates = { number, issueDate: issue, dueDate: due, projectId: newProjectId };
+          await db.ref('taskpro/finance/invoices/' + id).update(updates);
+
+          // Sync project's fechaCobro with new due date on the (possibly new) linked project
+          if (newProjectId && state.projects[newProjectId]) {
+            const p = state.projects[newProjectId];
             p.fechaCobro = due;
-            await db.ref('taskpro/projects/' + inv.projectId).set(p);
+            await db.ref('taskpro/projects/' + newProjectId).set(p);
           }
+
+          const relinked = (newProjectId !== (inv.projectId||''));
           msg.style.color = 'var(--accent)';
-          msg.textContent = 'Actualizado' + (inv.projectId ? ' (+ proyecto sincronizado)' : '') + '.';
-          // Trigger auto-match in case number changed
+          msg.textContent = relinked
+            ? 'Actualizado ' + (newProjectId ? '+ linkeado a nuevo proyecto' : '+ desvinculado del proyecto')
+            : 'Actualizado' + (newProjectId ? ' (+ proyecto sincronizado)' : '');
           autoUpdateInvoiceStatuses();
           setTimeout(() => closeModal('editInvoiceModal'), 900);
         } catch(e) {
@@ -8396,6 +8431,13 @@ function renderAlerts() {
       <div class="form-group">
         <label>Fecha vencimiento</label>
         <input type="date" id="eiv_due">
+      </div>
+      <div class="form-group" id="eiv_project_row">
+        <label>Linkear a proyecto</label>
+        <select id="eiv_project_id" style="font-family:'DM Mono',monospace;font-size:11px;">
+          <option value="">— Sin proyecto linkeado —</option>
+        </select>
+        <span style="font-size:10px;color:var(--text2);margin-top:4px;display:block;">Solo se listan proyectos que no tengan otro invoice linkeado.</span>
       </div>
     </div>
     <div id="editInvoiceMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
