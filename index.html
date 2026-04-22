@@ -1864,6 +1864,21 @@
       </div>
 
       <div class="card" style="border-color:rgba(184,245,90,0.25);">
+        <div class="card-title">🗂 Listas de clasificación</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
+          Gestiona las opciones que aparecen en los formularios de <strong>Ingresos</strong> y <strong>Egresos</strong>.
+          Al eliminar, se verifica que no haya registros usando esa opción.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
+          <div id="param_list_area" data-list="areas" data-label="Áreas"></div>
+          <div id="param_list_tipo" data-list="tipos" data-label="Tipos de costo"></div>
+          <div id="param_list_cat" data-list="categorias" data-label="Categorías"></div>
+          <div id="param_list_metodo" data-list="metodos" data-label="Métodos de pago"></div>
+          <div id="param_list_ciclo" data-list="ciclos" data-label="Ciclos"></div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:rgba(184,245,90,0.25);">
         <div class="card-title">📥 Importar datos desde Excel</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
           Sube el archivo <strong>TASKPRO_Control_Financiero</strong> para importar el historial de
@@ -4006,6 +4021,21 @@
             ? '<span class="badge ' + (diff >= 0 || Math.abs(diff) < 0.5 ? 'badge-green' : 'badge-red') + '">'
               + (diff > 0 ? '+' : '') + '$' + (Math.round(Math.abs(diff)) === 0 ? '0' : Math.abs(diff).toFixed(0)) + '</span>'
             : '—';
+          // Find linked invoices for this project
+          const linkedInvs = Object.values(finState.invoices || {}).filter(iv => iv.projectId === id);
+          let invCell = '<span style="color:var(--text3);font-size:11px;">Sin invoice</span>';
+          if (linkedInvs.length) {
+            // Show newest first
+            linkedInvs.sort((a,b) => (b.issueDate||'').localeCompare(a.issueDate||''));
+            invCell = linkedInvs.map(iv => {
+              const color = iv.status === 'paid' ? 'var(--accent)'
+                          : iv.status === 'overdue' ? 'var(--danger)'
+                          : 'var(--warn)';
+              const label = (iv.status||'unpaid').toUpperCase();
+              return '<div style="font-size:10px;line-height:1.4;"><span style="font-family:monospace;font-weight:700;">' + (iv.number||'—') + '</span>'
+                   + ' <span style="color:' + color + ';font-size:9px;font-weight:700;">' + label + '</span></div>';
+            }).join('');
+          }
           const btnVer   = '<button class="btn btn-ghost btn-sm" data-pid="' + id + '" onclick="projBtnVer(this)">Ver</button>';
           const btnEdit  = '<button class="btn btn-ghost btn-sm" data-pid="' + id + '" onclick="projBtnEdit(this)" style="padding:5px 8px;" title="Editar">✏️</button>';
           const btnInv   = '<button class="btn btn-ghost btn-sm" data-pid="' + id + '" onclick="projBtnInvoice(this)" style="padding:5px 8px;" title="Generar Invoice PDF">🧾</button>';
@@ -4020,6 +4050,7 @@
             + '<td class="num">' + (c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—') + '</td>'
             + '<td class="num">' + diffBadge + '</td>'
             + '<td>' + statusBadge(st) + '</td>'
+            + '<td style="min-width:100px;">' + invCell + '</td>'
             + '<td style="display:flex;gap:5px;align-items:center;">' + btnVer + btnEdit + btnInv + btnEmail + '</td>'
             + '</tr>';
         });
@@ -4034,6 +4065,7 @@
           +   '<option value="">Todos</option>'
           +   allStatuses.map(st => '<option value="' + st + '"' + (_apFilters.status === st ? ' selected' : '') + '>' + st + '</option>').join('')
           + '</select></td>'
+          + '<td></td>'
           + '<td><button class="btn btn-ghost btn-sm" style="font-size:9px;padding:3px 6px;" onclick="_apFilters.name=\'\';_apFilters.client=\'\';_apFilters.status=\'\';renderAllProjects()">✕</button></td>'
           + '</tr>';
 
@@ -4048,6 +4080,7 @@
           + sh('client_price', 'Precio cliente','num')
           + sh('diff',         'Diferencia',   'num')
           + sh('status',       'Status')
+          + '<th>Invoice</th>'
           + '<th></th></tr>'
           + filterRow
           + '</thead>'
@@ -5621,6 +5654,112 @@ function loadFinParams() {
     const el = document.getElementById('fp_' + k);
     if (el) el.value = p[k] !== undefined ? p[k] : FIN_DEFAULTS[k];
   });
+  renderParamLists();
+}
+
+// ═══════════════════════════════════════════════════════════
+// PARAM LISTS — areas / tipos / categorias / metodos / ciclos
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_PARAM_LISTS = {
+  areas:      ['ADMIN_GENERAL','SALARY','MATERIALES_PROYECTO','ARRIENDO CASA','PERSONAL'],
+  tipos:      ['Direct Project','Fixed Operating','Personal'],
+  categorias: ['Labour','Materials','Transport','Tools','Software/Suscripciones','Admin','Rent','Utilities','Herramienta','Donation','Other'],
+  metodos:    ['Transferencia','Tarjeta','Cash','Afterpay'],
+  ciclos:     ['Unico','Mensual','Semanal','Quincenal','Trimestral','Anual']
+};
+
+function getParamList(key) {
+  const stored = (finState.params && finState.params.lists && finState.params.lists[key]);
+  if (Array.isArray(stored) && stored.length) return stored.slice();
+  return DEFAULT_PARAM_LISTS[key] ? DEFAULT_PARAM_LISTS[key].slice() : [];
+}
+
+function saveParamList(key, items) {
+  const params = finState.params || {};
+  const lists = params.lists || {};
+  lists[key] = items;
+  params.lists = lists;
+  return db.ref('taskpro/finance/params/lists/' + key).set(items);
+}
+
+function renderParamLists() {
+  ['areas','tipos','categorias','metodos','ciclos'].forEach(key => {
+    const container = document.querySelector('[data-list="' + key + '"]');
+    if (!container) return;
+    const label = container.getAttribute('data-label') || key;
+    const items = getParamList(key);
+    container.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">' + label + '</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+      +   '<input type="text" id="pl_new_' + key + '" placeholder="Nueva opción..." style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:11px;" onkeydown="if(event.key===\'Enter\'){addParamItem(\'' + key + '\');}">'
+      +   '<button class="btn btn-primary btn-sm" style="padding:4px 10px;font-size:11px;" onclick="addParamItem(\'' + key + '\')">+</button>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:4px;max-height:240px;overflow-y:auto;">'
+      +   items.map(v =>
+           '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);padding:5px 8px;border-radius:4px;font-size:11px;">'
+         +   '<span style="color:var(--text);">' + v + '</span>'
+         +   '<button style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:0 4px;" onclick="removeParamItem(\'' + key + '\', ' + JSON.stringify(v) + ')">✕</button>'
+         + '</div>').join('')
+      + '</div>';
+  });
+}
+
+async function addParamItem(key) {
+  const input = document.getElementById('pl_new_' + key);
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  const items = getParamList(key);
+  if (items.includes(val)) { showSyncBanner('Ya existe: ' + val, 'warn'); return; }
+  items.push(val);
+  try {
+    await saveParamList(key, items);
+    input.value = '';
+    showSyncBanner('Agregado: ' + val, 'success');
+    // Refresh datalists in income/expense forms
+    if (typeof populateIncomeDataLists === 'function') populateIncomeDataLists();
+    if (typeof populateExpenseDataLists === 'function') populateExpenseDataLists();
+  } catch(e) {
+    showSyncBanner('Error: ' + e.message, 'warn');
+  }
+}
+
+async function removeParamItem(key, val) {
+  // Check for usage in existing records
+  const usage = countParamUsage(key, val);
+  if (usage > 0) {
+    if (!confirm('⚠ La opción "' + val + '" está siendo usada en ' + usage + ' registro(s).\n\n¿Eliminar de todos modos?\n(Los registros existentes conservarán el valor; solo desaparece del selector)')) return;
+  } else {
+    if (!confirm('¿Eliminar "' + val + '" de la lista "' + key + '"?')) return;
+  }
+  const items = getParamList(key).filter(v => v !== val);
+  try {
+    await saveParamList(key, items);
+    showSyncBanner('Eliminado: ' + val, 'success');
+    if (typeof populateIncomeDataLists === 'function') populateIncomeDataLists();
+    if (typeof populateExpenseDataLists === 'function') populateExpenseDataLists();
+  } catch(e) {
+    showSyncBanner('Error: ' + e.message, 'warn');
+  }
+}
+
+function countParamUsage(key, val) {
+  let count = 0;
+  const fieldByKey = {
+    areas:      { income: null,      expense: 'proyecto' },
+    tipos:      { income: 'tipo',    expense: 'tipo' },
+    categorias: { income: null,      expense: 'categoria' },
+    metodos:    { income: 'metodo',  expense: 'metodo' },
+    ciclos:     { income: null,      expense: 'ciclo' }
+  };
+  const m = fieldByKey[key];
+  if (!m) return 0;
+  if (m.income) {
+    Object.values(finState.income || {}).forEach(r => { if ((r[m.income]||'') === val) count++; });
+  }
+  if (m.expense) {
+    Object.values(finState.expenses || {}).forEach(r => { if ((r[m.expense]||'') === val) count++; });
+  }
+  return count;
 }
 
 let saveParamTimer = null;
@@ -5632,6 +5771,8 @@ function saveFinParams() {
       const el = document.getElementById('fp_' + k);
       if (el) data[k] = parseFloat(el.value) || FIN_DEFAULTS[k];
     });
+    // Preserve existing lists (managed via separate list UI)
+    if (finState.params && finState.params.lists) data.lists = finState.params.lists;
     db.ref('taskpro/finance/params').set(data).then(() => {
       const msg = document.getElementById('fp_save_msg');
       if (msg) { msg.textContent = 'Guardado automaticamente.'; setTimeout(() => { msg.textContent = ''; }, 2000); }
@@ -5700,24 +5841,69 @@ function populateIncomeDataLists() {
   Object.values(finState.income).forEach(r => { if (r.proyecto) projects.add(r.proyecto); });
   const pl = document.getElementById('inc_proyecto_list');
   if (pl) pl.innerHTML = Array.from(projects).map(p => '<option value="' + p + '">').join('');
+
+  // Tipo (B2B/B2C and custom types from param list)
+  const tipos = getParamList('tipos');
+  const tl = document.getElementById('inc_tipo_list');
+  if (tl) tl.innerHTML = tipos.map(t => '<option value="' + t + '">').join('');
+
+  // Metodo as <select>
+  const metodos = getParamList('metodos');
+  const ms = document.getElementById('inc_metodo');
+  if (ms) {
+    const cur = ms.value;
+    ms.innerHTML = metodos.map(m => '<option value="' + m + '"' + (m===cur?' selected':'') + '>' + m + '</option>').join('');
+  }
 }
 
 function populateExpenseDataLists() {
-  // Fixed area options
-  const FIXED_AREAS = ['ADMIN_GENERAL','SALARY','MATERIALES_PROYECTO','ARRIENDO CASA','PERSONAL'];
+  // Areas from param list (was hardcoded FIXED_AREAS)
+  const areas = getParamList('areas');
   const pl = document.getElementById('exp_proyecto_list');
-  if (pl) pl.innerHTML = FIXED_AREAS.map(a => '<option value="' + a + '">').join('');
+  if (pl) pl.innerHTML = areas.map(a => '<option value="' + a + '">').join('');
+  const ple = document.getElementById('ee_proyecto_list');
+  if (ple) ple.innerHTML = areas.map(a => '<option value="' + a + '">').join('');
+
+  // Tipos
+  const tipos = getParamList('tipos');
+  const tl = document.getElementById('exp_tipo_list');
+  if (tl) tl.innerHTML = tipos.map(t => '<option value="' + t + '">').join('');
+  const tle = document.getElementById('ee_tipo_list');
+  if (tle) tle.innerHTML = tipos.map(t => '<option value="' + t + '">').join('');
+
+  // Categorías
+  const cats = getParamList('categorias');
+  const cl = document.getElementById('exp_cat_list');
+  if (cl) cl.innerHTML = cats.map(c => '<option value="' + c + '">').join('');
+  const cle = document.getElementById('ee_cat_list');
+  if (cle) cle.innerHTML = cats.map(c => '<option value="' + c + '">').join('');
+
+  // Ciclos
+  const ciclos = getParamList('ciclos');
+  const cil = document.getElementById('exp_ciclo_list');
+  if (cil) cil.innerHTML = ciclos.map(c => '<option value="' + c + '">').join('');
+
+  // Metodos (select)
+  const metodos = getParamList('metodos');
+  const ms = document.getElementById('exp_metodo');
+  if (ms) {
+    const cur = ms.value;
+    ms.innerHTML = metodos.map(m => '<option value="' + m + '"' + (m===cur?' selected':'') + '>' + m + '</option>').join('');
+  }
+  const mse = document.getElementById('ee_metodo');
+  if (mse) {
+    const cur = mse.value;
+    mse.innerHTML = metodos.map(m => '<option value="' + m + '"' + (m===cur?' selected':'') + '>' + m + '</option>').join('');
+  }
 
   // Proveedores: load from Firebase memory + current history
   const provs = new Set();
   Object.values(finState.expenses).forEach(r => { if (r.proveedor) provs.add(r.proveedor); });
-  // Also load from Firebase proveedores node
   db.ref('taskpro/finance/proveedores').get().then(snap => {
     const saved = snap.val() || {};
     Object.values(saved).forEach(p => { if (p) provs.add(p); });
     const prl = document.getElementById('exp_prov_list');
     if (prl) prl.innerHTML = Array.from(provs).sort().map(p => '<option value="' + p + '">').join('');
-    // Also update edit modal datalist
     const prl2 = document.getElementById('ee_prov_list');
     if (prl2) prl2.innerHTML = prl ? prl.innerHTML : '';
   }).catch(() => {
@@ -7476,6 +7662,7 @@ function renderAlerts() {
               +   '<option value="unpaid">⏳ Unpaid</option>'
               +   '<option value="overdue">⚠ Overdue</option>'
               + '</select> '
+              + '<button class="btn btn-ghost btn-sm" style="padding:3px 6px;font-size:10px;margin-right:3px;" onclick="openEditInvoiceModal(\'' + i.id + '\')" title="Editar número / fechas">✏️</button>'
               + '<button class="btn btn-danger btn-sm" style="padding:3px 6px;font-size:10px;" onclick="deleteInvoiceRecord(\'' + i.id + '\')" title="Eliminar registro">✕</button>'
               + '</td></tr>';
           }).join('')
@@ -7515,6 +7702,58 @@ function renderAlerts() {
         db.ref('taskpro/finance/invoices/' + id).remove()
           .then(() => showSyncBanner('Invoice eliminado del seguimiento', 'success'))
           .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
+      }
+
+      function openEditInvoiceModal(id) {
+        const inv = finState.invoices[id];
+        if (!inv) { showSyncBanner('Invoice no encontrado', 'warn'); return; }
+        document.getElementById('eiv_id').value = id;
+        document.getElementById('eiv_number').value = inv.number || '';
+        document.getElementById('eiv_issue').value = inv.issueDate || '';
+        document.getElementById('eiv_due').value = inv.dueDate || '';
+        document.getElementById('eiv_project_info').textContent =
+          inv.projectId
+            ? '🔗 Linkeado al proyecto: ' + ((state.projects[inv.projectId] && state.projects[inv.projectId].name) || inv.projectId)
+            : (inv.type === 'personal'
+                ? '👷 Invoice personal — contratista: ' + (inv.contractorName || '—')
+                : '⚠ Sin proyecto linkeado (cliente: ' + (inv.clientName || '—') + ')');
+        document.getElementById('editInvoiceMsg').textContent = '';
+        document.getElementById('editInvoiceModal').classList.add('open');
+      }
+
+      async function saveInvoiceEdit() {
+        const id     = document.getElementById('eiv_id').value;
+        const number = document.getElementById('eiv_number').value.trim();
+        const issue  = document.getElementById('eiv_issue').value;
+        const due    = document.getElementById('eiv_due').value;
+        const msg    = document.getElementById('editInvoiceMsg');
+        if (!number) { msg.style.color = 'var(--danger)'; msg.textContent = 'El número es requerido.'; return; }
+        if (!issue || !due)  { msg.style.color = 'var(--danger)'; msg.textContent = 'Las fechas son requeridas.'; return; }
+        if (due < issue) { msg.style.color = 'var(--danger)'; msg.textContent = 'Fecha de vencimiento no puede ser anterior a emisión.'; return; }
+
+        msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
+        const inv = finState.invoices[id] || {};
+        try {
+          // Update invoice record
+          await db.ref('taskpro/finance/invoices/' + id).update({
+            number,
+            issueDate: issue,
+            dueDate: due
+          });
+          // If linked to a project, also update the project's fechaCobro to match due date
+          if (inv.projectId && state.projects[inv.projectId]) {
+            const p = state.projects[inv.projectId];
+            p.fechaCobro = due;
+            await db.ref('taskpro/projects/' + inv.projectId).set(p);
+          }
+          msg.style.color = 'var(--accent)';
+          msg.textContent = 'Actualizado' + (inv.projectId ? ' (+ proyecto sincronizado)' : '') + '.';
+          // Trigger auto-match in case number changed
+          autoUpdateInvoiceStatuses();
+          setTimeout(() => closeModal('editInvoiceModal'), 900);
+        } catch(e) {
+          msg.style.color = 'var(--danger)'; msg.textContent = 'Error: ' + e.message;
+        }
       }
 
       function getClientByName(name) {
@@ -8139,6 +8378,34 @@ function renderAlerts() {
   </div>
 </div>
 
+<!-- ══════════ MODAL: EDIT INVOICE ══════════ -->
+<div class="modal-overlay" id="editInvoiceModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title">✏️ Editar invoice</div>
+    <input type="hidden" id="eiv_id">
+    <div id="eiv_project_info" style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:8px 10px;background:var(--surface2);border-radius:6px;"></div>
+    <div class="form-grid" style="grid-template-columns:1fr;gap:12px;margin-bottom:14px;">
+      <div class="form-group">
+        <label>Número de invoice</label>
+        <input type="text" id="eiv_number" placeholder="IV00xxx" style="font-family:'DM Mono',monospace;">
+      </div>
+      <div class="form-group">
+        <label>Fecha emisión</label>
+        <input type="date" id="eiv_issue">
+      </div>
+      <div class="form-group">
+        <label>Fecha vencimiento</label>
+        <input type="date" id="eiv_due">
+      </div>
+    </div>
+    <div id="editInvoiceMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="saveInvoiceEdit()">Guardar cambios</button>
+      <button class="btn btn-ghost" onclick="closeModal('editInvoiceModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ MODAL: EDIT EXPENSE ══════════ -->
 <div class="modal-overlay" id="editExpenseModal">
   <div class="modal" style="max-width:560px;">
@@ -8162,4 +8429,11 @@ function renderAlerts() {
       <div class="form-group" style="grid-column:span 2;"><label>Comentarios</label><input type="text" id="ee_notas" placeholder="Opcional"></div>
     </div>
     <div style="display:flex;gap:10px;">
-      <button class="btn bt
+      <button class="btn btn-primary" onclick="saveExpenseEdit()">Guardar cambios</button>
+      <button class="btn btn-ghost" onclick="closeModal('editExpenseModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
