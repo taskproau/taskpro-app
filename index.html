@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V43</title>
+  <title>TaskPro — Project Control V44</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1375,6 +1375,10 @@
         <div class="nav-item" onclick="showSection('fin-alerts')" id="nav-fin-alerts" style="display:none;">
           <span class="nav-icon">🚨</span> Alertas
         </div>
+        <div class="nav-item" onclick="showSection('fin-director-loan')" id="nav-fin-director-loan"
+          style="display:none;">
+          <span class="nav-icon">📋</span> Director Loan (Div 7A)
+        </div>
       </nav>
 
       <!-- MAIN CONTENT -->
@@ -2367,22 +2371,61 @@
           </div>
         </div>
 
-        <!-- ══════════ FIN: ALERTS ══════════ -->
-        <div class="section" id="section-fin-alerts">
-          <div class="section-title">🚨 Alertas Financieras</div>
-          <div class="section-sub">Semaforo automatico basado en los datos del mes</div>
-          <div class="card">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-              <label style="font-weight:700;font-size:13px;">🗓 Mes:</label>
-              <select id="alert_month_sel" onchange="renderAlerts()" style="min-width:140px;">
-                <option value="">Seleccionar mes</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" onclick="setAlertThisMonth()">Este mes</button>
+        <!-- ══════════ FIN: DIRECTOR LOAN (Division 7A) ══════════ -->
+        <div class="section" id="section-fin-director-loan">
+          <div class="section-title">📋 Director Loan Account — Division 7A</div>
+          <div class="section-sub">Registro legal de gastos personales del director pagados con cuenta empresa</div>
+
+          <div id="dla_alert_box" class="card" style="border-left:4px solid var(--warn);background:var(--warn-dim);">
+            <div style="font-weight:700;color:var(--warn);margin-bottom:6px;font-size:12px;">⚠ RECORDATORIO DIV 7A</div>
+            <div style="font-size:12px;color:var(--text);">
+              Este saldo representa un préstamo de TaskPro Pty Ltd al director. Debe formalizarse con Division 7A Loan
+              Agreement y repagarse antes del lodgment day del próximo tax return. Consultar con tax agent.
             </div>
           </div>
-          <div id="alerts_content">
-            <div class="empty-state">
-              <p>Selecciona un mes para ver las alertas.</p>
+
+          <div class="card">
+            <div class="card-title">💰 Saldo Actual del Préstamo</div>
+            <div id="dla_balance"
+              style="font-size:38px;font-weight:800;color:var(--danger);font-family:'DM Mono',monospace;">$0.00</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px;">
+            <div class="card">
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Gastos este
+                mes</div>
+              <div id="dla_month_debits" style="font-size:22px;font-weight:700;color:var(--danger);margin-top:6px;">
+                $0.00</div>
+            </div>
+            <div class="card">
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Repagos este
+                mes</div>
+              <div id="dla_month_credits" style="font-size:22px;font-weight:700;color:var(--accent2);margin-top:6px;">
+                $0.00</div>
+            </div>
+            <div class="card">
+              <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;">Movimientos
+                totales</div>
+              <div id="dla_total_moves" style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">0</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="openModal('dlaRepaymentModal')">💰 Registrar Repago</button>
+              <button class="btn btn-ghost" onclick="dla.exportReport()">📊 Exportar CSV</button>
+              <button class="btn btn-ghost" onclick="dla.migrateHistoricalExpenses()">🔁 Migrar histórico
+                PERSONAL</button>
+              <button class="btn btn-ghost" onclick="dla.refresh()">🔄 Actualizar</button>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="card-title">📜 Historial de Movimientos</div>
+            <div id="dla_movements_table">
+              <div class="empty-state">
+                <p>Cargando movimientos...</p>
+              </div>
             </div>
           </div>
         </div>
@@ -2622,7 +2665,7 @@
       // Role permissions
       const ROLE_PERMS = {
         admin: {
-          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts'],
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'],
           canDelete: true, canEdit: true
         },
         supervisor: {
@@ -2650,7 +2693,7 @@
         const perms = getRolePerms();
 
         // Show/hide nav items
-        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts'].forEach(id => {
+        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'].forEach(id => {
           const el = document.getElementById('nav-' + id);
           if (el) el.style.display = perms.nav.includes(id) ? '' : 'none';
         });
@@ -3504,6 +3547,7 @@
       // ═══════════════════════════════════════════
       function openNewProjectModal() { document.getElementById('newProjectModal').classList.add('open'); }
       function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+      function openModal(id) { const el = document.getElementById(id); if (el) el.classList.add('open'); }
 
       function createProject() {
         const name = document.getElementById('np_name').value.trim();
@@ -5797,6 +5841,7 @@
         if (id === 'fin-summary') { setFinSummaryThisMonth(); }
         if (id === 'fin-kpi') { setKPIThisMonth(); }
         if (id === 'fin-alerts') { setAlertThisMonth(); }
+        if (id === 'fin-director-loan') { if (typeof dla !== 'undefined') dla.refresh(); }
         if (id === 'workers') { populateWorkerBaseDropdown(); }
         if (id === 'equipobase') { renderBaseTeam(); }
       }
@@ -6584,6 +6629,10 @@
         db.ref('taskpro/finance/expenses/' + record.id).set(record)
           .then(() => {
             showSyncBanner('Gasto registrado: $' + monto.toFixed(2), 'success');
+            // ══ Director Loan Account (Division 7A) ══
+            if (record.proyecto === 'PERSONAL' && typeof dla !== 'undefined') {
+              dla.registerPersonalExpense(record);
+            }
             ['exp_proyecto', 'exp_tipo', 'exp_cat', 'exp_proveedor', 'exp_monto', 'exp_ciclo', 'exp_notas'].forEach(id => {
               const el = document.getElementById(id); if (el) el.value = '';
             });
@@ -6670,8 +6719,16 @@
         if (!canDo('canDelete')) { showSyncBanner('Sin permiso.', 'warn'); return; }
         if (!confirm('¿Eliminar este gasto?')) return;
         const id = btn.getAttribute('data-expid');
+        // Capture record before delete for DLA reversal
+        const record = finState.expenses[id];
         db.ref('taskpro/finance/expenses/' + id).remove()
-          .then(() => showSyncBanner('Gasto eliminado', 'success'))
+          .then(() => {
+            showSyncBanner('Gasto eliminado', 'success');
+            // ══ Reversar DLA si era PERSONAL ══
+            if (record && record.proyecto === 'PERSONAL' && typeof dla !== 'undefined') {
+              dla.reversePersonalExpense(record);
+            }
+          })
           .catch(e => showSyncBanner('Error: ' + e.message, 'warn'));
       }
 
@@ -7905,6 +7962,9 @@
         const eprov = document.getElementById('ee_proveedor').value.trim();
         if (eprov) db.ref('taskpro/finance/proveedores/' + eprov.replace(/[^a-zA-Z0-9]/g, '_')).set(eprov).catch(() => { });
 
+        // Capture previous state for DLA sync
+        const prev = finState.expenses[id] ? { ...finState.expenses[id] } : null;
+
         const updated = {
           ...finState.expenses[id],
           fecha,
@@ -7920,6 +7980,24 @@
         try {
           await db.ref('taskpro/finance/expenses/' + id).set(updated);
           showSyncBanner('Gasto actualizado', 'success');
+
+          // ══ Director Loan Account sync (Div 7A) ══
+          if (typeof dla !== 'undefined' && prev) {
+            const wasPersonal = prev.proyecto === 'PERSONAL';
+            const isPersonal = updated.proyecto === 'PERSONAL';
+            if (!wasPersonal && isPersonal) {
+              // Ahora es personal → registrar débito
+              dla.registerPersonalExpense(updated);
+            } else if (wasPersonal && !isPersonal) {
+              // Ya no es personal → reversar débito previo
+              dla.reversePersonalExpense(prev);
+            } else if (wasPersonal && isPersonal && prev.monto !== updated.monto) {
+              // Monto cambió → reversar previo, registrar nuevo
+              dla.reversePersonalExpense(prev);
+              dla.registerPersonalExpense(updated);
+            }
+          }
+
           closeModal('editExpenseModal');
         } catch (e) { showSyncBanner('Error: ' + e.message, 'warn'); }
       }
@@ -9041,6 +9119,285 @@
         }
       }
 
+      // ═══════════════════════════════════════════════════════════
+      // DIRECTOR LOAN ACCOUNT — Division 7A (Pty Ltd director loans)
+      // Pagos personales del director registrados como préstamos de la
+      // empresa al director. NO impactan el P&L. Se acumulan en un
+      // saldo que debe repagarse antes del lodgment day del próximo
+      // tax return. Consultar con tax agent registrado.
+      // ═══════════════════════════════════════════════════════════
+      const DLA_PATH = 'taskpro/directorLoan/carlos';
+      const DLA_ALERT_THRESHOLD = 5000;  // saldo sobre este monto dispara alerta crítica
+
+      const dla = {
+
+        // Registra un gasto personal como débito en el loan account
+        registerPersonalExpense: function (expenseData) {
+          const movement = {
+            type: 'debit',
+            amount: parseFloat(expenseData.monto) || 0,
+            date: expenseData.fecha || new Date().toISOString().split('T')[0],
+            description: (expenseData.notas || expenseData.categoria || 'Gasto personal'),
+            provider: expenseData.proveedor || '',
+            sourceExpenseId: expenseData.id || null,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+          };
+          return db.ref(DLA_PATH + '/movements').push(movement)
+            .then(() => dla.recalculateBalance())
+            .then(() => dla.refresh())
+            .catch(e => console.error('[DLA] Error registrando gasto:', e));
+        },
+
+        // Reversa un gasto personal (cuando se elimina o cambia de área)
+        reversePersonalExpense: function (expenseData) {
+          const movement = {
+            type: 'credit',
+            amount: parseFloat(expenseData.monto) || 0,
+            date: new Date().toISOString().split('T')[0],
+            description: 'Reversa — gasto eliminado/reclasificado (' + (expenseData.notas || expenseData.categoria || '') + ')',
+            method: 'Ajuste sistema',
+            sourceExpenseId: expenseData.id || null,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+          };
+          return db.ref(DLA_PATH + '/movements').push(movement)
+            .then(() => dla.recalculateBalance())
+            .then(() => dla.refresh())
+            .catch(e => console.error('[DLA] Error reversando gasto:', e));
+        },
+
+        // Registra repago (desde el modal UI)
+        saveRepayment: function () {
+          const amount = parseFloat(document.getElementById('dla_repay_amount').value);
+          const date = document.getElementById('dla_repay_date').value;
+          const method = document.getElementById('dla_repay_method').value;
+          const notes = document.getElementById('dla_repay_notes').value;
+
+          if (!amount || amount <= 0) { alert('Ingresá un monto válido'); return; }
+          if (!date) { alert('Seleccioná una fecha'); return; }
+
+          const movement = {
+            type: 'credit',
+            amount: amount,
+            date: date,
+            description: 'Repago — ' + method + (notes ? ' · ' + notes : ''),
+            method: method,
+            notes: notes,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+          };
+
+          db.ref(DLA_PATH + '/movements').push(movement)
+            .then(() => dla.recalculateBalance())
+            .then(() => {
+              closeModal('dlaRepaymentModal');
+              dla.refresh();
+              showSyncBanner('✓ Repago registrado', 'success');
+              document.getElementById('dla_repay_amount').value = '';
+              document.getElementById('dla_repay_notes').value = '';
+            })
+            .catch(e => showSyncBanner('Error repago: ' + e.message, 'warn'));
+        },
+
+        // Recalcula el saldo desde todos los movimientos
+        recalculateBalance: function () {
+          return db.ref(DLA_PATH + '/movements').once('value').then(snap => {
+            const movements = snap.val() || {};
+            let balance = 0;
+            Object.values(movements).forEach(m => {
+              if (m.type === 'debit') balance += (m.amount || 0);
+              if (m.type === 'credit') balance -= (m.amount || 0);
+            });
+            return db.ref(DLA_PATH + '/balance').set(balance);
+          });
+        },
+
+        // Refresca toda la UI (saldo, stats, alerta, tabla)
+        refresh: function () {
+          db.ref(DLA_PATH).once('value').then(snap => {
+            const data = snap.val() || { balance: 0, movements: {} };
+            const balance = data.balance || 0;
+            const movements = data.movements || {};
+
+            // Saldo
+            const balEl = document.getElementById('dla_balance');
+            if (balEl) balEl.textContent = dla.fmt(balance);
+
+            // Stats del mes
+            const now = new Date();
+            const currentMonth = now.toISOString().substring(0, 7);
+            let monthDebits = 0, monthCredits = 0, total = 0;
+            const list = Object.entries(movements).map(([id, m]) => Object.assign({ id: id }, m));
+
+            list.forEach(m => {
+              total++;
+              if (m.date && m.date.startsWith(currentMonth)) {
+                if (m.type === 'debit') monthDebits += (m.amount || 0);
+                if (m.type === 'credit') monthCredits += (m.amount || 0);
+              }
+            });
+
+            const mdEl = document.getElementById('dla_month_debits');
+            const mcEl = document.getElementById('dla_month_credits');
+            const tmEl = document.getElementById('dla_total_moves');
+            if (mdEl) mdEl.textContent = dla.fmt(monthDebits);
+            if (mcEl) mcEl.textContent = dla.fmt(monthCredits);
+            if (tmEl) tmEl.textContent = total;
+
+            // Alerta según saldo y cercanía al 30 de junio
+            dla.updateAlert(balance);
+
+            // Tabla de movimientos (más reciente primero)
+            list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            dla.renderMovements(list);
+          }).catch(e => console.error('[DLA] refresh error:', e));
+        },
+
+        updateAlert: function (balance) {
+          const box = document.getElementById('dla_alert_box');
+          if (!box) return;
+
+          const now = new Date();
+          // FY australiano: 1 julio a 30 junio. Lodgment day aprox 30 junio del año siguiente
+          const year = now.getMonth() < 6 ? now.getFullYear() : now.getFullYear() + 1;
+          const lodgmentDay = new Date(year, 5, 30);
+          const monthsToLodgment = (lodgmentDay - now) / (1000 * 60 * 60 * 24 * 30);
+
+          if (balance > DLA_ALERT_THRESHOLD || monthsToLodgment < 3) {
+            box.style.borderLeft = '4px solid var(--danger)';
+            box.style.background = 'var(--danger-dim)';
+            let msg = '<div style="font-weight:700;color:var(--danger);margin-bottom:6px;font-size:12px;">🚨 ATENCIÓN DIV 7A</div>';
+            msg += '<div style="font-size:12px;color:var(--text);">';
+            if (balance > DLA_ALERT_THRESHOLD) {
+              msg += 'Saldo supera $' + DLA_ALERT_THRESHOLD.toLocaleString() + '. ';
+            }
+            if (monthsToLodgment < 3) {
+              msg += 'Quedan ' + Math.floor(monthsToLodgment) + ' meses antes del lodgment day (30 junio). ';
+            }
+            msg += 'Revisar con tax agent urgente.</div>';
+            box.innerHTML = msg;
+          } else {
+            box.style.borderLeft = '4px solid var(--warn)';
+            box.style.background = 'var(--warn-dim)';
+            box.innerHTML = '<div style="font-weight:700;color:var(--warn);margin-bottom:6px;font-size:12px;">⚠ RECORDATORIO DIV 7A</div>' +
+              '<div style="font-size:12px;color:var(--text);">Este saldo representa un préstamo de TaskPro Pty Ltd al director. Debe formalizarse con Division 7A Loan Agreement y repagarse antes del lodgment day del próximo tax return. Consultar con tax agent.</div>';
+          }
+        },
+
+        renderMovements: function (list) {
+          const container = document.getElementById('dla_movements_table');
+          if (!container) return;
+          if (!list.length) {
+            container.innerHTML = '<div class="empty-state"><p>Sin movimientos registrados todavía.</p></div>';
+            return;
+          }
+          let html = '<div style="overflow-x:auto;"><table class="data-table" style="min-width:720px;"><thead><tr>' +
+            '<th>Fecha</th><th>Tipo</th><th>Descripción</th><th class="num">Monto</th><th>Método/Proveedor</th>' +
+            '</tr></thead><tbody>';
+          list.forEach(m => {
+            const isDebit = m.type === 'debit';
+            const sign = isDebit ? '+' : '−';
+            const color = isDebit ? 'var(--danger)' : 'var(--accent2)';
+            const tipoTxt = isDebit ? 'Gasto (Debit)' : 'Repago (Credit)';
+            const mv = dla.escape(m.provider || m.method || '—');
+            html += '<tr>' +
+              '<td>' + dla.escape(m.date || '—') + '</td>' +
+              '<td style="color:' + color + ';font-weight:600;font-size:11px;">' + tipoTxt + '</td>' +
+              '<td>' + dla.escape(m.description || '') + '</td>' +
+              '<td class="num" style="color:' + color + ';font-weight:700;">' + sign + dla.fmt(m.amount || 0) + '</td>' +
+              '<td style="font-size:11px;color:var(--text2);">' + mv + '</td>' +
+              '</tr>';
+          });
+          html += '</tbody></table></div>';
+          container.innerHTML = html;
+        },
+
+        // Exportar CSV para tax agent / auditoría
+        exportReport: function () {
+          db.ref(DLA_PATH).once('value').then(snap => {
+            const data = snap.val() || { balance: 0, movements: {} };
+            const list = Object.values(data.movements || {});
+            list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+            let csv = 'Fecha,Tipo,Descripcion,Monto AUD,Metodo/Proveedor\n';
+            list.forEach(m => {
+              const tipo = m.type === 'debit' ? 'Gasto (Debit)' : 'Repago (Credit)';
+              const desc = (m.description || '').replace(/"/g, '""');
+              const prov = (m.provider || m.method || '').replace(/"/g, '""');
+              csv += '"' + (m.date || '') + '","' + tipo + '","' + desc + '",' + (m.amount || 0).toFixed(2) + ',"' + prov + '"\n';
+            });
+            csv += '\nSALDO ACTUAL,,,' + (data.balance || 0).toFixed(2) + ',\n';
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Director_Loan_Account_Carlos_' + new Date().toISOString().substring(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            showSyncBanner('CSV exportado', 'success');
+          });
+        },
+
+        // Migrar histórico: importar PERSONAL previos al loan account.
+        // SOLO se ejecuta una vez. Chequea flag en Firebase para no duplicar.
+        migrateHistoricalExpenses: function () {
+          db.ref(DLA_PATH + '/migrated').once('value').then(snap => {
+            if (snap.val() === true) {
+              if (!confirm('La migración ya fue ejecutada antes. ¿Ejecutar de nuevo? (puede duplicar movimientos)')) return;
+              dla._doMigration();
+            } else {
+              if (!confirm('Migrar todos los gastos PERSONAL existentes al Director Loan Account?\nEsto no borra los expenses originales, solo los registra también como préstamos.')) return;
+              dla._doMigration();
+            }
+          });
+        },
+
+        _doMigration: function () {
+          db.ref('taskpro/finance/expenses').once('value').then(snap => {
+            const expenses = snap.val() || {};
+            const personal = Object.entries(expenses).filter(([id, e]) => (e.proyecto || '').toUpperCase() === 'PERSONAL');
+
+            if (personal.length === 0) {
+              alert('No hay gastos PERSONAL para migrar.');
+              return;
+            }
+
+            const promises = personal.map(([id, e]) => {
+              const movement = {
+                type: 'debit',
+                amount: parseFloat(e.monto) || 0,
+                date: e.fecha || new Date().toISOString().split('T')[0],
+                description: '[MIGRADO] ' + (e.notas || e.categoria || 'Gasto personal'),
+                provider: e.proveedor || '',
+                sourceExpenseId: id,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+              };
+              return db.ref(DLA_PATH + '/movements').push(movement);
+            });
+
+            Promise.all(promises)
+              .then(() => db.ref(DLA_PATH + '/migrated').set(true))
+              .then(() => dla.recalculateBalance())
+              .then(() => {
+                showSyncBanner('✓ ' + personal.length + ' gastos PERSONAL migrados al loan account', 'success');
+                dla.refresh();
+              })
+              .catch(e => showSyncBanner('Error migración: ' + e.message, 'warn'));
+          });
+        },
+
+        // ── Utils ──
+        fmt: function (n) {
+          return '$' + (n || 0).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+        escape: function (s) {
+          return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        },
+      };
+
+      // Exponer globalmente
+      window.dla = dla;
+
     </script>
     <!-- ══════════ MODAL: EDIT WORKER ══════════ -->
     <div class="modal-overlay" id="editWorkerModal">
@@ -9073,6 +9430,39 @@
         <div style="display:flex;gap:10px;">
           <button class="btn btn-primary" onclick="saveWorkerEdit()">Guardar cambios</button>
           <button class="btn btn-ghost" onclick="closeModal('editWorkerModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ MODAL: DIRECTOR LOAN REPAYMENT (Div 7A) ══════════ -->
+    <div class="modal-overlay" id="dlaRepaymentModal">
+      <div class="modal">
+        <div class="modal-title">💰 Registrar Repago — Director Loan Account</div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="form-group">
+            <label>Monto (AUD)</label>
+            <input type="number" id="dla_repay_amount" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="dla_repay_date">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Método</label>
+            <select id="dla_repay_method">
+              <option value="Transferencia directa">Transferencia directa a cuenta empresa</option>
+              <option value="Descuento de nomina">Descuento del pago mensual</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Notas</label>
+            <input type="text" id="dla_repay_notes" placeholder="Ej: Repago parcial abril 2026">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="dla.saveRepayment()">Guardar Repago</button>
+          <button class="btn btn-ghost" onclick="closeModal('dlaRepaymentModal')">Cancelar</button>
         </div>
       </div>
     </div>
