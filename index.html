@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V41</title>
+  <title>TaskPro — Project Control V42</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -7917,12 +7917,39 @@
         }
       }
 
+      // Known sub-paths under /taskpro that an admin has read access to (per Firebase rules)
+      const BACKUP_SUBPATHS = [
+        'projects',
+        'globalWorkers',
+        'externalAdmin',
+        'equipoBase',
+        'users',
+        'currentId',
+        'finance'
+      ];
+
       async function downloadFirebaseBackup() {
         if (!_isBackupAdmin()) { _backupToast('Solo administradores pueden generar backups.', 'warn'); return; }
         try {
           _backupToast('⏳ Descargando árbol desde Firebase...', 'success');
-          const snap = await db.ref(BACKUP_ROOT_PATH).once('value');
-          const data = snap.val() || {};
+
+          // Read each sub-path individually (Firebase rules don't allow reading the full root)
+          const data = {};
+          const readErrors = [];
+          for (const sub of BACKUP_SUBPATHS) {
+            try {
+              const snap = await db.ref(BACKUP_ROOT_PATH + '/' + sub).once('value');
+              const v = snap.val();
+              if (v !== null && v !== undefined) data[sub] = v;
+            } catch (e) {
+              console.warn('Backup: could not read ' + sub + ':', e.message);
+              readErrors.push(sub);
+            }
+          }
+
+          if (readErrors.length === BACKUP_SUBPATHS.length) {
+            throw new Error('No se pudo leer ningún sub-nodo. ¿Permisos correctos?');
+          }
 
           // Count top-level collections
           const counts = {};
@@ -8038,10 +8065,24 @@
 
           _backupToast('⏳ Restaurando árbol completo...', 'success');
 
-          // Replace full tree
-          await db.ref(BACKUP_ROOT_PATH).set(parsed.data);
+          // Restore each sub-path individually (rules don't allow writing to root)
+          const restored = [];
+          const failed = [];
+          for (const sub of Object.keys(parsed.data)) {
+            try {
+              await db.ref(BACKUP_ROOT_PATH + '/' + sub).set(parsed.data[sub]);
+              restored.push(sub);
+            } catch (e) {
+              console.error('Restore: failed on ' + sub + ':', e.message);
+              failed.push(sub + ' (' + e.message + ')');
+            }
+          }
 
-          _backupToast('✅ Backup restaurado. Recargando en 3 segundos...', 'success');
+          if (failed.length) {
+            _backupToast('⚠ Restaurados: ' + restored.join(', ') + ' — Fallaron: ' + failed.join('; '), 'warn');
+          } else {
+            _backupToast('✅ Backup restaurado (' + restored.length + ' nodos). Recargando en 3 segundos...', 'success');
+          }
           inputEl.value = '';
           setTimeout(() => location.reload(), 3000);
         } catch (e) {
