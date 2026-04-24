@@ -95,9 +95,9 @@
     /* Searchable project dropdown */
     .proj-search-wrap {
       position: relative;
-      min-width: 320px;
-      flex: 1 1 320px;
-      max-width: 560px;
+      min-width: 480px;
+      flex: 1 1 480px;
+      max-width: 840px;
     }
     .proj-search-input {
       width: 100%;
@@ -3263,6 +3263,7 @@
         state.currentId = id;
         saveCurrentId(id);
         renderCurrentProject();
+        renderProjectSelect();
       }
 
       function deleteCurrentProject() {
@@ -5667,6 +5668,10 @@ function initFinanceListeners() {
     if (document.getElementById('section-fin-setup') && document.getElementById('section-fin-setup').classList.contains('active')) {
       loadInvoiceCounterPreview();
     }
+    // Refresh Todos los Proyectos if visible (Invoice column reads from finState.invoices)
+    if (document.getElementById('section-projects') && document.getElementById('section-projects').classList.contains('active')) {
+      if (typeof renderAllProjects === 'function') renderAllProjects();
+    }
   });
 }
 
@@ -7822,10 +7827,37 @@ function renderAlerts() {
         document.getElementById('eiv_number').value = inv.number || '';
         document.getElementById('eiv_issue').value = inv.issueDate || '';
         document.getElementById('eiv_due').value = inv.dueDate || '';
+        document.getElementById('eiv_amount').value = (inv.amount !== undefined && inv.amount !== null) ? inv.amount : '';
+
+        const isPersonal = (inv.type === 'personal');
+
+        // Client fields — show different field depending on type
+        const clientRow = document.getElementById('eiv_client_row');
+        const contractorRow = document.getElementById('eiv_contractor_row');
+        if (isPersonal) {
+          clientRow.style.display = 'none';
+          contractorRow.style.display = '';
+          document.getElementById('eiv_contractor_name').value = inv.contractorName || '';
+          document.getElementById('eiv_contractor_abn').value  = inv.contractorAbn || '';
+        } else {
+          clientRow.style.display = '';
+          contractorRow.style.display = 'none';
+          document.getElementById('eiv_client_name').value = inv.clientName || '';
+        }
+
+        // Reference, job address (only for client invoices)
+        const detailsRow = document.getElementById('eiv_details_row');
+        if (isPersonal) {
+          detailsRow.style.display = 'none';
+        } else {
+          detailsRow.style.display = '';
+          document.getElementById('eiv_reference').value   = inv.reference || '';
+          document.getElementById('eiv_job_address').value = inv.jobAddress || '';
+        }
 
         // Info line + project dropdown
         const infoEl = document.getElementById('eiv_project_info');
-        if (inv.type === 'personal') {
+        if (isPersonal) {
           infoEl.textContent = '👷 Invoice personal — contratista: ' + (inv.contractorName || '—') + ' (no linkeable a proyecto)';
           document.getElementById('eiv_project_row').style.display = 'none';
         } else {
@@ -7862,37 +7894,47 @@ function renderAlerts() {
         const number = document.getElementById('eiv_number').value.trim();
         const issue  = document.getElementById('eiv_issue').value;
         const due    = document.getElementById('eiv_due').value;
+        const amount = parseFloat(document.getElementById('eiv_amount').value);
         const projSelEl = document.getElementById('eiv_project_id');
         const msg    = document.getElementById('editInvoiceMsg');
         if (!number) { msg.style.color = 'var(--danger)'; msg.textContent = 'El número es requerido.'; return; }
         if (!issue || !due)  { msg.style.color = 'var(--danger)'; msg.textContent = 'Las fechas son requeridas.'; return; }
         if (due < issue) { msg.style.color = 'var(--danger)'; msg.textContent = 'Fecha de vencimiento no puede ser anterior a emisión.'; return; }
+        if (isNaN(amount) || amount < 0) { msg.style.color = 'var(--danger)'; msg.textContent = 'El monto debe ser un número válido ≥ 0.'; return; }
 
         msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
         const inv = finState.invoices[id] || {};
+        const isPersonal = (inv.type === 'personal');
 
-        // Determine new projectId — only if not a personal invoice and dropdown is visible
-        let newProjectId = inv.projectId || '';
-        if (inv.type !== 'personal' && projSelEl) {
-          newProjectId = projSelEl.value || '';
+        // Build update object
+        const updates = { number, issueDate: issue, dueDate: due, amount };
+
+        if (isPersonal) {
+          updates.contractorName = document.getElementById('eiv_contractor_name').value.trim();
+          updates.contractorAbn  = document.getElementById('eiv_contractor_abn').value.trim();
+        } else {
+          updates.clientName = document.getElementById('eiv_client_name').value.trim();
+          updates.reference  = document.getElementById('eiv_reference').value.trim();
+          updates.jobAddress = document.getElementById('eiv_job_address').value.trim();
+          // Determine new projectId
+          updates.projectId = projSelEl ? (projSelEl.value || '') : (inv.projectId || '');
         }
 
         try {
-          const updates = { number, issueDate: issue, dueDate: due, projectId: newProjectId };
           await db.ref('taskpro/finance/invoices/' + id).update(updates);
 
           // Sync project's fechaCobro with new due date on the (possibly new) linked project
-          if (newProjectId && state.projects[newProjectId]) {
-            const p = state.projects[newProjectId];
+          if (!isPersonal && updates.projectId && state.projects[updates.projectId]) {
+            const p = state.projects[updates.projectId];
             p.fechaCobro = due;
-            await db.ref('taskpro/projects/' + newProjectId).set(p);
+            await db.ref('taskpro/projects/' + updates.projectId).set(p);
           }
 
-          const relinked = (newProjectId !== (inv.projectId||''));
+          const relinked = !isPersonal && (updates.projectId !== (inv.projectId||''));
           msg.style.color = 'var(--accent)';
           msg.textContent = relinked
-            ? 'Actualizado ' + (newProjectId ? '+ linkeado a nuevo proyecto' : '+ desvinculado del proyecto')
-            : 'Actualizado' + (newProjectId ? ' (+ proyecto sincronizado)' : '');
+            ? 'Actualizado ' + (updates.projectId ? '+ linkeado a nuevo proyecto' : '+ desvinculado del proyecto')
+            : 'Actualizado' + (!isPersonal && updates.projectId ? ' (+ proyecto sincronizado)' : '');
           autoUpdateInvoiceStatuses();
           setTimeout(() => closeModal('editInvoiceModal'), 900);
         } catch(e) {
@@ -8537,14 +8579,18 @@ function renderAlerts() {
 
 <!-- ══════════ MODAL: EDIT INVOICE ══════════ -->
 <div class="modal-overlay" id="editInvoiceModal">
-  <div class="modal" style="max-width:480px;">
+  <div class="modal" style="max-width:620px;">
     <div class="modal-title">✏️ Editar invoice</div>
     <input type="hidden" id="eiv_id">
     <div id="eiv_project_info" style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:8px 10px;background:var(--surface2);border-radius:6px;"></div>
-    <div class="form-grid" style="grid-template-columns:1fr;gap:12px;margin-bottom:14px;">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
       <div class="form-group">
         <label>Número de invoice</label>
         <input type="text" id="eiv_number" placeholder="IV00xxx" style="font-family:'DM Mono',monospace;">
+      </div>
+      <div class="form-group">
+        <label>Monto total ($)</label>
+        <input type="number" id="eiv_amount" min="0" step="0.01" placeholder="0.00" style="font-family:'DM Mono',monospace;">
       </div>
       <div class="form-group">
         <label>Fecha emisión</label>
@@ -8554,7 +8600,35 @@ function renderAlerts() {
         <label>Fecha vencimiento</label>
         <input type="date" id="eiv_due">
       </div>
-      <div class="form-group" id="eiv_project_row">
+      <div class="form-group" id="eiv_client_row" style="grid-column:span 2;">
+        <label>Cliente</label>
+        <input type="text" id="eiv_client_name" placeholder="Nombre del cliente">
+      </div>
+      <div class="form-group" id="eiv_contractor_row" style="grid-column:span 2;display:none;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>Nombre del contratista</label>
+            <input type="text" id="eiv_contractor_name" placeholder="Ej: Carlos Perez">
+          </div>
+          <div class="form-group">
+            <label>ABN del contratista</label>
+            <input type="text" id="eiv_contractor_abn" placeholder="11 222 333 444" maxlength="14">
+          </div>
+        </div>
+      </div>
+      <div class="form-group" id="eiv_details_row" style="grid-column:span 2;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>Referencia</label>
+            <input type="text" id="eiv_reference" placeholder="Referencia / proyecto">
+          </div>
+          <div class="form-group">
+            <label>Dirección del trabajo</label>
+            <input type="text" id="eiv_job_address" placeholder="Dirección">
+          </div>
+        </div>
+      </div>
+      <div class="form-group" id="eiv_project_row" style="grid-column:span 2;">
         <label>Linkear a proyecto</label>
         <select id="eiv_project_id" style="font-family:'DM Mono',monospace;font-size:11px;">
           <option value="">— Sin proyecto linkeado —</option>
