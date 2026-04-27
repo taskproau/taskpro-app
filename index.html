@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V44</title>
+  <title>TaskPro — Project Control V45</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1244,6 +1244,274 @@
         grid-template-columns: 1fr 100px 80px;
       }
     }
+
+    /* ══════════════════════════════════════════
+       CALENDAR
+       ══════════════════════════════════════════ */
+    .cal-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 4px 14px;
+      flex-wrap: wrap;
+    }
+    .cal-nav { display: flex; gap: 6px; align-items: center; }
+    .cal-month-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: capitalize;
+      letter-spacing: 0.5px;
+    }
+    .cal-summary {
+      font-size: 12px;
+      color: var(--text2);
+      font-family: 'DM Mono', monospace;
+      text-align: right;
+      line-height: 1.5;
+    }
+    .cal-summary .cs-amount { color: var(--accent); font-weight: 700; }
+    .cal-summary .cs-overdue { color: var(--danger); font-weight: 700; }
+
+    .cal-legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 8px 0 14px;
+      font-size: 11px;
+      color: var(--text2);
+      border-bottom: 1px dashed rgba(255,255,255,0.06);
+      margin-bottom: 10px;
+    }
+    .cal-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .cal-legend-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block;
+    }
+    .cal-legend-bar {
+      width: 18px; height: 8px; border-radius: 2px;
+      display: inline-block;
+    }
+
+    .cal-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 0 2px 6px;
+    }
+    .cal-weekdays div { text-align: center; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-cell {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 8px;
+      min-height: 110px;
+      padding: 6px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .cal-cell:hover {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(184,245,90,0.25);
+    }
+    .cal-cell.cal-other-month {
+      opacity: 0.35;
+    }
+    .cal-cell.cal-today {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+    .cal-cell.cal-weekend {
+      background: rgba(255,255,255,0.01);
+    }
+    .cal-day-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cal-cell.cal-today .cal-day-num {
+      color: var(--accent);
+    }
+    .cal-day-tlog {
+      font-size: 9px;
+      color: var(--text2);
+      letter-spacing: 0.5px;
+    }
+    .cal-tracks {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+    .cal-bar {
+      height: 14px;
+      font-size: 9px;
+      line-height: 14px;
+      padding: 0 5px;
+      color: #fff;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.2px;
+    }
+    .cal-bar.bar-start { border-radius: 4px 0 0 4px; }
+    .cal-bar.bar-end { border-radius: 0 4px 4px 0; }
+    .cal-bar.bar-single { border-radius: 4px; }
+    .cal-bar.bar-mid { border-radius: 0; }
+    .cal-bar-empty {
+      height: 14px;
+      pointer-events: none;
+    }
+    .cal-events {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-top: auto;
+    }
+    .cal-dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      font-size: 9px;
+      line-height: 14px;
+      text-align: center;
+      color: #fff;
+      font-weight: 700;
+    }
+    .cal-more {
+      font-size: 9px;
+      color: var(--text2);
+      font-family: 'DM Mono', monospace;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* Side panel */
+    .cal-panel-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(2px);
+      z-index: 998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .cal-panel-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .cal-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 420px;
+      max-width: 90vw;
+      background: var(--bg2);
+      border-left: 1px solid rgba(184,245,90,0.15);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+      z-index: 999;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .cal-panel.open {
+      transform: translateX(0);
+    }
+    .cal-panel-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .cal-panel-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .cal-panel-body {
+      padding: 14px 18px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .cal-panel-section {
+      margin-bottom: 18px;
+    }
+    .cal-panel-section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text2);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .cal-panel-item {
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-left: 3px solid transparent;
+    }
+    .cal-panel-item:hover {
+      background: rgba(255,255,255,0.06);
+    }
+    .cal-panel-item-title {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cal-panel-item-meta {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 3px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    @media (max-width: 768px) {
+      .cal-cell { min-height: 70px; padding: 4px; }
+      .cal-day-num { font-size: 11px; }
+      .cal-bar, .cal-bar-empty { height: 5px; }
+      .cal-bar { padding: 0; font-size: 0; color: transparent; }
+      .cal-tracks { gap: 1px; }
+      .cal-dot { width: 8px; height: 8px; font-size: 0; }
+      .cal-more { font-size: 8px; padding: 0 3px; }
+      .cal-day-tlog { display: none; }
+      .cal-month-label { font-size: 14px; }
+      .cal-summary { font-size: 10px; }
+      .cal-weekdays { font-size: 8px; }
+    }
   </style>
 </head>
 
@@ -1328,6 +1596,9 @@
           <span class="nav-icon">📊</span> Resumen Final
         </div>
         <hr class="divider" style="margin: 8px 20px;">
+        <div class="nav-item" onclick="showSection('calendar')" id="nav-calendar">
+          <span class="nav-icon">🗓️</span> Calendario
+        </div>
         <div class="nav-item" onclick="showSection('equipobase')" id="nav-equipobase" style="display:none;">
           <span class="nav-icon">🏗️</span> Equipo Base
         </div>
@@ -2430,6 +2701,42 @@
           </div>
         </div>
 
+        <!-- ══════════ SECTION: CALENDAR ══════════ -->
+        <div class="section" id="section-calendar">
+          <div class="section-title">🗓️ Calendario</div>
+          <div class="section-subtitle" id="cal_subtitle">Vista global de proyectos, invoices y actividad del equipo</div>
+
+          <div class="card" style="padding:14px;">
+            <div class="cal-toolbar">
+              <div class="cal-nav">
+                <button class="btn btn-ghost btn-sm" onclick="calPrevMonth()" title="Mes anterior">←</button>
+                <button class="btn btn-ghost btn-sm" onclick="calToday()">Hoy</button>
+                <button class="btn btn-ghost btn-sm" onclick="calNextMonth()" title="Mes siguiente">→</button>
+              </div>
+              <div class="cal-month-label" id="cal_month_label">—</div>
+              <div class="cal-summary" id="cal_summary"></div>
+            </div>
+
+            <div class="cal-legend" id="cal_legend"></div>
+
+            <div class="cal-weekdays">
+              <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+            </div>
+
+            <div class="cal-grid" id="cal_grid"></div>
+          </div>
+
+          <!-- Side panel for day details -->
+          <div class="cal-panel-overlay" id="cal_panel_overlay" onclick="calClosePanel()"></div>
+          <div class="cal-panel" id="cal_panel">
+            <div class="cal-panel-header">
+              <div class="cal-panel-title" id="cal_panel_title">—</div>
+              <button class="btn btn-ghost btn-sm" onclick="calClosePanel()" title="Cerrar">✕</button>
+            </div>
+            <div class="cal-panel-body" id="cal_panel_body"></div>
+          </div>
+        </div>
+
       </main>
     </div>
 
@@ -2437,14 +2744,22 @@
     <div class="modal-overlay" id="newProjectModal">
       <div class="modal">
         <div class="modal-title">＋ Nuevo proyecto</div>
-        <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group" style="grid-column:span 2;">
             <label>Nombre del proyecto</label>
             <input type="text" id="np_name" placeholder="Ej: Kitchen Renovation — Smith">
           </div>
-          <div class="form-group" style="grid-column:span 2;">
+          <div class="form-group">
             <label>Cliente</label>
             <input type="text" id="np_client" placeholder="Nombre del cliente">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="np_status">
+              <option value="Booked" selected>📅 Booked</option>
+              <option value="In Progress">🔄 In Progress</option>
+              <option value="Completed">✅ Completed</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Fecha inicio</label>
@@ -2453,6 +2768,14 @@
           <div class="form-group">
             <label>Fecha estimada fin</label>
             <input type="date" id="np_end">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Dirección del trabajo</label>
+            <input type="text" id="np_address" placeholder="Ej: 12 Darlington Court, Roxburgh Park VIC 3064">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Notas</label>
+            <input type="text" id="np_notas" placeholder="Ej: Materiales altos, revisar pricing...">
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
@@ -2488,8 +2811,8 @@
             <input type="date" id="ep_start">
           </div>
           <div class="form-group">
-            <label>Fecha Cobro</label>
-            <input type="date" id="ep_fechacobro">
+            <label>Fecha estimada fin</label>
+            <input type="date" id="ep_end">
           </div>
           <div class="form-group" style="grid-column:span 2;">
             <label>Dirección del trabajo</label>
@@ -2665,15 +2988,15 @@
       // Role permissions
       const ROLE_PERMS = {
         admin: {
-          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'],
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'],
           canDelete: true, canEdit: true
         },
         supervisor: {
-          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'quote'],
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'quote'],
           canDelete: false, canEdit: true
         },
         operador: {
-          nav: ['timelog'],
+          nav: ['timelog', 'calendar'],
           canDelete: false, canEdit: false
         }
       };
@@ -2693,7 +3016,7 @@
         const perms = getRolePerms();
 
         // Show/hide nav items
-        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'].forEach(id => {
+        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'].forEach(id => {
           const el = document.getElementById('nav-' + id);
           if (el) el.style.display = perms.nav.includes(id) ? '' : 'none';
         });
@@ -3448,6 +3771,7 @@
             showNoProjectState();
           }
           renderAllProjects();
+          if (typeof _calMaybeRefresh === 'function') _calMaybeRefresh();
 
           if (firstLoad && migrated) showMigrationBanner();
         }
@@ -3552,14 +3876,24 @@
       function createProject() {
         const name = document.getElementById('np_name').value.trim();
         const client = document.getElementById('np_client').value.trim();
+        const status = document.getElementById('np_status').value || 'Booked';
         const start = document.getElementById('np_start').value;
         const end = document.getElementById('np_end').value;
+        const address = document.getElementById('np_address').value.trim();
+        const notas = document.getElementById('np_notas').value.trim();
+
+        // ── Validaciones ──
         if (!name) { alert('Ingresa un nombre para el proyecto.'); return; }
+        if (!client) { alert('Ingresa el nombre del cliente.'); return; }
+        if (start && end && end < start) {
+          alert('La fecha estimada de fin no puede ser anterior a la fecha de inicio.');
+          return;
+        }
 
         const id = 'proj_' + Date.now();
         // New project starts with empty workers — team is added manually per project
         state.projects[id] = {
-          name, client, start, end,
+          name, client, status, start, end, address, notas,
           timelog: [], materials: [],
           workers: [],
           pricing: { overhead: 20, contingency: 5, markup: 35, clientPrice: 0 }
@@ -3572,7 +3906,14 @@
         renderProjectSelect();
         renderCurrentProject();
         renderAllProjects();
-        ['np_name', 'np_client', 'np_end'].forEach(fid => document.getElementById(fid).value = '');
+        if (typeof renderCalendar === 'function') renderCalendar();
+        // Reset all fields (status keeps default Booked)
+        ['np_name', 'np_client', 'np_start', 'np_end', 'np_address', 'np_notas'].forEach(fid => {
+          const el = document.getElementById(fid);
+          if (el) el.value = '';
+        });
+        const stEl = document.getElementById('np_status');
+        if (stEl) stEl.value = 'Booked';
       }
 
       function loadProject(id) {
@@ -4286,7 +4627,7 @@
         document.getElementById('ep_client').value = p.client || '';
         document.getElementById('ep_status').value = p.status || 'In Progress';
         document.getElementById('ep_start').value = p.start || '';
-        document.getElementById('ep_fechacobro').value = p.fechaCobro || '';
+        document.getElementById('ep_end').value = p.end || '';
         document.getElementById('ep_address').value = p.address || '';
         document.getElementById('ep_notas').value = p.notas || '';
         document.getElementById('editProjectModal').classList.add('open');
@@ -4298,17 +4639,26 @@
         const client = document.getElementById('ep_client').value.trim();
         const status = document.getElementById('ep_status').value;
         const start = document.getElementById('ep_start').value;
-        const fechaCobro = document.getElementById('ep_fechacobro').value;
+        const end = document.getElementById('ep_end').value;
         const address = document.getElementById('ep_address').value.trim();
         const notas = document.getElementById('ep_notas').value.trim();
+
+        // ── Validaciones ──
         if (!name) { alert('El nombre no puede estar vacío.'); return; }
+        if (!client) { alert('El cliente no puede estar vacío.'); return; }
+        if (start && end && end < start) {
+          alert('La fecha estimada de fin no puede ser anterior a la fecha de inicio.');
+          return;
+        }
+
         const p = state.projects[id];
         if (!p) return;
         p.name = name; p.client = client; p.status = status;
         if (start) p.start = start;
-        p.fechaCobro = fechaCobro;
+        p.end = end;
         p.address = address;
         p.notas = notas;
+        // NOTE: p.fechaCobro is intentionally NOT touched here — it's managed from invoice modal.
         saveProject(id);
         if (state.currentId === id) {
           document.getElementById('projectTitle').textContent = name;
@@ -4319,6 +4669,7 @@
         closeModal('editProjectModal');
         renderProjectSelect();
         renderAllProjects();
+        if (typeof renderCalendar === 'function') renderCalendar();
         showSyncBanner('Proyecto actualizado', 'success');
       }
 
@@ -5842,6 +6193,7 @@
         if (id === 'fin-kpi') { setKPIThisMonth(); }
         if (id === 'fin-alerts') { setAlertThisMonth(); }
         if (id === 'fin-director-loan') { if (typeof dla !== 'undefined') dla.refresh(); }
+        if (id === 'calendar') { renderCalendar(); }
         if (id === 'workers') { populateWorkerBaseDropdown(); }
         if (id === 'equipobase') { renderBaseTeam(); }
       }
@@ -5993,6 +6345,7 @@
           if (document.getElementById('section-projects') && document.getElementById('section-projects').classList.contains('active')) {
             if (typeof renderAllProjects === 'function') renderAllProjects();
           }
+          if (typeof _calMaybeRefresh === 'function') _calMaybeRefresh();
         });
       }
 
@@ -8144,7 +8497,7 @@
           const backup = {
             _meta: {
               app: BACKUP_APP_ID,
-              version: 'V41',
+              version: 'V45',
               exportedAt: new Date().toISOString(),
               exportedBy: (currentUser && currentUser.email) || 'unknown',
               rootPath: BACKUP_ROOT_PATH,
@@ -9397,6 +9750,477 @@
 
       // Exponer globalmente
       window.dla = dla;
+
+      // ═══════════════════════════════════════════
+      // CALENDAR (V45)
+      // ═══════════════════════════════════════════
+      const calState = {
+        year: new Date().getFullYear(),
+        month: new Date().getMonth()  // 0-indexed
+      };
+
+      function calToday() {
+        const d = new Date();
+        calState.year = d.getFullYear();
+        calState.month = d.getMonth();
+        renderCalendar();
+      }
+
+      function calPrevMonth() {
+        calState.month--;
+        if (calState.month < 0) { calState.month = 11; calState.year--; }
+        renderCalendar();
+      }
+
+      function calNextMonth() {
+        calState.month++;
+        if (calState.month > 11) { calState.month = 0; calState.year++; }
+        renderCalendar();
+      }
+
+      function calClosePanel() {
+        const p = document.getElementById('cal_panel');
+        const o = document.getElementById('cal_panel_overlay');
+        if (p) p.classList.remove('open');
+        if (o) o.classList.remove('open');
+      }
+
+      function calIsoDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+      }
+
+      function calFormatMonth(year, month) {
+        const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        return months[month] + ' ' + year;
+      }
+
+      function calGetEventsForRole() {
+        const role = (currentUser && currentUser.role) || 'operador';
+        const linkedName = (currentUser && currentUser.linkedName) || '';
+        const projects = state.projects || {};
+        const invoices = (typeof finState !== 'undefined' && finState.invoices) ? finState.invoices : {};
+
+        const events = {
+          projectsBars: [],
+          invoicesDue: [],
+          timeLog: {}
+        };
+
+        // Capa 1+2: project bars (need both start and end to draw a bar)
+        Object.entries(projects).forEach(([id, p]) => {
+          if (!p.start || !p.end) return;
+          if (role === 'operador') {
+            const hasUser = (p.workers || []).some(w => w.name === linkedName);
+            if (!hasUser) return;
+          }
+          events.projectsBars.push({
+            id: id,
+            name: p.name || '—',
+            client: p.client || '—',
+            status: p.status || 'In Progress',
+            start: p.start,
+            end: p.end
+          });
+        });
+
+        // Capa 3+4: invoices (admin only — Firebase rule: finance is admin-only)
+        if (role === 'admin') {
+          Object.entries(invoices).forEach(([id, inv]) => {
+            if (!inv.dueDate) return;
+            events.invoicesDue.push({
+              id: id,
+              number: inv.number || '—',
+              amount: inv.amount || 0,
+              dueDate: inv.dueDate,
+              status: inv.status || 'unpaid',
+              clientName: inv.clientName || inv.contractorName || '—',
+              projectId: inv.projectId || ''
+            });
+          });
+        }
+
+        // Capa 7: time log
+        Object.entries(projects).forEach(([id, p]) => {
+          if (role === 'operador') {
+            const hasUser = (p.workers || []).some(w => w.name === linkedName);
+            if (!hasUser) return;
+          }
+          (p.timelog || []).forEach(entry => {
+            if (!entry.date) return;
+            if (role === 'operador' && entry.personName !== linkedName) return;
+            if (!events.timeLog[entry.date]) events.timeLog[entry.date] = [];
+            events.timeLog[entry.date].push({
+              projectId: id,
+              projectName: p.name || '—',
+              person: entry.personName || '—',
+              start: entry.start || '',
+              end: entry.end || ''
+            });
+          });
+        });
+
+        return events;
+      }
+
+      function calStatusColor(status) {
+        if (status === 'Completed') return '#5eb85c';
+        if (status === 'Booked') return '#5b9bd5';
+        if (status === 'In Progress') return '#e8a04a';
+        if (status === 'On Hold') return '#888';
+        if (status === 'Cancelled') return '#666';
+        return '#5b9bd5';
+      }
+
+      function calInvoiceColor(status) {
+        if (status === 'paid') return '#5eb85c';
+        if (status === 'overdue') return '#d04848';
+        return '#5b9bd5';
+      }
+
+      function _calEsc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      function renderCalendar() {
+        const grid = document.getElementById('cal_grid');
+        if (!grid) return;
+
+        const year = calState.year;
+        const month = calState.month;
+        const role = (currentUser && currentUser.role) || 'operador';
+
+        const labelEl = document.getElementById('cal_month_label');
+        if (labelEl) labelEl.textContent = calFormatMonth(year, month);
+
+        const subtitle = document.getElementById('cal_subtitle');
+        if (subtitle) {
+          if (role === 'admin') subtitle.textContent = 'Vista global: proyectos, invoices y actividad del equipo';
+          else if (role === 'supervisor') subtitle.textContent = 'Vista operativa: proyectos y actividad del equipo';
+          else subtitle.textContent = 'Tus proyectos y días trabajados';
+        }
+
+        renderCalLegend(role);
+
+        const events = calGetEventsForRole();
+
+        // Build grid: Monday-start week
+        const firstDay = new Date(year, month, 1);
+        let dayOfWeek = firstDay.getDay(); // 0=Sun..6=Sat
+        dayOfWeek = (dayOfWeek + 6) % 7;   // 0=Mon..6=Sun
+        const gridStart = new Date(year, month, 1 - dayOfWeek);
+        const totalCells = 42;
+        const todayIso = calIsoDate(new Date());
+
+        // Build cell metadata
+        const cellEvents = [];
+        for (let i = 0; i < totalCells; i++) {
+          const d = new Date(gridStart);
+          d.setDate(gridStart.getDate() + i);
+          const dow = d.getDay();
+          cellEvents.push({
+            date: d,
+            iso: calIsoDate(d),
+            isOtherMonth: d.getMonth() !== month,
+            isWeekend: dow === 0 || dow === 6,
+            isToday: calIsoDate(d) === todayIso,
+            tracks: [],
+            invoices: [],
+            hasTimeLog: 0,
+            overflow: 0
+          });
+        }
+
+        // Assign tracks (lanes) for project bars per week row
+        const sortedBars = events.projectsBars.slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+        const MAX_TRACKS = 3;
+
+        for (let week = 0; week < 6; week++) {
+          const weekStart = cellEvents[week * 7].iso;
+          const weekEnd = cellEvents[week * 7 + 6].iso;
+          const tracks = [];
+          for (let t = 0; t < MAX_TRACKS; t++) tracks.push(new Array(7).fill(null));
+
+          sortedBars.forEach(bar => {
+            if (bar.end < weekStart || bar.start > weekEnd) return;
+            const segStart = bar.start < weekStart ? weekStart : bar.start;
+            const segEnd = bar.end > weekEnd ? weekEnd : bar.end;
+            let startIdx = -1, endIdx = -1;
+            for (let i = 0; i < 7; i++) {
+              if (cellEvents[week * 7 + i].iso === segStart) startIdx = i;
+              if (cellEvents[week * 7 + i].iso === segEnd) endIdx = i;
+            }
+            if (startIdx === -1 || endIdx === -1) return;
+
+            let assigned = -1;
+            for (let t = 0; t < tracks.length; t++) {
+              let free = true;
+              for (let i = startIdx; i <= endIdx; i++) {
+                if (tracks[t][i]) { free = false; break; }
+              }
+              if (free) { assigned = t; break; }
+            }
+
+            if (assigned === -1) {
+              for (let i = startIdx; i <= endIdx; i++) {
+                cellEvents[week * 7 + i].overflow++;
+              }
+              return;
+            }
+
+            for (let i = startIdx; i <= endIdx; i++) {
+              tracks[assigned][i] = {
+                bar: bar,
+                isStart: (cellEvents[week * 7 + i].iso === bar.start),
+                isEnd: (cellEvents[week * 7 + i].iso === bar.end),
+                isWeekStart: (i === startIdx),
+                isWeekEnd: (i === endIdx)
+              };
+            }
+          });
+
+          for (let i = 0; i < 7; i++) {
+            const lanes = [];
+            for (let t = 0; t < MAX_TRACKS; t++) lanes.push(tracks[t][i] || null);
+            cellEvents[week * 7 + i].tracks = lanes;
+          }
+        }
+
+        // Apply invoices and time log
+        events.invoicesDue.forEach(inv => {
+          const cell = cellEvents.find(c => c.iso === inv.dueDate);
+          if (cell) cell.invoices.push(inv);
+        });
+        Object.entries(events.timeLog).forEach(([date, entries]) => {
+          const cell = cellEvents.find(c => c.iso === date);
+          if (cell) cell.hasTimeLog = entries.length;
+        });
+
+        buildCalSummary(events, year, month);
+
+        // Render cells
+        const parts = [];
+        cellEvents.forEach(cell => {
+          const cls = ['cal-cell'];
+          if (cell.isOtherMonth) cls.push('cal-other-month');
+          if (cell.isWeekend) cls.push('cal-weekend');
+          if (cell.isToday) cls.push('cal-today');
+
+          let h = '<div class="' + cls.join(' ') + '" data-iso="' + cell.iso + '" onclick="calOpenDay(\'' + cell.iso + '\')">';
+          h += '<div class="cal-day-num">';
+          h += '<span>' + cell.date.getDate() + '</span>';
+          if (cell.hasTimeLog) {
+            h += '<span class="cal-day-tlog">✓ ' + cell.hasTimeLog + '</span>';
+          }
+          h += '</div>';
+
+          h += '<div class="cal-tracks">';
+          cell.tracks.forEach(track => {
+            if (!track) {
+              h += '<div class="cal-bar-empty"></div>';
+              return;
+            }
+            const bar = track.bar;
+            const color = calStatusColor(bar.status);
+            const isLeft = track.isStart || track.isWeekStart;
+            const isRight = track.isEnd || track.isWeekEnd;
+            let cornerCls = 'bar-mid';
+            if (isLeft && isRight) cornerCls = 'bar-single';
+            else if (isLeft) cornerCls = 'bar-start';
+            else if (isRight) cornerCls = 'bar-end';
+
+            const showName = track.isStart || track.isWeekStart;
+            const labelTxt = showName ? (bar.name + ' · ' + bar.client) : '';
+            const tip = bar.name + ' · ' + bar.client + ' (' + bar.start + ' → ' + bar.end + ')';
+            h += '<div class="cal-bar ' + cornerCls + '" style="background:' + color + ';" title="' + _calEsc(tip) + '" onclick="event.stopPropagation();calOpenProject(\'' + bar.id + '\')">';
+            h += showName ? _calEsc(labelTxt) : '&nbsp;';
+            h += '</div>';
+          });
+
+          if (cell.overflow) {
+            h += '<div class="cal-more" onclick="event.stopPropagation();calOpenDay(\'' + cell.iso + '\')">+' + cell.overflow + ' más</div>';
+          }
+          h += '</div>';
+
+          // Event dots
+          if (cell.invoices.length) {
+            h += '<div class="cal-events">';
+            cell.invoices.slice(0, 4).forEach(inv => {
+              const c = calInvoiceColor(inv.status);
+              const lbl = (inv.status === 'overdue' ? '🔴 ' : '💰 ') + inv.number + ' · $' + (inv.amount || 0).toLocaleString();
+              h += '<span class="cal-dot" style="background:' + c + ';" title="' + _calEsc(lbl) + '" onclick="event.stopPropagation();calOpenInvoice(\'' + inv.id + '\')">$</span>';
+            });
+            if (cell.invoices.length > 4) {
+              h += '<span class="cal-more">+' + (cell.invoices.length - 4) + '</span>';
+            }
+            h += '</div>';
+          }
+
+          h += '</div>';
+          parts.push(h);
+        });
+
+        grid.innerHTML = parts.join('');
+      }
+
+      function renderCalLegend(role) {
+        const el = document.getElementById('cal_legend');
+        if (!el) return;
+        let h = '';
+        h += '<span class="cal-legend-item"><span class="cal-legend-bar" style="background:#5b9bd5;"></span>Booked</span>';
+        h += '<span class="cal-legend-item"><span class="cal-legend-bar" style="background:#e8a04a;"></span>In Progress</span>';
+        h += '<span class="cal-legend-item"><span class="cal-legend-bar" style="background:#5eb85c;"></span>Completed</span>';
+        if (role === 'admin') {
+          h += '<span class="cal-legend-item"><span class="cal-legend-dot" style="background:#5b9bd5;"></span>Invoice due</span>';
+          h += '<span class="cal-legend-item"><span class="cal-legend-dot" style="background:#d04848;"></span>Overdue</span>';
+          h += '<span class="cal-legend-item"><span class="cal-legend-dot" style="background:#5eb85c;"></span>Paid</span>';
+        }
+        h += '<span class="cal-legend-item">✓ Time log</span>';
+        el.innerHTML = h;
+      }
+
+      function buildCalSummary(events, year, month) {
+        const el = document.getElementById('cal_summary');
+        if (!el) return;
+        const role = (currentUser && currentUser.role) || 'operador';
+        const monthStart = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+        const monthEnd = calIsoDate(new Date(year, month + 1, 0));
+        const activeBars = events.projectsBars.filter(b => !(b.end < monthStart || b.start > monthEnd));
+
+        if (role !== 'admin') {
+          el.innerHTML = '<span>Proyectos activos: <span class="cs-amount">' + activeBars.length + '</span></span>';
+          return;
+        }
+
+        let toCollect = 0, toCollectCount = 0;
+        let overdue = 0, overdueCount = 0;
+        events.invoicesDue.forEach(inv => {
+          if (inv.status === 'paid') return;
+          if (inv.status === 'overdue') {
+            overdue += inv.amount || 0;
+            overdueCount++;
+            return;
+          }
+          if (inv.dueDate >= monthStart && inv.dueDate <= monthEnd) {
+            toCollect += inv.amount || 0;
+            toCollectCount++;
+          }
+        });
+
+        const fmt = n => '$' + (n || 0).toLocaleString('en-AU', { maximumFractionDigits: 0 });
+        let h = '';
+        h += 'A cobrar: <span class="cs-amount">' + fmt(toCollect) + '</span> (' + toCollectCount + ')';
+        if (overdueCount) {
+          h += '<br>Vencido: <span class="cs-overdue">' + fmt(overdue) + '</span> (' + overdueCount + ')';
+        }
+        h += '<br>Activos: <span class="cs-amount">' + activeBars.length + '</span>';
+        el.innerHTML = h;
+      }
+
+      function calOpenProject(pid) {
+        if (typeof openEditProjectModal === 'function') openEditProjectModal(pid);
+      }
+
+      function calOpenInvoice(iid) {
+        if (typeof openEditInvoiceModal === 'function') openEditInvoiceModal(iid);
+      }
+
+      function calOpenProjectTimelog(pid) {
+        if (typeof loadProject === 'function') loadProject(pid);
+        if (typeof showSection === 'function') showSection('timelog');
+      }
+
+      function calOpenDay(iso) {
+        const events = calGetEventsForRole();
+        const projectsStarting = events.projectsBars.filter(b => b.start === iso);
+        const projectsEnding = events.projectsBars.filter(b => b.end === iso);
+        const projectsActive = events.projectsBars.filter(b => b.start < iso && b.end > iso);
+        const invoicesToday = events.invoicesDue.filter(i => i.dueDate === iso);
+        const timeLogToday = events.timeLog[iso] || [];
+
+        const total = projectsStarting.length + projectsEnding.length + projectsActive.length + invoicesToday.length + timeLogToday.length;
+        if (total === 0) return;
+
+        const d = new Date(iso + 'T00:00:00');
+        const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+        const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const title = days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        const titleEl = document.getElementById('cal_panel_title');
+        if (titleEl) titleEl.textContent = title;
+
+        let h = '';
+        if (projectsStarting.length) {
+          h += '<div class="cal-panel-section">';
+          h += '<div class="cal-panel-section-title">📅 Inicia hoy (' + projectsStarting.length + ')</div>';
+          projectsStarting.forEach(b => { h += renderPanelProjectItem(b); });
+          h += '</div>';
+        }
+        if (projectsEnding.length) {
+          h += '<div class="cal-panel-section">';
+          h += '<div class="cal-panel-section-title">🏁 Termina hoy (' + projectsEnding.length + ')</div>';
+          projectsEnding.forEach(b => { h += renderPanelProjectItem(b); });
+          h += '</div>';
+        }
+        if (projectsActive.length) {
+          h += '<div class="cal-panel-section">';
+          h += '<div class="cal-panel-section-title">🔄 En curso (' + projectsActive.length + ')</div>';
+          projectsActive.forEach(b => { h += renderPanelProjectItem(b); });
+          h += '</div>';
+        }
+        if (invoicesToday.length) {
+          h += '<div class="cal-panel-section">';
+          h += '<div class="cal-panel-section-title">💰 Invoices con due date (' + invoicesToday.length + ')</div>';
+          invoicesToday.forEach(i => { h += renderPanelInvoiceItem(i); });
+          h += '</div>';
+        }
+        if (timeLogToday.length) {
+          h += '<div class="cal-panel-section">';
+          h += '<div class="cal-panel-section-title">⏱ Time log (' + timeLogToday.length + ')</div>';
+          timeLogToday.forEach(t => { h += renderPanelTimeLogItem(t); });
+          h += '</div>';
+        }
+
+        const bodyEl = document.getElementById('cal_panel_body');
+        if (bodyEl) bodyEl.innerHTML = h;
+        document.getElementById('cal_panel').classList.add('open');
+        document.getElementById('cal_panel_overlay').classList.add('open');
+      }
+
+      function renderPanelProjectItem(b) {
+        const color = calStatusColor(b.status);
+        let h = '<div class="cal-panel-item" style="border-left-color:' + color + ';" onclick="calClosePanel();calOpenProject(\'' + b.id + '\')">';
+        h += '<div class="cal-panel-item-title">' + _calEsc(b.name) + '</div>';
+        h += '<div class="cal-panel-item-meta">' + _calEsc(b.client) + ' · ' + _calEsc(b.status) + ' · ' + b.start + ' → ' + b.end + '</div>';
+        h += '</div>';
+        return h;
+      }
+
+      function renderPanelInvoiceItem(i) {
+        const color = calInvoiceColor(i.status);
+        const statusLabel = i.status === 'paid' ? 'PAID' : (i.status === 'overdue' ? 'OVERDUE' : 'UNPAID');
+        let h = '<div class="cal-panel-item" style="border-left-color:' + color + ';" onclick="calClosePanel();calOpenInvoice(\'' + i.id + '\')">';
+        h += '<div class="cal-panel-item-title">' + _calEsc(i.number) + ' · $' + (i.amount || 0).toLocaleString('en-AU') + '</div>';
+        h += '<div class="cal-panel-item-meta">' + _calEsc(i.clientName) + ' · ' + statusLabel + '</div>';
+        h += '</div>';
+        return h;
+      }
+
+      function renderPanelTimeLogItem(t) {
+        let h = '<div class="cal-panel-item" style="border-left-color:#888;" onclick="calClosePanel();calOpenProjectTimelog(\'' + t.projectId + '\')">';
+        h += '<div class="cal-panel-item-title">' + _calEsc(t.projectName) + '</div>';
+        h += '<div class="cal-panel-item-meta">' + _calEsc(t.person) + ' · ' + (t.start || '') + '–' + (t.end || '') + '</div>';
+        h += '</div>';
+        return h;
+      }
+
+      // Re-render calendar when underlying data changes (if section is active)
+      function _calMaybeRefresh() {
+        const sec = document.getElementById('section-calendar');
+        if (sec && sec.classList.contains('active')) renderCalendar();
+      }
 
     </script>
     <!-- ══════════ MODAL: EDIT WORKER ══════════ -->
