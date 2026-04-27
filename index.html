@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V45</title>
+  <title>TaskPro — Project Control V46</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1243,6 +1243,45 @@
       .user-row-grid {
         grid-template-columns: 1fr 100px 80px;
       }
+    }
+
+    /* ══════════════════════════════════════════
+       MONTH PICKER (V46)
+       ══════════════════════════════════════════ */
+    .month-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .month-input {
+      background: var(--surface2, rgba(255,255,255,0.05));
+      border: 1px solid var(--border, rgba(255,255,255,0.1));
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      min-width: 150px;
+      cursor: pointer;
+    }
+    .month-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+    /* Make calendar icon visible in dark theme */
+    .month-input::-webkit-calendar-picker-indicator {
+      filter: invert(0.85);
+      cursor: pointer;
+      opacity: 0.7;
+    }
+    .month-input::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+    }
+    @media (max-width: 768px) {
+      .month-input { min-width: 130px; font-size: 12px; }
+      .month-picker-row { gap: 6px; }
     }
 
     /* ══════════════════════════════════════════
@@ -2604,15 +2643,18 @@
           <div class="section-title">📊 Resumen Mensual</div>
           <div class="section-sub">P&L del mes — alimentado por ingresos y egresos registrados</div>
           <div class="card">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div class="month-picker-row">
               <label style="font-weight:700;font-size:13px;">🗓 Filtrar por mes:</label>
-              <select id="fin_month_sel" onchange="renderFinSummary()" style="min-width:140px;">
-                <option value="">Seleccionar mes</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" onclick="setFinSummaryThisMonth()">Este mes</button>
-              <button class="btn btn-ghost btn-sm" onclick="setFinSummaryAllYear()">Año completo</button>
+              <button class="btn btn-ghost btn-sm" onclick="monthShift('fin', -1)" title="Mes anterior">←</button>
+              <input type="month" id="fin_month_input" oninput="onMonthInputChange('fin')" class="month-input">
+              <button class="btn btn-ghost btn-sm" onclick="setFinSummaryThisMonth()">📅 Este mes</button>
+              <button class="btn btn-ghost btn-sm" onclick="monthShift('fin', 1)" title="Mes siguiente">→</button>
+              <button class="btn btn-ghost btn-sm" onclick="setFinSummaryAllYear()" style="margin-left:6px;">📆 Año completo</button>
               <button class="btn btn-primary btn-sm" onclick="generateExecutivePDF()" style="margin-left:8px;">📄
                 Generar Reporte Ejecutivo PDF</button>
+              <select id="fin_month_sel" onchange="renderFinSummary()" style="display:none;">
+                <option value="">Seleccionar mes</option>
+              </select>
             </div>
           </div>
           <div id="fin_summary_content">
@@ -2627,17 +2669,43 @@
           <div class="section-title">🎯 KPI Dashboard</div>
           <div class="section-sub">Indicadores clave — comparativo vs mes anterior</div>
           <div class="card">
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div class="month-picker-row">
               <label style="font-weight:700;font-size:13px;">🗓 Mes:</label>
-              <select id="kpi_month_sel" onchange="renderKPIDashboard()" style="min-width:140px;">
+              <button class="btn btn-ghost btn-sm" onclick="monthShift('kpi', -1)" title="Mes anterior">←</button>
+              <input type="month" id="kpi_month_input" oninput="onMonthInputChange('kpi')" class="month-input">
+              <button class="btn btn-ghost btn-sm" onclick="setKPIThisMonth()">📅 Este mes</button>
+              <button class="btn btn-ghost btn-sm" onclick="monthShift('kpi', 1)" title="Mes siguiente">→</button>
+              <select id="kpi_month_sel" onchange="renderKPIDashboard()" style="display:none;">
                 <option value="">Seleccionar mes</option>
               </select>
-              <button class="btn btn-ghost btn-sm" onclick="setKPIThisMonth()">Este mes</button>
             </div>
           </div>
           <div id="kpi_content">
             <div class="empty-state">
               <p>Selecciona un mes para ver los KPIs.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════ FIN: ALERTS ══════════ -->
+        <div class="section" id="section-fin-alerts">
+          <div class="section-title">🚨 Alertas</div>
+          <div class="section-sub">Indicadores con umbrales — semáforo de salud financiera del mes</div>
+          <div class="card">
+            <div class="month-picker-row">
+              <label style="font-weight:700;font-size:13px;">🗓 Mes:</label>
+              <button class="btn btn-ghost btn-sm" onclick="monthShift('alert', -1)" title="Mes anterior">←</button>
+              <input type="month" id="alert_month_input" oninput="onMonthInputChange('alert')" class="month-input">
+              <button class="btn btn-ghost btn-sm" onclick="setAlertThisMonth()">📅 Este mes</button>
+              <button class="btn btn-ghost btn-sm" onclick="monthShift('alert', 1)" title="Mes siguiente">→</button>
+              <select id="alert_month_sel" onchange="renderAlerts()" style="display:none;">
+                <option value="">Seleccionar mes</option>
+              </select>
+            </div>
+          </div>
+          <div id="alerts_content">
+            <div class="empty-state">
+              <p>Selecciona un mes para ver las alertas.</p>
             </div>
           </div>
         </div>
@@ -6614,27 +6682,156 @@
             if (k === cur) opt.selected = true;
             sel.appendChild(opt);
           });
+          // If current value was a future month not in keys, preserve it
+          if (cur && cur !== '__all__' && !Array.from(sel.options).some(o => o.value === cur)) {
+            const opt = document.createElement('option');
+            opt.value = cur; opt.textContent = cur; opt.selected = true;
+            sel.appendChild(opt);
+          } else if (cur) {
+            sel.value = cur;
+          }
+        });
+        if (typeof _syncMonthInputsFromSelects === 'function') _syncMonthInputsFromSelects();
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // HYBRID MONTH PICKER (V46) — input month + arrows + presets
+      // ═══════════════════════════════════════════════════════════
+      // Section configs: how each month-filtered section maps to its DOM ids and render fn
+      const _MONTH_SECTIONS = {
+        kpi:   { input: 'kpi_month_input',   sel: 'kpi_month_sel',   render: function () { if (typeof renderKPIDashboard === 'function') renderKPIDashboard(); } },
+        fin:   { input: 'fin_month_input',   sel: 'fin_month_sel',   render: function () { if (typeof renderFinSummary === 'function') renderFinSummary(); } },
+        alert: { input: 'alert_month_input', sel: 'alert_month_sel', render: function () { if (typeof renderAlerts === 'function') renderAlerts(); } }
+      };
+
+      // Convert internal monthKey "Abr-2026" -> input value "2026-04"
+      function monthKeyToYYYYMM(key) {
+        if (!key || key === '__all__') return '';
+        const parts = key.split('-');
+        const mi = MONTHS_ES.indexOf(parts[0]);
+        if (mi < 0) return '';
+        const yr = parseInt(parts[1]) || new Date().getFullYear();
+        return yr + '-' + String(mi + 1).padStart(2, '0');
+      }
+
+      // Convert input value "2026-04" -> internal monthKey "Abr-2026"
+      function yyyymmToMonthKey(yyyymm) {
+        if (!yyyymm) return '';
+        const parts = yyyymm.split('-');
+        const yr = parseInt(parts[0]);
+        const mi = parseInt(parts[1]) - 1;
+        if (mi < 0 || mi > 11 || isNaN(yr)) return '';
+        return MONTHS_ES[mi] + '-' + yr;
+      }
+
+      // Shift a monthKey by +/- N months. If empty/invalid, defaults to current month.
+      function shiftMonthKey(key, delta) {
+        let mi, yr;
+        if (!key || key === '__all__') {
+          const d = new Date();
+          mi = d.getMonth();
+          yr = d.getFullYear();
+        } else {
+          const parts = key.split('-');
+          mi = MONTHS_ES.indexOf(parts[0]);
+          yr = parseInt(parts[1]) || new Date().getFullYear();
+          if (mi < 0) {
+            const d = new Date();
+            mi = d.getMonth();
+            yr = d.getFullYear();
+          }
+        }
+        mi += delta;
+        while (mi < 0) { mi += 12; yr--; }
+        while (mi > 11) { mi -= 12; yr++; }
+        return MONTHS_ES[mi] + '-' + yr;
+      }
+
+      // Set the active month for a section: updates input + hidden select (creating option
+      // on the fly if needed for future months not present in income/expenses), then renders.
+      function _setMonthForSection(prefix, monthKey) {
+        const cfg = _MONTH_SECTIONS[prefix];
+        if (!cfg) return;
+        const input = document.getElementById(cfg.input);
+        const sel = document.getElementById(cfg.sel);
+
+        if (input) input.value = monthKeyToYYYYMM(monthKey);
+
+        if (sel) {
+          if (monthKey && monthKey !== '__all__') {
+            const exists = Array.from(sel.options).some(o => o.value === monthKey);
+            if (!exists) {
+              const opt = document.createElement('option');
+              opt.value = monthKey; opt.textContent = monthKey;
+              sel.appendChild(opt);
+            }
+          }
+          sel.value = monthKey || '';
+        }
+
+        cfg.render();
+      }
+
+      // Handler: input month changed by user
+      function onMonthInputChange(prefix) {
+        const cfg = _MONTH_SECTIONS[prefix];
+        if (!cfg) return;
+        const input = document.getElementById(cfg.input);
+        if (!input) return;
+        const monthKey = yyyymmToMonthKey(input.value);
+        _setMonthForSection(prefix, monthKey);
+      }
+
+      // Handler: arrow click (delta = -1 or +1)
+      function monthShift(prefix, delta) {
+        const cfg = _MONTH_SECTIONS[prefix];
+        if (!cfg) return;
+        const sel = document.getElementById(cfg.sel);
+        const cur = (sel && sel.value) || '';
+        const newKey = shiftMonthKey(cur, delta);
+        _setMonthForSection(prefix, newKey);
+      }
+
+      // Sync inputs from hidden selects (called after refreshFinMonthDropdowns to keep UI consistent)
+      function _syncMonthInputsFromSelects() {
+        Object.entries(_MONTH_SECTIONS).forEach(([prefix, cfg]) => {
+          const input = document.getElementById(cfg.input);
+          const sel = document.getElementById(cfg.sel);
+          if (input && sel) {
+            input.value = monthKeyToYYYYMM(sel.value);
+          }
         });
       }
 
       function setFinSummaryThisMonth() {
         const k = dateToMonthKey(new Date().toISOString().slice(0, 10));
-        const sel = document.getElementById('fin_month_sel');
-        if (sel) { sel.value = k; renderFinSummary(); }
+        _setMonthForSection('fin', k);
       }
       function setFinSummaryAllYear() {
-        const sel = document.getElementById('fin_month_sel');
-        if (sel) { sel.value = '__all__'; renderFinSummary(); }
+        // "Año completo" — clear input, set hidden select to __all__
+        const cfg = _MONTH_SECTIONS.fin;
+        const input = document.getElementById(cfg.input);
+        const sel = document.getElementById(cfg.sel);
+        if (input) input.value = '';
+        if (sel) {
+          // Make sure __all__ option exists
+          const exists = Array.from(sel.options).some(o => o.value === '__all__');
+          if (!exists) {
+            const opt = document.createElement('option');
+            opt.value = '__all__'; opt.textContent = 'Año completo';
+            sel.appendChild(opt);
+          }
+          sel.value = '__all__';
+        }
+        cfg.render();
       }
       function setKPIThisMonth() {
         const k = dateToMonthKey(new Date().toISOString().slice(0, 10));
-        const sel = document.getElementById('kpi_month_sel');
-        if (sel) { sel.value = k; renderKPIDashboard(); }
+        _setMonthForSection('kpi', k);
       }
       function setAlertThisMonth() {
         const k = dateToMonthKey(new Date().toISOString().slice(0, 10));
-        const sel = document.getElementById('alert_month_sel');
-        if (sel) { sel.value = k; renderAlerts(); }
+        _setMonthForSection('alert', k);
       }
 
       // ═══════════════════════════════════════════════════════════
@@ -8497,7 +8694,7 @@
           const backup = {
             _meta: {
               app: BACKUP_APP_ID,
-              version: 'V45',
+              version: 'V46',
               exportedAt: new Date().toISOString(),
               exportedBy: (currentUser && currentUser.email) || 'unknown',
               rootPath: BACKUP_ROOT_PATH,
