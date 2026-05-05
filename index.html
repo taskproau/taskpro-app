@@ -1254,9 +1254,10 @@
       gap: 8px;
       flex-wrap: wrap;
     }
+
     .month-input {
-      background: var(--surface2, rgba(255,255,255,0.05));
-      border: 1px solid var(--border, rgba(255,255,255,0.1));
+      background: var(--surface2, rgba(255, 255, 255, 0.05));
+      border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
       color: var(--text);
       padding: 6px 10px;
       border-radius: 6px;
@@ -1265,23 +1266,33 @@
       min-width: 150px;
       cursor: pointer;
     }
+
     .month-input:focus {
       outline: none;
       border-color: var(--accent);
       box-shadow: 0 0 0 1px var(--accent);
     }
+
     /* Make calendar icon visible in dark theme */
     .month-input::-webkit-calendar-picker-indicator {
       filter: invert(0.85);
       cursor: pointer;
       opacity: 0.7;
     }
+
     .month-input::-webkit-calendar-picker-indicator:hover {
       opacity: 1;
     }
+
     @media (max-width: 768px) {
-      .month-input { min-width: 130px; font-size: 12px; }
-      .month-picker-row { gap: 6px; }
+      .month-input {
+        min-width: 130px;
+        font-size: 12px;
+      }
+
+      .month-picker-row {
+        gap: 6px;
+      }
     }
 
     /* ══════════════════════════════════════════
@@ -1295,7 +1306,13 @@
       padding: 8px 4px 14px;
       flex-wrap: wrap;
     }
-    .cal-nav { display: flex; gap: 6px; align-items: center; }
+
+    .cal-nav {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
     .cal-month-label {
       font-family: 'DM Mono', monospace;
       font-size: 18px;
@@ -1304,6 +1321,7 @@
       text-transform: capitalize;
       letter-spacing: 0.5px;
     }
+
     .cal-summary {
       font-size: 12px;
       color: var(--text2);
@@ -1311,8 +1329,16 @@
       text-align: right;
       line-height: 1.5;
     }
-    .cal-summary .cs-amount { color: var(--accent); font-weight: 700; }
-    .cal-summary .cs-overdue { color: var(--danger); font-weight: 700; }
+
+    .cal-summary .cs-amount {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .cal-summary .cs-overdue {
+      color: var(--danger);
+      font-weight: 700;
+    }
 
     .cal-legend {
       display: flex;
@@ -1321,16 +1347,27 @@
       padding: 8px 0 14px;
       font-size: 11px;
       color: var(--text2);
-      border-bottom: 1px dashed rgba(255,255,255,0.06);
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
       margin-bottom: 10px;
     }
-    .cal-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+    .cal-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .cal-legend-dot {
-      width: 10px; height: 10px; border-radius: 50%;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
       display: inline-block;
     }
+
     .cal-legend-bar {
-      width: 18px; height: 8px; border-radius: 2px;
+      width: 18px;
+      height: 8px;
+      border-radius: 2px;
       display: inline-block;
     }
 
@@ -1345,16 +1382,20 @@
       letter-spacing: 1px;
       padding: 0 2px 6px;
     }
-    .cal-weekdays div { text-align: center; }
+
+    .cal-weekdays div {
+      text-align: center;
+    }
 
     .cal-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 4px;
     }
+
     .cal-cell {
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       border-radius: 8px;
       min-height: 110px;
       padding: 6px;
@@ -1366,20 +1407,25 @@
       overflow: hidden;
       position: relative;
     }
+
     .cal-cell:hover {
-      background: rgba(255,255,255,0.04);
-      border-color: rgba(184,245,90,0.25);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(184, 245, 90, 0.25);
     }
+
     .cal-cell.cal-other-month {
       opacity: 0.35;
     }
+
     .cal-cell.cal-today {
       border-color: var(--accent);
       box-shadow: 0 0 0 1px var(--accent);
     }
+
     .cal-cell.cal-weekend {
-      background: rgba(255,255,255,0.01);
+      background: rgba(255, 255, 255, 0.01);
     }
+
     .cal-day-num {
       font-family: 'DM Mono', monospace;
       font-size: 12px;
@@ -1389,20 +1435,24 @@
       justify-content: space-between;
       align-items: center;
     }
+
     .cal-cell.cal-today .cal-day-num {
       color: var(--accent);
     }
+
     .cal-day-tlog {
       font-size: 9px;
       color: var(--text2);
       letter-spacing: 0.5px;
     }
+
     .cal-tracks {
       display: flex;
       flex-direction: column;
       gap: 2px;
       flex: 1;
     }
+
     .cal-bar {
       height: 14px;
       font-size: 9px;
@@ -1415,22 +1465,38 @@
       text-overflow: ellipsis;
       letter-spacing: 0.2px;
     }
-    .cal-bar.bar-start { border-radius: 4px 0 0 4px; }
-    .cal-bar.bar-end { border-radius: 0 4px 4px 0; }
-    .cal-bar.bar-single { border-radius: 4px; }
-    .cal-bar.bar-mid { border-radius: 0; }
+
+    .cal-bar.bar-start {
+      border-radius: 4px 0 0 4px;
+    }
+
+    .cal-bar.bar-end {
+      border-radius: 0 4px 4px 0;
+    }
+
+    .cal-bar.bar-single {
+      border-radius: 4px;
+    }
+
+    .cal-bar.bar-mid {
+      border-radius: 0;
+    }
+
     .cal-bar-empty {
       height: 14px;
       pointer-events: none;
     }
+
     .cal-events {
       display: flex;
       flex-wrap: wrap;
       gap: 3px;
       margin-top: auto;
     }
+
     .cal-dot {
-      width: 14px; height: 14px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
       font-size: 9px;
       line-height: 14px;
@@ -1438,30 +1504,33 @@
       color: #fff;
       font-weight: 700;
     }
+
     .cal-more {
       font-size: 9px;
       color: var(--text2);
       font-family: 'DM Mono', monospace;
       padding: 1px 4px;
       border-radius: 3px;
-      background: rgba(255,255,255,0.06);
+      background: rgba(255, 255, 255, 0.06);
     }
 
     /* Side panel */
     .cal-panel-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(2px);
       z-index: 998;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s;
     }
+
     .cal-panel-overlay.open {
       opacity: 1;
       pointer-events: auto;
     }
+
     .cal-panel {
       position: fixed;
       top: 0;
@@ -1470,39 +1539,45 @@
       width: 420px;
       max-width: 90vw;
       background: var(--bg2);
-      border-left: 1px solid rgba(184,245,90,0.15);
-      box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+      border-left: 1px solid rgba(184, 245, 90, 0.15);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
       z-index: 999;
       transform: translateX(100%);
       transition: transform 0.25s ease;
       display: flex;
       flex-direction: column;
     }
+
     .cal-panel.open {
       transform: translateX(0);
     }
+
     .cal-panel-header {
       padding: 16px 18px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
     }
+
     .cal-panel-title {
       font-family: 'DM Mono', monospace;
       font-size: 14px;
       font-weight: 700;
       color: var(--text);
     }
+
     .cal-panel-body {
       padding: 14px 18px;
       overflow-y: auto;
       flex: 1;
     }
+
     .cal-panel-section {
       margin-bottom: 18px;
     }
+
     .cal-panel-section-title {
       font-size: 10px;
       text-transform: uppercase;
@@ -1511,18 +1586,21 @@
       margin-bottom: 8px;
       font-weight: 700;
     }
+
     .cal-panel-item {
       padding: 10px 12px;
-      background: rgba(255,255,255,0.03);
+      background: rgba(255, 255, 255, 0.03);
       border-radius: 6px;
       margin-bottom: 6px;
       cursor: pointer;
       transition: background 0.15s;
       border-left: 3px solid transparent;
     }
+
     .cal-panel-item:hover {
-      background: rgba(255,255,255,0.06);
+      background: rgba(255, 255, 255, 0.06);
     }
+
     .cal-panel-item-title {
       font-size: 13px;
       color: var(--text);
@@ -1531,6 +1609,7 @@
       align-items: center;
       gap: 6px;
     }
+
     .cal-panel-item-meta {
       font-size: 11px;
       color: var(--text2);
@@ -1539,17 +1618,56 @@
     }
 
     @media (max-width: 768px) {
-      .cal-cell { min-height: 70px; padding: 4px; }
-      .cal-day-num { font-size: 11px; }
-      .cal-bar, .cal-bar-empty { height: 5px; }
-      .cal-bar { padding: 0; font-size: 0; color: transparent; }
-      .cal-tracks { gap: 1px; }
-      .cal-dot { width: 8px; height: 8px; font-size: 0; }
-      .cal-more { font-size: 8px; padding: 0 3px; }
-      .cal-day-tlog { display: none; }
-      .cal-month-label { font-size: 14px; }
-      .cal-summary { font-size: 10px; }
-      .cal-weekdays { font-size: 8px; }
+      .cal-cell {
+        min-height: 70px;
+        padding: 4px;
+      }
+
+      .cal-day-num {
+        font-size: 11px;
+      }
+
+      .cal-bar,
+      .cal-bar-empty {
+        height: 5px;
+      }
+
+      .cal-bar {
+        padding: 0;
+        font-size: 0;
+        color: transparent;
+      }
+
+      .cal-tracks {
+        gap: 1px;
+      }
+
+      .cal-dot {
+        width: 8px;
+        height: 8px;
+        font-size: 0;
+      }
+
+      .cal-more {
+        font-size: 8px;
+        padding: 0 3px;
+      }
+
+      .cal-day-tlog {
+        display: none;
+      }
+
+      .cal-month-label {
+        font-size: 14px;
+      }
+
+      .cal-summary {
+        font-size: 10px;
+      }
+
+      .cal-weekdays {
+        font-size: 8px;
+      }
     }
   </style>
 </head>
@@ -2649,7 +2767,8 @@
               <input type="month" id="fin_month_input" oninput="onMonthInputChange('fin')" class="month-input">
               <button class="btn btn-ghost btn-sm" onclick="setFinSummaryThisMonth()">📅 Este mes</button>
               <button class="btn btn-ghost btn-sm" onclick="monthShift('fin', 1)" title="Mes siguiente">→</button>
-              <button class="btn btn-ghost btn-sm" onclick="setFinSummaryAllYear()" style="margin-left:6px;">📆 Año completo</button>
+              <button class="btn btn-ghost btn-sm" onclick="setFinSummaryAllYear()" style="margin-left:6px;">📆 Año
+                completo</button>
               <button class="btn btn-primary btn-sm" onclick="generateExecutivePDF()" style="margin-left:8px;">📄
                 Generar Reporte Ejecutivo PDF</button>
               <select id="fin_month_sel" onchange="renderFinSummary()" style="display:none;">
@@ -2772,7 +2891,8 @@
         <!-- ══════════ SECTION: CALENDAR ══════════ -->
         <div class="section" id="section-calendar">
           <div class="section-title">🗓️ Calendario</div>
-          <div class="section-subtitle" id="cal_subtitle">Vista global de proyectos, invoices y actividad del equipo</div>
+          <div class="section-subtitle" id="cal_subtitle">Vista global de proyectos, invoices y actividad del equipo
+          </div>
 
           <div class="card" style="padding:14px;">
             <div class="cal-toolbar">
@@ -2788,7 +2908,13 @@
             <div class="cal-legend" id="cal_legend"></div>
 
             <div class="cal-weekdays">
-              <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+              <div>Lun</div>
+              <div>Mar</div>
+              <div>Mié</div>
+              <div>Jue</div>
+              <div>Vie</div>
+              <div>Sáb</div>
+              <div>Dom</div>
             </div>
 
             <div class="cal-grid" id="cal_grid"></div>
@@ -2923,18 +3049,20 @@
           </div>
           <div class="form-group">
             <label>Break (HH:MM)</label>
-            <input type="time" id="et_break">
+            <input type="text" id="et_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
           </div>
           <div class="form-group">
             <label>Admin (HH:MM)</label>
-            <input type="time" id="et_admin">
+            <input type="text" id="et_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
           </div>
           <div class="form-group" style="grid-column:span 2;">
             <label>Desplazamiento (HH:MM)</label>
-            <input type="time" id="et_travel">
+            <input type="text" id="et_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}">
           </div>
         </div>
-        <div id="et_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;display:none;"></div>
+        <div id="et_preview"
+          style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;display:none;">
+        </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="saveTimelogEdit()">Guardar cambios</button>
           <button class="btn btn-ghost" onclick="closeModal('editTimelogModal')">Cancelar</button>
@@ -6899,8 +7027,8 @@
       // ═══════════════════════════════════════════════════════════
       // Section configs: how each month-filtered section maps to its DOM ids and render fn
       const _MONTH_SECTIONS = {
-        kpi:   { input: 'kpi_month_input',   sel: 'kpi_month_sel',   render: function () { if (typeof renderKPIDashboard === 'function') renderKPIDashboard(); } },
-        fin:   { input: 'fin_month_input',   sel: 'fin_month_sel',   render: function () { if (typeof renderFinSummary === 'function') renderFinSummary(); } },
+        kpi: { input: 'kpi_month_input', sel: 'kpi_month_sel', render: function () { if (typeof renderKPIDashboard === 'function') renderKPIDashboard(); } },
+        fin: { input: 'fin_month_input', sel: 'fin_month_sel', render: function () { if (typeof renderFinSummary === 'function') renderFinSummary(); } },
         alert: { input: 'alert_month_input', sel: 'alert_month_sel', render: function () { if (typeof renderAlerts === 'function') renderAlerts(); } }
       };
 
@@ -8894,7 +9022,7 @@
           const backup = {
             _meta: {
               app: BACKUP_APP_ID,
-              version: 'V47',
+              version: 'V48',
               exportedAt: new Date().toISOString(),
               exportedBy: (currentUser && currentUser.email) || 'unknown',
               rootPath: BACKUP_ROOT_PATH,
@@ -10190,7 +10318,7 @@
       }
 
       function calFormatMonth(year, month) {
-        const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
         return months[month] + ' ' + year;
       }
 
@@ -10542,8 +10670,8 @@
         if (total === 0) return;
 
         const d = new Date(iso + 'T00:00:00');
-        const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-        const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         const title = days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
         const titleEl = document.getElementById('cal_panel_title');
         if (titleEl) titleEl.textContent = title;
