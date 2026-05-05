@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V46</title>
+  <title>TaskPro — Project Control V47</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2899,6 +2899,49 @@
       </div>
     </div>
 
+    <!-- ══════════ MODAL: EDIT TIMELOG (V47) ══════════ -->
+    <div class="modal-overlay" id="editTimelogModal">
+      <div class="modal">
+        <div class="modal-title">✏️ Editar jornada</div>
+        <input type="hidden" id="et_id">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="et_date">
+          </div>
+          <div class="form-group">
+            <label>Persona</label>
+            <select id="et_person"></select>
+          </div>
+          <div class="form-group">
+            <label>Hora entrada</label>
+            <input type="time" id="et_start">
+          </div>
+          <div class="form-group">
+            <label>Hora salida</label>
+            <input type="time" id="et_end">
+          </div>
+          <div class="form-group">
+            <label>Break (HH:MM)</label>
+            <input type="time" id="et_break">
+          </div>
+          <div class="form-group">
+            <label>Admin (HH:MM)</label>
+            <input type="time" id="et_admin">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Desplazamiento (HH:MM)</label>
+            <input type="time" id="et_travel">
+          </div>
+        </div>
+        <div id="et_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;display:none;"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="saveTimelogEdit()">Guardar cambios</button>
+          <button class="btn btn-ghost" onclick="closeModal('editTimelogModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ══════════ MODAL: SEND INVOICE ══════════ -->
     <div class="modal-overlay" id="sendInvoiceModal">
       <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto;">
@@ -4286,6 +4329,157 @@
         renderSummary();
       }
 
+      // V47 — Edit timelog entry (admin/supervisor only)
+      function openEditTimelogModal(eid) {
+        if (!canDo('canEdit')) { showSyncBanner('Sin permiso para editar registros.', 'warn'); return; }
+        const p = currentProject();
+        if (!p) { alert('Selecciona un proyecto primero.'); return; }
+        const e = (p.timelog || []).find(x => x.id === eid);
+        if (!e) { alert('Registro no encontrado.'); return; }
+
+        document.getElementById('et_id').value = e.id;
+        document.getElementById('et_date').value = e.date || '';
+        document.getElementById('et_start').value = e.start || '';
+        document.getElementById('et_end').value = e.end || '';
+        document.getElementById('et_break').value = minsToHHMM(Math.round((parseFloat(e.breakH) || 0) * 60));
+        document.getElementById('et_admin').value = minsToHHMM(Math.round((parseFloat(e.adminH) || 0) * 60));
+        document.getElementById('et_travel').value = minsToHHMM(Math.round((parseFloat(e.travelH) || 0) * 60));
+
+        // Populate person dropdown with project workers
+        const sel = document.getElementById('et_person');
+        sel.innerHTML = '';
+        (p.workers || []).forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.id;
+          opt.textContent = w.name + ' ($' + w.rate + '/h)';
+          if (w.id === e.personId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        // Edge case: original worker no longer in project — preserve selection
+        if (!Array.from(sel.options).some(o => o.value === e.personId)) {
+          const opt = document.createElement('option');
+          opt.value = e.personId || '__orphan__';
+          opt.textContent = (e.personName || '?') + ' (no en equipo actual)';
+          opt.selected = true;
+          sel.insertBefore(opt, sel.firstChild);
+        }
+
+        // Live preview of recalc
+        _etUpdatePreview();
+        ['et_date', 'et_person', 'et_start', 'et_end', 'et_break', 'et_admin', 'et_travel'].forEach(fid => {
+          const el = document.getElementById(fid);
+          if (el) el.oninput = _etUpdatePreview;
+          if (el && el.tagName === 'SELECT') el.onchange = _etUpdatePreview;
+        });
+
+        document.getElementById('editTimelogModal').classList.add('open');
+      }
+
+      function _etUpdatePreview() {
+        const start = document.getElementById('et_start').value;
+        const end = document.getElementById('et_end').value;
+        const breakH = timeToMins(document.getElementById('et_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('et_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('et_travel').value || '00:00') / 60;
+        const personId = document.getElementById('et_person').value;
+        const previewEl = document.getElementById('et_preview');
+        if (!previewEl) return;
+        if (!start || !end) { previewEl.style.display = 'none'; return; }
+
+        const startMins = timeToMins(start);
+        const endMins = timeToMins(end);
+        if (endMins <= startMins) {
+          previewEl.style.display = 'block';
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Salida debe ser mayor a entrada.';
+          return;
+        }
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) {
+          previewEl.style.display = 'block';
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Break + Admin (' + (breakH + adminH).toFixed(2) + 'h) > Total (' + totalH.toFixed(2) + 'h). Productiva sería 0.';
+          return;
+        }
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const p = currentProject();
+        const eidVal = document.getElementById('et_id').value;
+        const orig = p && (p.timelog || []).find(x => x.id === eidVal);
+        let rate = 0;
+        const worker = p && (p.workers || []).find(w => w.id === personId);
+        if (worker) rate = parseFloat(worker.rate) || 0;
+        else if (orig) rate = parseFloat(orig.rate) || 0;
+        const pay = (productiveH + travelH) * rate;
+        previewEl.style.display = 'block';
+        previewEl.style.color = 'var(--text2)';
+        previewEl.textContent = 'Total: ' + totalH.toFixed(2) + 'h · Productiva: ' + productiveH.toFixed(2) + 'h · Tarifa: $' + rate.toFixed(0) + '/h · Subtotal: $' + pay.toFixed(2);
+      }
+
+      function saveTimelogEdit() {
+        if (!canDo('canEdit')) { showSyncBanner('Sin permiso para editar.', 'warn'); return; }
+        const eid = document.getElementById('et_id').value;
+        const p = currentProject();
+        if (!p) return;
+        const e = (p.timelog || []).find(x => x.id === eid);
+        if (!e) { alert('Registro no encontrado.'); return; }
+
+        const date = document.getElementById('et_date').value;
+        const personId = document.getElementById('et_person').value;
+        const start = document.getElementById('et_start').value;
+        const end = document.getElementById('et_end').value;
+        const breakH = timeToMins(document.getElementById('et_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('et_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('et_travel').value || '00:00') / 60;
+
+        // Validations
+        if (!date || !start || !end) { alert('Completa fecha, entrada y salida.'); return; }
+        const startMins = timeToMins(start);
+        const endMins = timeToMins(end);
+        if (endMins <= startMins) { alert('La hora de salida debe ser mayor a la de entrada.'); return; }
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) {
+          alert('La suma de Break + Admin (' + (breakH + adminH).toFixed(2) + 'h) no puede superar el tiempo total trabajado (' + totalH.toFixed(2) + 'h). Corrige los valores.');
+          return;
+        }
+
+        // Resolve worker (preserves orphan if worker removed)
+        const worker = (p.workers || []).find(w => w.id === personId);
+        let resolvedPersonId, resolvedPersonName, resolvedRate;
+        if (worker) {
+          resolvedPersonId = worker.id;
+          resolvedPersonName = worker.name;
+          resolvedRate = parseFloat(worker.rate) || 0;
+        } else {
+          // Orphan — keep original name & rate
+          resolvedPersonId = e.personId;
+          resolvedPersonName = e.personName;
+          resolvedRate = parseFloat(e.rate) || 0;
+        }
+
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const pay = (productiveH + travelH) * resolvedRate;
+
+        e.date = date;
+        e.personId = resolvedPersonId;
+        e.personName = resolvedPersonName;
+        e.rate = resolvedRate;
+        e.start = start;
+        e.end = end;
+        e.breakH = breakH;
+        e.adminH = adminH;
+        e.travelH = travelH;
+        e.totalH = totalH;
+        e.productiveH = productiveH;
+        e.pay = pay;
+
+        saveProject(state.currentId);
+        closeModal('editTimelogModal');
+        renderTimeLog();
+        renderPricing();
+        renderSummary();
+        showSyncBanner('✅ Jornada actualizada', 'success');
+      }
+
       function renderTimeLog() {
         const p = currentProject();
         const container = document.getElementById('timelogTable');
@@ -4315,6 +4509,12 @@
         const days = [...new Set(sorted.map(e => e.date))].length;
         const persons = [...new Set(sorted.map(e => e.personName))];
 
+        // V47: edit button shown only for admin/supervisor (canEdit)
+        const _canEditTl = canDo('canEdit');
+        const _editBtnTpl = _canEditTl
+          ? '<button class="btn btn-ghost btn-sm" style="padding:2px 8px;margin-right:4px;" title="Editar jornada" onclick="openEditTimelogModal(\'__EID__\')">✏️</button>'
+          : '';
+
         container.innerHTML = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
     <table class="data-table" style="min-width:640px;">
       <thead><tr>
@@ -4336,7 +4536,7 @@
             <td class="num" style="color:var(--warn);">${minsToHHMM(Math.round((parseFloat(e.travelH) || 0) * 60))}</td>
             <td class="num">$${(parseFloat(e.rate) || 0).toFixed(0)}</td>
             <td class="num"><strong>$${e.pay.toFixed(2)}</strong></td>
-            <td><button class="btn btn-danger btn-sm" onclick="removeTimeEntry('${e.id}')">✕</button></td>
+            <td style="white-space:nowrap;">${_editBtnTpl.replace('__EID__', e.id)}<button class="btn btn-danger btn-sm" onclick="removeTimeEntry('${e.id}')">✕</button></td>
           </tr>`).join('')}
         <tr class="total-row">
           <td colspan="6"><strong>TOTAL</strong></td>
@@ -8694,7 +8894,7 @@
           const backup = {
             _meta: {
               app: BACKUP_APP_ID,
-              version: 'V46',
+              version: 'V47',
               exportedAt: new Date().toISOString(),
               exportedBy: (currentUser && currentUser.email) || 'unknown',
               rootPath: BACKUP_ROOT_PATH,
