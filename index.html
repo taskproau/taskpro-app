@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V53.1</title>
+  <title>TaskPro — Project Control V54</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1407,14 +1407,25 @@
       transition: all 0.15s;
       font-family: inherit;
     }
-    .apr-tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+
+    .apr-tab:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
     .apr-tab-active {
       color: var(--accent);
       border-bottom-color: var(--accent);
-      background: rgba(184,245,90,0.04);
+      background: rgba(184, 245, 90, 0.04);
     }
-    .apr-row-auto { border-left: 3px solid #b85af5 !important; }
-    .apr-row-rejected { opacity: 0.7; }
+
+    .apr-row-auto {
+      border-left: 3px solid #b85af5 !important;
+    }
+
+    .apr-row-rejected {
+      opacity: 0.7;
+    }
 
     .cal-cell {
       background: rgba(255, 255, 255, 0.02);
@@ -1784,7 +1795,8 @@
         </div>
         <div class="nav-item" onclick="showSection('aprobaciones')" id="nav-aprobaciones">
           <span class="nav-icon">📋</span> Aprobaciones
-          <span id="nav-aprobaciones-badge" style="margin-left:auto;background:var(--danger);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;display:none;line-height:1.2;">0</span>
+          <span id="nav-aprobaciones-badge"
+            style="margin-left:auto;background:var(--danger);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;display:none;line-height:1.2;">0</span>
         </div>
         <div class="nav-item" onclick="showSection('equipobase')" id="nav-equipobase" style="display:none;">
           <span class="nav-icon">🏗️</span> Equipo Base
@@ -2964,7 +2976,8 @@
         <!-- ══════════ SECTION: MI JORNADA (V50) ══════════ -->
         <div class="section" id="section-mijornada">
           <div class="section-title">🟢 Mi Jornada</div>
-          <div class="section-subtitle">Registra tu entrada y salida del día. Las jornadas quedan pendientes de aprobación.</div>
+          <div class="section-subtitle">Registra tu entrada y salida del día. Las jornadas quedan pendientes de
+            aprobación.</div>
 
           <!-- Hero card: estado actual (check-in / check-out) -->
           <div class="card" id="mj_hero" style="padding:28px;text-align:center;">
@@ -2984,23 +2997,29 @@
         <!-- ══════════ SECTION: APROBACIONES (V51) ══════════ -->
         <div class="section" id="section-aprobaciones">
           <div class="section-title">📋 Aprobaciones</div>
-          <div class="section-subtitle">Revisa y aprueba las jornadas registradas por el equipo. Las aprobadas pasan al Time Log del proyecto.</div>
+          <div class="section-subtitle">Revisa y aprueba las jornadas registradas por el equipo. Las aprobadas pasan al
+            Time Log del proyecto.</div>
 
           <div class="card" style="padding:0;overflow:hidden;">
             <!-- Tabs Pendientes / Rechazados -->
             <div style="display:flex;border-bottom:1px solid var(--border);">
               <button id="apr_tab_pending" class="apr-tab apr-tab-active" onclick="aprSwitchTab('pending')">
-                Pendientes <span id="apr_count_pending" style="font-size:10px;color:#e8a04a;font-weight:700;margin-left:4px;">(0)</span>
+                Pendientes <span id="apr_count_pending"
+                  style="font-size:10px;color:#e8a04a;font-weight:700;margin-left:4px;">(0)</span>
               </button>
               <button id="apr_tab_rejected" class="apr-tab" onclick="aprSwitchTab('rejected')">
-                Rechazados <span id="apr_count_rejected" style="font-size:10px;color:var(--danger);font-weight:700;margin-left:4px;">(0)</span>
+                Rechazados <span id="apr_count_rejected"
+                  style="font-size:10px;color:var(--danger);font-weight:700;margin-left:4px;">(0)</span>
               </button>
             </div>
 
             <!-- Sesiones activas (info, solo en tab Pendientes y solo si hay alguna) -->
-            <div id="apr_active_card" style="padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(184,245,90,0.04);display:none;">
-              <div style="font-size:12px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--accent);">
-                🟢 Sesiones activas en este momento <span id="apr_active_count" style="font-size:10px;color:var(--text2);font-weight:400;"></span>
+            <div id="apr_active_card"
+              style="padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(184,245,90,0.04);display:none;">
+              <div
+                style="font-size:12px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--accent);">
+                🟢 Sesiones activas en este momento <span id="apr_active_count"
+                  style="font-size:10px;color:var(--text2);font-weight:400;"></span>
               </div>
               <div id="apr_active_body" style="overflow-x:auto;font-size:12px;"></div>
             </div>
@@ -3153,10 +3172,12 @@
     <div class="modal-overlay" id="mjCheckoutModal">
       <div class="modal">
         <div class="modal-title">🔴 Finalizar jornada</div>
-        <div style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
+        <div
+          style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
           <div><span style="color:var(--text2);">Proyecto:</span> <strong id="mjco_proj">—</strong></div>
           <div><span style="color:var(--text2);">Fecha:</span> <strong id="mjco_date">—</strong></div>
-          <div><span style="color:var(--text2);">Entrada:</span> <strong id="mjco_in" style="font-family:'DM Mono',monospace;">—</strong></div>
+          <div><span style="color:var(--text2);">Entrada:</span> <strong id="mjco_in"
+              style="font-family:'DM Mono',monospace;">—</strong></div>
         </div>
         <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group" style="grid-column:span 2;">
@@ -3165,18 +3186,23 @@
           </div>
           <div class="form-group">
             <label>Break (HH:MM)</label>
-            <input type="text" id="mjco_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateCheckoutPreview()">
+            <input type="text" id="mjco_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}"
+              oninput="_mjUpdateCheckoutPreview()">
           </div>
           <div class="form-group">
             <label>Admin (HH:MM)</label>
-            <input type="text" id="mjco_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateCheckoutPreview()">
+            <input type="text" id="mjco_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}"
+              oninput="_mjUpdateCheckoutPreview()">
           </div>
           <div class="form-group" style="grid-column:span 2;">
             <label>Desplazamiento (HH:MM)</label>
-            <input type="text" id="mjco_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateCheckoutPreview()">
+            <input type="text" id="mjco_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}"
+              oninput="_mjUpdateCheckoutPreview()">
           </div>
         </div>
-        <div id="mjco_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
+        <div id="mjco_preview"
+          style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;">
+        </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="mjConfirmCheckout()">✅ Confirmar jornada</button>
           <button class="btn btn-ghost" onclick="closeModal('mjCheckoutModal')">Cancelar</button>
@@ -3189,7 +3215,8 @@
       <div class="modal">
         <div class="modal-title">✏️ Editar mi jornada</div>
         <input type="hidden" id="mjep_id">
-        <div style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
+        <div
+          style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
           <div><span style="color:var(--text2);">Proyecto:</span> <strong id="mjep_proj">—</strong></div>
           <div><span style="color:var(--text2);">Fecha:</span> <strong id="mjep_date">—</strong></div>
         </div>
@@ -3204,18 +3231,23 @@
           </div>
           <div class="form-group">
             <label>Break (HH:MM)</label>
-            <input type="text" id="mjep_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateEditPreview()">
+            <input type="text" id="mjep_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}"
+              oninput="_mjUpdateEditPreview()">
           </div>
           <div class="form-group">
             <label>Admin (HH:MM)</label>
-            <input type="text" id="mjep_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateEditPreview()">
+            <input type="text" id="mjep_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}"
+              oninput="_mjUpdateEditPreview()">
           </div>
           <div class="form-group" style="grid-column:span 2;">
             <label>Desplazamiento (HH:MM)</label>
-            <input type="text" id="mjep_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateEditPreview()">
+            <input type="text" id="mjep_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}"
+              oninput="_mjUpdateEditPreview()">
           </div>
         </div>
-        <div id="mjep_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
+        <div id="mjep_preview"
+          style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;">
+        </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="mjSavePendingEdit()">Guardar cambios</button>
           <button class="btn btn-ghost" onclick="closeModal('mjEditPendingModal')">Cancelar</button>
@@ -7298,7 +7330,8 @@
             doc.setFontSize(8);
             doc.setTextColor(...MUTED);
             doc.text('Period: ' + periodLabel, margin + 3, y + 5);
-            doc.text('Prod: ' + (d.prodH || 0).toFixed(2) + 'h · Admin: ' + (d.adminH || 0).toFixed(2) + 'h · Desplaz.: ' + ((d.travelH || 0)).toFixed(2) + 'h · Break empresa: ' + ((d.companyBreakH || 0)).toFixed(2) + 'h', margin + 3, y + 10);
+            // V53.2: removed hours breakdown (Prod/Admin/Desplaz/Break empresa) from invoice line item.
+            // Hours detail belongs to the Plantilla Horario document, not to a formal contractor invoice.
             doc.setFontSize(11);
             doc.setTextColor(...DARK);
             doc.setFont('helvetica', 'bold');
