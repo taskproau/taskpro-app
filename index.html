@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V52</title>
+  <title>TaskPro — Project Control V53</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2200,7 +2200,7 @@
           </div>
 
           <!-- RESUMEN GENERAL -->
-          <div class="card">
+          <div class="card" id="pagos_resumen_card">
             <div class="card-title">💰 Resumen de pagos por persona</div>
             <div id="pagosResumen"></div>
           </div>
@@ -3388,7 +3388,7 @@
           canDelete: false, canEdit: true
         },
         operador: {
-          nav: ['mijornada', 'calendar'],
+          nav: ['mijornada', 'calendar', 'pagos'],
           canDelete: false, canEdit: false
         }
       };
@@ -6830,41 +6830,67 @@
       function _ppSortBy(col) { _ppSort.asc = _ppSort.col === col ? !_ppSort.asc : true; _ppSort.col = col; updatePagosResumen(window._ppData, window._ppPersons); }
 
       function renderPagos() {
+        // V53 — operador mode: scope to own data only, hide global summary
+        const isOperator = currentUser && currentUser.role === 'operador';
+        const resumenCard = document.getElementById('pagos_resumen_card');
+        if (isOperator) {
+          // Operador without linkedName cannot see anything (defensive — admin should have set this on user creation)
+          if (!currentUser.linkedName) {
+            const btns = document.getElementById('pagosPersonBtns');
+            const det = document.getElementById('pagosDetalle');
+            if (resumenCard) resumenCard.style.display = 'none';
+            if (btns) btns.innerHTML = '';
+            if (det) det.innerHTML = '<div class="empty-state" style="padding:24px;"><p>⚠️ Tu cuenta no está vinculada a ningún worker. Hablá con el admin.</p></div>';
+            return;
+          }
+          // Hide global comparison card; only show own detail
+          if (resumenCard) resumenCard.style.display = 'none';
+        } else {
+          if (resumenCard) resumenCard.style.display = '';
+        }
+
         const from = document.getElementById('pp_from').value;
         const to = document.getElementById('pp_to').value;
         const data = buildPayData(from, to);
-        const persons = Object.keys(data).sort();
+        let persons = Object.keys(data).sort();
+
+        // V53 — restrict operador to their own linkedName only
+        if (isOperator) {
+          persons = persons.filter(p => p === currentUser.linkedName);
+        }
 
         const resumen = document.getElementById('pagosResumen');
         const btns = document.getElementById('pagosPersonBtns');
 
         if (!persons.length) {
-          resumen.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin datos en este rango.</p></div>';
+          if (resumen) resumen.innerHTML = '<div class="empty-state" style="padding:24px;"><p>Sin datos en este rango.</p></div>';
           btns.innerHTML = '';
           document.getElementById('pagosDetalle').innerHTML = '';
           return;
         }
 
-        const si = (col) => _ppSort.col === col ? (_ppSort.asc ? ' ↑' : ' ↓') : ' ⇅';
-        const sh = (col, label, cls) =>
-          '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_ppSortBy(\'' + col + '\')">' + label + si(col) + '</th>';
+        if (!isOperator) {
+          const si = (col) => _ppSort.col === col ? (_ppSort.asc ? ' ↑' : ' ↓') : ' ⇅';
+          const sh = (col, label, cls) =>
+            '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_ppSortBy(\'' + col + '\')">' + label + si(col) + '</th>';
 
-        resumen.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-          + '<table class="data-table" style="min-width:540px;">'
-          + '<thead><tr>'
-          + sh('name', 'Persona')
-          + sh('prod', 'Prod.', 'num')
-          + sh('admin', 'Admin', 'num')
-          + sh('travel', 'Desplaz.', 'num')
-          + sh('break', 'Break total', 'num')
-          + sh('bpaid', 'Break empresa', 'num')
-          + sh('bunpaid', 'Break no pagado', 'num')
-          + sh('pay', 'Total a pagar', 'num')
-          + '</tr></thead>'
-          + '<tbody id="pagosResumenBody"></tbody>'
-          + '</table></div>';
+          resumen.innerHTML = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+            + '<table class="data-table" style="min-width:540px;">'
+            + '<thead><tr>'
+            + sh('name', 'Persona')
+            + sh('prod', 'Prod.', 'num')
+            + sh('admin', 'Admin', 'num')
+            + sh('travel', 'Desplaz.', 'num')
+            + sh('break', 'Break total', 'num')
+            + sh('bpaid', 'Break empresa', 'num')
+            + sh('bunpaid', 'Break no pagado', 'num')
+            + sh('pay', 'Total a pagar', 'num')
+            + '</tr></thead>'
+            + '<tbody id="pagosResumenBody"></tbody>'
+            + '</table></div>';
+        }
 
-        // Render person buttons
+        // Render person buttons (only own button for operador)
         btns.innerHTML = persons.map(name =>
           `<button class="btn btn-ghost btn-sm" onclick="renderPagoDetalle('${name}')"
       id="btn_pago_${name.replace(/\s+/g, '_')}">👷 ${name}</button>`
@@ -6874,10 +6900,12 @@
         window._ppData = data;
         window._ppPersons = persons;
 
-        // Populate rows with inputs and initial calc
-        updatePagosResumen(data, persons);
+        // Populate rows with inputs and initial calc (only for non-operador)
+        if (!isOperator) {
+          updatePagosResumen(data, persons);
+        }
 
-        // Auto-show first person
+        // Auto-show first person (= the only person for operador)
         renderPagoDetalle(persons[0], data);
       }
 
@@ -6950,6 +6978,13 @@
       function onBreakPctChange() { /* replaced by calcCompanyBreak rule */ }
 
       function renderPagoDetalle(personName, prebuiltData) {
+        // V53 — defensive guard: operador can only see their own data
+        if (currentUser && currentUser.role === 'operador') {
+          if (!currentUser.linkedName || personName !== currentUser.linkedName) {
+            console.warn('[V53] Operador attempted to view another worker\'s detail:', personName);
+            return;
+          }
+        }
         const from = document.getElementById('pp_from').value;
         const to = document.getElementById('pp_to').value;
         const breakPct = getPersonBreakPct(personName);
@@ -7031,6 +7066,13 @@
       }
 
       function exportPagoTimesheetPDF(personName) {
+        // V53 — defensive guard: operador can only export their own
+        if (currentUser && currentUser.role === 'operador') {
+          if (!currentUser.linkedName || personName !== currentUser.linkedName) {
+            alert('Solo podés exportar tu propia plantilla horaria.');
+            return;
+          }
+        }
         const from = document.getElementById('pp_from').value;
         const to = document.getElementById('pp_to').value;
         const breakPct = getPersonBreakPct(personName);
@@ -7134,6 +7176,13 @@
       // TaskPro is the bill-to party; the person is the contractor issuing the invoice
       // ═══════════════════════════════════════════
       async function exportPagoInvoicePDF(personName) {
+        // V53 — defensive guard: operador can only export their own invoice
+        if (currentUser && currentUser.role === 'operador') {
+          if (!currentUser.linkedName || personName !== currentUser.linkedName) {
+            alert('Solo podés exportar tu propio invoice.');
+            return;
+          }
+        }
         const from = document.getElementById('pp_from').value;
         const to = document.getElementById('pp_to').value;
         const data = buildPayData(from, to);
