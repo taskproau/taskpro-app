@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V49</title>
+  <title>TaskPro — Project Control V50</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2938,16 +2938,23 @@
           </div>
         </div>
 
-        <!-- ══════════ SECTION: MI JORNADA (V49 placeholder — UI en V50) ══════════ -->
+        <!-- ══════════ SECTION: MI JORNADA (V50) ══════════ -->
         <div class="section" id="section-mijornada">
           <div class="section-title">🟢 Mi Jornada</div>
-          <div class="section-subtitle">Registra tu entrada y salida del día. La UI completa llega en V50.</div>
-          <div class="card" id="mj_root" style="padding:20px;">
-            <div style="color:var(--text2);font-size:13px;line-height:1.6;">
-              <strong style="color:var(--text);">Plumbing V49 listo.</strong><br>
-              Listeners de <code>activeTimelogs</code> y <code>pendingTimelogs</code> activos. Estructura Firebase preparada. La interfaz de check-in/check-out se construye en V50.
+          <div class="section-subtitle">Registra tu entrada y salida del día. Las jornadas quedan pendientes de aprobación.</div>
+
+          <!-- Hero card: estado actual (check-in / check-out) -->
+          <div class="card" id="mj_hero" style="padding:28px;text-align:center;">
+            <div style="color:var(--text2);font-size:13px;">Cargando...</div>
+          </div>
+
+          <!-- Lista de pendings del worker -->
+          <div class="card" style="padding:20px;margin-top:16px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+              📋 Mis Jornadas Pendientes
+              <span id="mj_pendings_count" style="font-size:11px;color:var(--text2);font-weight:400;"></span>
             </div>
-            <div id="mj_diag" style="margin-top:14px;padding:10px;background:var(--surface2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);"></div>
+            <div id="mj_pendings_body" style="overflow-x:auto;"></div>
           </div>
         </div>
 
@@ -3099,6 +3106,80 @@
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="saveTimelogEdit()">Guardar cambios</button>
           <button class="btn btn-ghost" onclick="closeModal('editTimelogModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ MODAL: MI JORNADA — CHECKOUT (V50) ══════════ -->
+    <div class="modal-overlay" id="mjCheckoutModal">
+      <div class="modal">
+        <div class="modal-title">🔴 Finalizar jornada</div>
+        <div style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
+          <div><span style="color:var(--text2);">Proyecto:</span> <strong id="mjco_proj">—</strong></div>
+          <div><span style="color:var(--text2);">Fecha:</span> <strong id="mjco_date">—</strong></div>
+          <div><span style="color:var(--text2);">Entrada:</span> <strong id="mjco_in" style="font-family:'DM Mono',monospace;">—</strong></div>
+        </div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Hora salida</label>
+            <input type="time" id="mjco_out" oninput="_mjUpdateCheckoutPreview()">
+          </div>
+          <div class="form-group">
+            <label>Break (HH:MM)</label>
+            <input type="text" id="mjco_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateCheckoutPreview()">
+          </div>
+          <div class="form-group">
+            <label>Admin (HH:MM)</label>
+            <input type="text" id="mjco_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateCheckoutPreview()">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Desplazamiento (HH:MM)</label>
+            <input type="text" id="mjco_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateCheckoutPreview()">
+          </div>
+        </div>
+        <div id="mjco_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="mjConfirmCheckout()">✅ Confirmar jornada</button>
+          <button class="btn btn-ghost" onclick="closeModal('mjCheckoutModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ MODAL: MI JORNADA — EDIT PENDING (V50) ══════════ -->
+    <div class="modal-overlay" id="mjEditPendingModal">
+      <div class="modal">
+        <div class="modal-title">✏️ Editar mi jornada</div>
+        <input type="hidden" id="mjep_id">
+        <div style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
+          <div><span style="color:var(--text2);">Proyecto:</span> <strong id="mjep_proj">—</strong></div>
+          <div><span style="color:var(--text2);">Fecha:</span> <strong id="mjep_date">—</strong></div>
+        </div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>Hora entrada</label>
+            <input type="time" id="mjep_in" oninput="_mjUpdateEditPreview()">
+          </div>
+          <div class="form-group">
+            <label>Hora salida</label>
+            <input type="time" id="mjep_out" oninput="_mjUpdateEditPreview()">
+          </div>
+          <div class="form-group">
+            <label>Break (HH:MM)</label>
+            <input type="text" id="mjep_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateEditPreview()">
+          </div>
+          <div class="form-group">
+            <label>Admin (HH:MM)</label>
+            <input type="text" id="mjep_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateEditPreview()">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Desplazamiento (HH:MM)</label>
+            <input type="text" id="mjep_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_mjUpdateEditPreview()">
+          </div>
+        </div>
+        <div id="mjep_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="mjSavePendingEdit()">Guardar cambios</button>
+          <button class="btn btn-ghost" onclick="closeModal('mjEditPendingModal')">Cancelar</button>
         </div>
       </div>
     </div>
@@ -4023,6 +4104,13 @@
         setupHHMMInput('tl_break');
         setupHHMMInput('tl_admin');
         setupHHMMInput('tl_travel');
+        // V50 — Mi Jornada modals
+        setupHHMMInput('mjco_break');
+        setupHHMMInput('mjco_admin');
+        setupHHMMInput('mjco_travel');
+        setupHHMMInput('mjep_break');
+        setupHHMMInput('mjep_admin');
+        setupHHMMInput('mjep_travel');
         showLoadingState();
 
         const migrated = await migrateFromLocalStorage();
@@ -4146,9 +4234,10 @@
       // ═══════════════════════════════════════════
       function _afterTimelogChange() {
         _updatePendingBadge();
+        _mjScanForToasts(); // V50: trigger toast notifications for the worker
         // Re-render placeholders if active (for diagnostic visibility)
         if (document.getElementById('section-mijornada') && document.getElementById('section-mijornada').classList.contains('active')) {
-          renderMiJornadaPlaceholder();
+          renderMiJornada();
         }
         if (document.getElementById('section-aprobaciones') && document.getElementById('section-aprobaciones').classList.contains('active')) {
           renderAprobacionesPlaceholder();
@@ -4186,19 +4275,429 @@
         }
       }
 
-      // Diagnostic placeholder — replaced by full UI in V50
-      function renderMiJornadaPlaceholder() {
-        const el = document.getElementById('mj_diag');
-        if (!el || !currentUser) return;
-        const myActive = (state.activeTimelogs || {})[currentUser.uid];
+      // ═══════════════════════════════════════════
+      // V50 — MI JORNADA UI (worker check-in/check-out)
+      // ═══════════════════════════════════════════
+
+      // Local guard against duplicate toasts within this session.
+      // Firebase flag (notifiedReject/notifiedAutoclose) covers cross-session.
+      const _mjShownToasts = new Set();
+      let _mjTimerInt = null;
+
+      // Find projects where the current user is a worker AND status is Booked or In Progress
+      function _mjFindWorkerProjects() {
+        if (!currentUser || !currentUser.linkedName) return [];
+        const allowed = ['Booked', 'In Progress'];
+        const out = [];
+        Object.entries(state.projects || {}).forEach(([id, p]) => {
+          if (!p || !allowed.includes(p.status)) return;
+          if (!Array.isArray(p.workers)) return;
+          const w = p.workers.find(x => x && x.name === currentUser.linkedName);
+          if (w) out.push({ id: id, name: p.name || '—', client: p.client || '', worker: w });
+        });
+        return out.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      }
+
+      // Format ms → HH:MM:SS for the live timer
+      function _mjFormatElapsed(ms) {
+        const totalSec = Math.max(0, Math.floor(ms / 1000));
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      }
+
+      function _mjStartTimer() {
+        if (_mjTimerInt) return;
+        _mjTimerInt = setInterval(() => {
+          const el = document.getElementById('mj_timer');
+          if (!el || !currentUser) { _mjStopTimer(); return; }
+          const at = (state.activeTimelogs || {})[currentUser.uid];
+          if (!at || !at.startedAt) { _mjStopTimer(); return; }
+          el.textContent = _mjFormatElapsed(Date.now() - at.startedAt);
+        }, 1000);
+      }
+
+      function _mjStopTimer() {
+        if (_mjTimerInt) { clearInterval(_mjTimerInt); _mjTimerInt = null; }
+      }
+
+      // Main render — called by showSection and _afterTimelogChange
+      function renderMiJornada() {
+        mjRenderHero();
+        mjRenderPendings();
+      }
+
+      // Hero card: either selector+start (state A) or active session+stop (state B)
+      function mjRenderHero() {
+        const hero = document.getElementById('mj_hero');
+        if (!hero || !currentUser) return;
+        const at = (state.activeTimelogs || {})[currentUser.uid];
+
+        if (at) {
+          // STATE B — active session
+          const elapsed = at.startedAt ? Date.now() - at.startedAt : 0;
+          hero.innerHTML = ''
+            + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Jornada en curso</div>'
+            + '<div style="font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent);">🟢 ' + _esc(at.projectName || '—') + '</div>'
+            + '<div style="font-size:13px;color:var(--text2);margin-bottom:18px;">Iniciaste a las <strong style="color:var(--text);font-family:\'DM Mono\',monospace;">' + _esc(at.timeIn || '—') + '</strong> · ' + _esc(at.date || '—') + '</div>'
+            + '<div id="mj_timer" style="font-size:42px;font-family:\'DM Mono\',monospace;font-weight:600;margin-bottom:24px;color:var(--accent);letter-spacing:2px;">' + _mjFormatElapsed(elapsed) + '</div>'
+            + '<button class="btn" style="background:var(--danger);color:#fff;font-size:15px;padding:14px 32px;font-weight:700;border:none;cursor:pointer;border-radius:8px;" onclick="mjOpenCheckoutModal()">🔴 FINALIZAR JORNADA</button>';
+          _mjStartTimer();
+        } else {
+          // STATE A — no active session
+          _mjStopTimer();
+          const projects = _mjFindWorkerProjects();
+          if (projects.length === 0) {
+            hero.innerHTML = ''
+              + '<div style="padding:18px;line-height:1.6;font-size:14px;color:var(--text2);">'
+              + '<div style="font-size:32px;margin-bottom:10px;">⚠️</div>'
+              + '<strong style="color:var(--text);font-size:16px;">No estás asignado a ningún proyecto activo.</strong><br>'
+              + '<span style="font-size:13px;">Hablá con el supervisor para que te asigne a un proyecto antes de iniciar tu jornada.</span>'
+              + '</div>';
+            return;
+          }
+          let opts = '<option value="">— Selecciona un proyecto —</option>';
+          projects.forEach(p => {
+            const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
+            opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
+          });
+          hero.innerHTML = ''
+            + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Iniciar jornada</div>'
+            + '<div style="max-width:480px;margin:0 auto 18px auto;">'
+            + '<select id="mj_project_select" style="width:100%;padding:14px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;">' + opts + '</select>'
+            + '</div>'
+            + '<button class="btn btn-primary" style="font-size:15px;padding:14px 32px;font-weight:700;" onclick="mjStartShift()">🟢 INICIAR JORNADA</button>';
+        }
+      }
+
+      // Pendings table
+      function mjRenderPendings() {
+        const body = document.getElementById('mj_pendings_body');
+        const countEl = document.getElementById('mj_pendings_count');
+        if (!body || !currentUser) return;
         const myPendings = (state.pendingTimelogs || {})[currentUser.uid] || {};
-        const pendingArr = Object.values(myPendings);
-        const lines = [];
-        lines.push('User: ' + currentUser.email + ' (role: ' + currentUser.role + ')');
-        lines.push('linkedName: ' + (currentUser.linkedName || '—'));
-        lines.push('Active session: ' + (myActive ? (myActive.projectName + ' · in @ ' + myActive.timeIn) : 'none'));
-        lines.push('My pendings: ' + pendingArr.length + ' total · ' + pendingArr.filter(p => p.status === 'pending').length + ' pending · ' + pendingArr.filter(p => p.status === 'rejected').length + ' rejected');
-        el.textContent = lines.join('\n');
+        const arr = Object.values(myPendings).sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+
+        if (countEl) countEl.textContent = arr.length === 0 ? '' : '· ' + arr.length;
+
+        if (arr.length === 0) {
+          body.innerHTML = '<div style="text-align:center;color:var(--text2);padding:24px;font-size:13px;">Sin jornadas pendientes.</div>';
+          return;
+        }
+
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+        html += '<thead><tr style="background:var(--surface2);">';
+        html += '<th style="text-align:left;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">FECHA</th>';
+        html += '<th style="text-align:left;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">PROYECTO</th>';
+        html += '<th style="text-align:center;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">ENTRADA</th>';
+        html += '<th style="text-align:center;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">SALIDA</th>';
+        html += '<th style="text-align:right;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">TOTAL</th>';
+        html += '<th style="text-align:center;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">ESTADO</th>';
+        html += '<th style="text-align:right;padding:8px 10px;font-size:10px;color:var(--text2);font-weight:600;">ACCIONES</th>';
+        html += '</tr></thead><tbody>';
+
+        arr.forEach(p => {
+          const totalMins = (timeToMins(p.timeOut || '00:00') || 0) - (timeToMins(p.timeIn || '00:00') || 0);
+          const totalH = totalMins > 0 ? (totalMins / 60).toFixed(2) : '0.00';
+
+          let badge = '';
+          if (p.autoclosed) {
+            badge = '<span style="background:rgba(184,90,245,0.15);color:#b85af5;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">AUTO-CERRADO</span>';
+          } else if (p.status === 'rejected') {
+            badge = '<span style="background:var(--danger-dim);color:var(--danger);padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">RECHAZADO</span>';
+          } else {
+            badge = '<span style="background:rgba(232,160,74,0.15);color:#e8a04a;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">PENDIENTE</span>';
+          }
+
+          let actions = '';
+          if (p.status === 'pending' && !p.autoclosed) {
+            actions += '<button class="btn btn-ghost btn-sm" onclick="mjOpenEditPendingModal(\'' + _esc(p.id) + '\')" title="Editar" style="padding:4px 8px;">✏️</button> ';
+          }
+          actions += '<button class="btn btn-ghost btn-sm" onclick="mjDeletePending(\'' + _esc(p.id) + '\')" title="Eliminar" style="padding:4px 8px;color:var(--danger);">🗑️</button>';
+
+          html += '<tr style="border-top:1px solid var(--border);">';
+          html += '<td style="padding:10px;font-family:\'DM Mono\',monospace;">' + _esc(p.date || '—') + '</td>';
+          html += '<td style="padding:10px;">' + _esc(p.projectName || '—') + '</td>';
+          html += '<td style="text-align:center;padding:10px;font-family:\'DM Mono\',monospace;">' + _esc(p.timeIn || '—') + '</td>';
+          html += '<td style="text-align:center;padding:10px;font-family:\'DM Mono\',monospace;">' + _esc(p.timeOut || '—') + '</td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;font-weight:600;">' + totalH + 'h</td>';
+          html += '<td style="text-align:center;padding:10px;">' + badge + '</td>';
+          html += '<td style="text-align:right;padding:10px;white-space:nowrap;">' + actions + '</td>';
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        body.innerHTML = html;
+      }
+
+      // Tiny escaper for inline strings (we never use innerHTML on user-controlled fields without this)
+      function _esc(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      // ─── Check-in ───
+      function mjStartShift() {
+        if (!currentUser) return;
+        const sel = document.getElementById('mj_project_select');
+        const projId = sel ? sel.value : '';
+        if (!projId) { alert('Selecciona un proyecto.'); return; }
+
+        // Guard: no double active session
+        if ((state.activeTimelogs || {})[currentUser.uid]) {
+          alert('Ya tienes una jornada activa. Finalízala antes de iniciar otra.');
+          return;
+        }
+
+        const p = state.projects[projId];
+        if (!p) { alert('Proyecto no encontrado.'); return; }
+        if (!Array.isArray(p.workers)) { alert('Proyecto sin equipo asignado.'); return; }
+        const w = p.workers.find(x => x && x.name === currentUser.linkedName);
+        if (!w) { alert('No estás asignado a este proyecto.'); return; }
+
+        const now = new Date();
+        const timeIn = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const date = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+        const active = {
+          uid: currentUser.uid,
+          workerName: currentUser.linkedName,
+          workerRate: parseFloat(w.rate) || 0,
+          projectId: projId,
+          projectName: p.name || '—',
+          date: date,
+          timeIn: timeIn,
+          startedAt: Date.now()
+        };
+
+        db.ref('taskpro/activeTimelogs/' + currentUser.uid).set(active)
+          .then(() => showSyncBanner('🟢 Jornada iniciada en ' + (p.name || ''), 'success'))
+          .catch(err => alert('Error al iniciar: ' + (err.message || err)));
+      }
+
+      // ─── Check-out (open modal) ───
+      function mjOpenCheckoutModal() {
+        if (!currentUser) return;
+        const at = (state.activeTimelogs || {})[currentUser.uid];
+        if (!at) { alert('No hay jornada activa.'); return; }
+
+        const now = new Date();
+        const timeOut = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+        document.getElementById('mjco_proj').textContent = at.projectName || '—';
+        document.getElementById('mjco_date').textContent = at.date || '—';
+        document.getElementById('mjco_in').textContent = at.timeIn || '—';
+        document.getElementById('mjco_out').value = timeOut;
+        document.getElementById('mjco_break').value = '00:00';
+        document.getElementById('mjco_admin').value = '00:00';
+        document.getElementById('mjco_travel').value = '00:00';
+
+        _mjUpdateCheckoutPreview();
+        document.getElementById('mjCheckoutModal').classList.add('open');
+      }
+
+      function _mjUpdateCheckoutPreview() {
+        if (!currentUser) return;
+        const at = (state.activeTimelogs || {})[currentUser.uid];
+        const previewEl = document.getElementById('mjco_preview');
+        if (!at || !previewEl) return;
+
+        const out = document.getElementById('mjco_out').value;
+        const breakH = timeToMins(document.getElementById('mjco_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('mjco_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('mjco_travel').value || '00:00') / 60;
+
+        const startMins = timeToMins(at.timeIn || '00:00');
+        const endMins = timeToMins(out || '00:00');
+
+        if (!out || endMins <= startMins) {
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Hora salida debe ser mayor a entrada (' + (at.timeIn || '—') + ').';
+          return;
+        }
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) {
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Break + Admin (' + (breakH + adminH).toFixed(2) + 'h) > Total (' + totalH.toFixed(2) + 'h). Productiva sería 0.';
+          return;
+        }
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const rate = at.workerRate || 0;
+        const pay = (productiveH + travelH) * rate;
+        previewEl.style.color = '';
+        previewEl.textContent = 'Total: ' + totalH.toFixed(2) + 'h · Productiva: ' + productiveH.toFixed(2) + 'h · Tarifa: $' + rate.toFixed(0) + '/h · Subtotal: $' + pay.toFixed(2);
+      }
+
+      function mjConfirmCheckout() {
+        if (!currentUser) return;
+        const at = (state.activeTimelogs || {})[currentUser.uid];
+        if (!at) { alert('No hay jornada activa.'); return; }
+
+        const out = document.getElementById('mjco_out').value;
+        const breakStr = document.getElementById('mjco_break').value || '00:00';
+        const adminStr = document.getElementById('mjco_admin').value || '00:00';
+        const travelStr = document.getElementById('mjco_travel').value || '00:00';
+
+        if (!out) { alert('Hora salida requerida.'); return; }
+        const startMins = timeToMins(at.timeIn || '00:00');
+        const endMins = timeToMins(out);
+        if (endMins <= startMins) { alert('Hora salida debe ser mayor a entrada.'); return; }
+
+        const breakH = timeToMins(breakStr) / 60;
+        const adminH = timeToMins(adminStr) / 60;
+        const travelH = timeToMins(travelStr) / 60;
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) { alert('Break + Admin no puede superar el total trabajado.'); return; }
+
+        const id = 'pt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        const pending = {
+          id: id,
+          uid: currentUser.uid,
+          workerName: at.workerName || '',
+          workerRate: at.workerRate || 0,
+          projectId: at.projectId || '',
+          projectName: at.projectName || '',
+          date: at.date || '',
+          timeIn: at.timeIn || '',
+          timeOut: out,
+          breakH: breakH,
+          adminH: adminH,
+          travelH: travelH,
+          status: 'pending',
+          submittedAt: Date.now(),
+          autoclosed: false,
+          notifiedAutoclose: false,
+          notifiedReject: false
+        };
+
+        // Write pending FIRST, then remove active. If pending fails, active stays alive (safer than the reverse).
+        db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id).set(pending)
+          .then(() => db.ref('taskpro/activeTimelogs/' + currentUser.uid).remove())
+          .then(() => {
+            closeModal('mjCheckoutModal');
+            showSyncBanner('✅ Jornada enviada para aprobación', 'success');
+          })
+          .catch(err => alert('Error al guardar: ' + (err.message || err)));
+      }
+
+      // ─── Edit pending (worker) ───
+      function mjOpenEditPendingModal(id) {
+        if (!currentUser) return;
+        const p = ((state.pendingTimelogs || {})[currentUser.uid] || {})[id];
+        if (!p) { alert('Pendiente no encontrado.'); return; }
+        if (p.status !== 'pending' || p.autoclosed) { alert('Solo se pueden editar pendientes activos.'); return; }
+
+        document.getElementById('mjep_id').value = id;
+        document.getElementById('mjep_proj').textContent = p.projectName || '—';
+        document.getElementById('mjep_date').textContent = p.date || '—';
+        document.getElementById('mjep_in').value = p.timeIn || '';
+        document.getElementById('mjep_out').value = p.timeOut || '';
+        document.getElementById('mjep_break').value = minsToHHMM(Math.round((parseFloat(p.breakH) || 0) * 60));
+        document.getElementById('mjep_admin').value = minsToHHMM(Math.round((parseFloat(p.adminH) || 0) * 60));
+        document.getElementById('mjep_travel').value = minsToHHMM(Math.round((parseFloat(p.travelH) || 0) * 60));
+
+        _mjUpdateEditPreview();
+        document.getElementById('mjEditPendingModal').classList.add('open');
+      }
+
+      function _mjUpdateEditPreview() {
+        if (!currentUser) return;
+        const id = document.getElementById('mjep_id').value;
+        const p = ((state.pendingTimelogs || {})[currentUser.uid] || {})[id];
+        const previewEl = document.getElementById('mjep_preview');
+        if (!p || !previewEl) return;
+
+        const inS = document.getElementById('mjep_in').value;
+        const outS = document.getElementById('mjep_out').value;
+        const breakH = timeToMins(document.getElementById('mjep_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('mjep_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('mjep_travel').value || '00:00') / 60;
+
+        const startMins = timeToMins(inS || '00:00');
+        const endMins = timeToMins(outS || '00:00');
+
+        if (!inS || !outS || endMins <= startMins) {
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Hora salida debe ser mayor a entrada.';
+          return;
+        }
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) {
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Break + Admin (' + (breakH + adminH).toFixed(2) + 'h) > Total (' + totalH.toFixed(2) + 'h).';
+          return;
+        }
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const rate = parseFloat(p.workerRate) || 0;
+        const pay = (productiveH + travelH) * rate;
+        previewEl.style.color = '';
+        previewEl.textContent = 'Total: ' + totalH.toFixed(2) + 'h · Productiva: ' + productiveH.toFixed(2) + 'h · Tarifa: $' + rate.toFixed(0) + '/h · Subtotal: $' + pay.toFixed(2);
+      }
+
+      function mjSavePendingEdit() {
+        if (!currentUser) return;
+        const id = document.getElementById('mjep_id').value;
+        const p = ((state.pendingTimelogs || {})[currentUser.uid] || {})[id];
+        if (!p) { alert('Pendiente no encontrado.'); return; }
+        if (p.status !== 'pending' || p.autoclosed) { alert('No editable.'); return; }
+
+        const inS = document.getElementById('mjep_in').value;
+        const outS = document.getElementById('mjep_out').value;
+        if (!inS || !outS) { alert('Entrada y salida requeridas.'); return; }
+        const startMins = timeToMins(inS);
+        const endMins = timeToMins(outS);
+        if (endMins <= startMins) { alert('Hora salida debe ser mayor a entrada.'); return; }
+
+        const breakH = timeToMins(document.getElementById('mjep_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('mjep_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('mjep_travel').value || '00:00') / 60;
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) { alert('Break + Admin no puede superar el total trabajado.'); return; }
+
+        const updates = {
+          timeIn: inS,
+          timeOut: outS,
+          breakH: breakH,
+          adminH: adminH,
+          travelH: travelH,
+          editedAt: Date.now()
+        };
+
+        db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id).update(updates)
+          .then(() => {
+            closeModal('mjEditPendingModal');
+            showSyncBanner('✅ Cambios guardados', 'success');
+          })
+          .catch(err => alert('Error al guardar: ' + (err.message || err)));
+      }
+
+      function mjDeletePending(id) {
+        if (!currentUser) return;
+        if (!confirm('¿Eliminar esta jornada? Esta acción no se puede deshacer.')) return;
+        db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id).remove()
+          .then(() => showSyncBanner('🗑️ Jornada eliminada', 'success'))
+          .catch(err => alert('Error: ' + (err.message || err)));
+      }
+
+      // ─── Toast scanner: triggers on listener updates ───
+      function _mjScanForToasts() {
+        if (!currentUser) return;
+        const myPendings = (state.pendingTimelogs || {})[currentUser.uid] || {};
+        Object.entries(myPendings).forEach(([id, p]) => {
+          if (!p) return;
+          // Auto-close notification (V52 will populate the flag, V50 plumbing ready)
+          if (p.autoclosed && !p.notifiedAutoclose && !_mjShownToasts.has('ac:' + id)) {
+            _mjShownToasts.add('ac:' + id);
+            showSyncBanner('⚠️ Tu jornada del ' + (p.date || '—') + ' se cerró automáticamente (>12h sin checkout). Hablá con el Supervisor.', 'warn');
+            db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id + '/notifiedAutoclose').set(true).catch(console.error);
+          }
+          // Reject notification (V51 will set the status, V50 plumbing ready)
+          if (p.status === 'rejected' && !p.notifiedReject && !_mjShownToasts.has('rj:' + id)) {
+            _mjShownToasts.add('rj:' + id);
+            showSyncBanner('❌ Tu jornada del ' + (p.date || '—') + ' fue rechazada. Hablá con el Supervisor.', 'warn');
+            db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id + '/notifiedReject').set(true).catch(console.error);
+          }
+        });
       }
 
       // Diagnostic placeholder — replaced by full UI in V51
@@ -6745,7 +7244,7 @@
         if (id === 'fin-alerts') { setAlertThisMonth(); }
         if (id === 'fin-director-loan') { if (typeof dla !== 'undefined') dla.refresh(); }
         if (id === 'calendar') { renderCalendar(); }
-        if (id === 'mijornada') { renderMiJornadaPlaceholder(); }
+        if (id === 'mijornada') { renderMiJornada(); }
         if (id === 'aprobaciones') { renderAprobacionesPlaceholder(); }
         if (id === 'workers') { populateWorkerBaseDropdown(); }
         if (id === 'equipobase') { renderBaseTeam(); }
