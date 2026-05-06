@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V51</title>
+  <title>TaskPro — Project Control V52</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -4274,6 +4274,12 @@
       function _afterTimelogChange() {
         _updatePendingBadge();
         _mjScanForToasts(); // V50: trigger toast notifications for the worker
+        // V52: auto-close stale sessions (>12h)
+        if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'supervisor')) {
+          _adminAutoCloseScan();
+        } else if (currentUser && currentUser.role === 'operador') {
+          _workerSelfAutoClose();
+        }
         // Re-render placeholders if active (for diagnostic visibility)
         if (document.getElementById('section-mijornada') && document.getElementById('section-mijornada').classList.contains('active')) {
           renderMiJornada();
@@ -5009,6 +5015,110 @@
         db.ref('taskpro/pendingTimelogs/' + uid + '/' + id).remove()
           .then(() => showSyncBanner('🗑️ Entrada eliminada del historial', 'success'))
           .catch(err => alert('Error: ' + (err.message || err)));
+      }
+
+      // ═══════════════════════════════════════════
+      // V52 — AUTO-CLOSE 12h (admin scan + worker self-close)
+      // ═══════════════════════════════════════════
+      const _AUTOCLOSE_LIMIT_MS = 12 * 60 * 60 * 1000; // 12 hours
+      let _autoCloseRunning = false;       // re-entry guard
+      let _autoCloseLastRun = 0;           // throttle: don't re-run within 60s
+
+      // Build a pending entry from a stale active session (timeOut = startedAt + 12h)
+      function _buildAutoClosedPending(uid, active) {
+        const id = 'pt_auto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        const start = active.startedAt || Date.now();
+        const cutoff = new Date(start + _AUTOCLOSE_LIMIT_MS);
+        const cutoffHHMM = String(cutoff.getHours()).padStart(2, '0') + ':' + String(cutoff.getMinutes()).padStart(2, '0');
+        return {
+          id: id,
+          uid: uid,
+          workerName: active.workerName || '',
+          workerRate: active.workerRate || 0,
+          projectId: active.projectId || '',
+          projectName: active.projectName || '',
+          date: active.date || '',
+          timeIn: active.timeIn || '',
+          timeOut: cutoffHHMM,
+          breakH: 0,
+          adminH: 0,
+          travelH: 0,
+          status: 'pending',
+          submittedAt: Date.now(),
+          autoclosed: true,
+          notifiedAutoclose: false,
+          notifiedReject: false
+        };
+      }
+
+      // Atomic move: write pending FIRST, remove active SECOND.
+      // If the second step fails (network drops), worst case is a duplicate pending — never lost data.
+      function _autoCloseSession(uid, active) {
+        const pending = _buildAutoClosedPending(uid, active);
+        return db.ref('taskpro/pendingTimelogs/' + uid + '/' + pending.id).set(pending)
+          .then(() => db.ref('taskpro/activeTimelogs/' + uid).remove())
+          .then(() => ({ uid: uid, ok: true, pending: pending }))
+          .catch(err => ({ uid: uid, ok: false, err: err }));
+      }
+
+      // Admin/supervisor scan: walks state.activeTimelogs, closes anything > 12h
+      // Called from bootApp (after listeners settle) and from showSection('aprobaciones')
+      async function _adminAutoCloseScan() {
+        if (!currentUser) return;
+        if (currentUser.role !== 'admin' && currentUser.role !== 'supervisor') return;
+        if (_autoCloseRunning) return;
+        if (Date.now() - _autoCloseLastRun < 60 * 1000) return; // throttle 60s
+        _autoCloseRunning = true;
+        _autoCloseLastRun = Date.now();
+
+        try {
+          const active = state.activeTimelogs || {};
+          const now = Date.now();
+          const stale = [];
+          Object.entries(active).forEach(([uid, a]) => {
+            if (!a || !a.startedAt) return;
+            if ((now - a.startedAt) > _AUTOCLOSE_LIMIT_MS) {
+              stale.push({ uid: uid, active: a });
+            }
+          });
+          if (stale.length === 0) return;
+
+          const results = await Promise.all(stale.map(s => _autoCloseSession(s.uid, s.active)));
+          const okCount = results.filter(r => r.ok).length;
+          if (okCount > 0) {
+            showSyncBanner('⚠️ ' + okCount + ' jornada(s) auto-cerrada(s) por exceder 12h. Revisá en Aprobaciones.', 'warn');
+          }
+          const failed = results.filter(r => !r.ok);
+          if (failed.length > 0) {
+            console.warn('Auto-close failed for some sessions:', failed);
+          }
+        } finally {
+          _autoCloseRunning = false;
+        }
+      }
+
+      // Worker self-close: when an operador re-opens the app, if their own active session is > 12h, close it.
+      // Operador can write to activeTimelogs/{their uid} and pendingTimelogs/{their uid} per Firebase rules.
+      async function _workerSelfAutoClose() {
+        if (!currentUser || currentUser.role !== 'operador') return;
+        if (_autoCloseRunning) return;
+        const a = (state.activeTimelogs || {})[currentUser.uid];
+        if (!a || !a.startedAt) return;
+        if ((Date.now() - a.startedAt) <= _AUTOCLOSE_LIMIT_MS) return;
+
+        _autoCloseRunning = true;
+        try {
+          const r = await _autoCloseSession(currentUser.uid, a);
+          if (r.ok) {
+            showSyncBanner('⚠️ Tu jornada del ' + (a.date || '—') + ' se cerró automáticamente (>12h sin checkout). Hablá con el Supervisor.', 'warn');
+            // The toast scanner (_mjScanForToasts) will also fire from the listener update — that is fine,
+            // it self-deduplicates via _mjShownToasts and the notifiedAutoclose flag.
+          } else {
+            console.warn('Worker self auto-close failed:', r.err);
+          }
+        } finally {
+          _autoCloseRunning = false;
+        }
       }
 
       // Render all tabs for the current project (called by Firebase listener & loadProject)
@@ -7533,7 +7643,7 @@
         if (id === 'fin-director-loan') { if (typeof dla !== 'undefined') dla.refresh(); }
         if (id === 'calendar') { renderCalendar(); }
         if (id === 'mijornada') { renderMiJornada(); }
-        if (id === 'aprobaciones') { renderAprobaciones(); }
+        if (id === 'aprobaciones') { _adminAutoCloseScan(); renderAprobaciones(); }
         if (id === 'workers') { populateWorkerBaseDropdown(); }
         if (id === 'equipobase') { renderBaseTeam(); }
       }
