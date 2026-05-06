@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V53</title>
+  <title>TaskPro — Project Control V53.1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -3680,23 +3680,7 @@
       // ═══════════════════════════════════════════
       // OPERADOR — auto-select name in timelog
       // ═══════════════════════════════════════════
-      function applyOperadorTimelog() {
-        if (!currentUser || currentUser.role !== 'operador') return;
-        if (!currentUser.linkedName) return;
-        // Find worker matching linked name and pre-select
-        const p = currentProject();
-        if (!p) return;
-        const sel = document.getElementById('tl_person');
-        if (!sel) return;
-        // Find option whose text starts with linkedName
-        for (let i = 0; i < sel.options.length; i++) {
-          if (sel.options[i].text.startsWith(currentUser.linkedName)) {
-            sel.value = sel.options[i].value;
-            sel.dispatchEvent(new Event('change'));
-            break;
-          }
-        }
-      }
+      // V53.1 cleanup: removed applyOperadorTimelog — operador no longer sees Time Log section since V49
 
       // ══════════════════════════════════════
       // EQUIPO BASE — edit functions
@@ -4050,9 +4034,7 @@
           .catch(err => { console.error('saveProject error:', err); showSyncBanner('⚠️ Error guardando. Revisa conexión.', 'warn'); });
       }
 
-      function saveGlobalWorkers() {
-        db.ref('taskpro/globalWorkers').set(state.globalWorkers).catch(console.error);
-      }
+      // V53.1 cleanup: removed saveGlobalWorkers — never called; globalWorkers writes happen inline.
 
       function saveCurrentId(id) {
         db.ref('taskpro/currentId').set(id || null).catch(console.error);
@@ -6333,23 +6315,53 @@
           if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
             sorted = sorted.filter(e => e.personName === currentUser.linkedName);
           }
+          // V53.1: derive companyBreak / breakUnpaid per entry using rule "15min per 4h worked"
+          const enriched = sorted.map(e => {
+            const prodH = parseFloat(e.productiveH) || 0;
+            const adminH = parseFloat(e.adminH) || 0;
+            const breakH = parseFloat(e.breakH) || 0;
+            const travelH = parseFloat(e.travelH) || 0;
+            const workedH = prodH + adminH;
+            const corresponds = Math.floor(workedH / 4) * 0.25;
+            const companyBreakH = Math.min(corresponds, breakH);
+            const breakUnpaidH = Math.max(0, breakH - companyBreakH);
+            return { e, prodH, adminH, breakH, travelH, companyBreakH, breakUnpaidH };
+          });
+          const tProd = enriched.reduce((s, x) => s + x.prodH, 0);
+          const tTravel = enriched.reduce((s, x) => s + x.travelH, 0);
+          const tBreak = enriched.reduce((s, x) => s + x.breakH, 0);
+          const tCompanyBreak = enriched.reduce((s, x) => s + x.companyBreakH, 0);
+          const tBreakUnpaid = enriched.reduce((s, x) => s + x.breakUnpaidH, 0);
+          const tAdmin = enriched.reduce((s, x) => s + x.adminH, 0);
+          const tPay = enriched.reduce((s, x) => s + (x.e.pay || 0), 0);
+
           doc.autoTable({
             startY: y, margin: { left: margin, right: margin },
-            head: [['Fecha', 'Persona', 'Entrada', 'Salida', 'Break', 'Admin', 'Prod (h)', 'Tarifa', 'Subtotal']],
-            body: sorted.map(e => [
-              e.date, e.personName, e.start, e.end,
-              minsToHHMM(Math.round((parseFloat(e.breakH) || 0) * 60)),
-              minsToHHMM(Math.round((parseFloat(e.adminH) || 0) * 60)),
-              (e.productiveH || 0).toFixed(2) + 'h', '$' + (parseFloat(e.rate) || 0).toFixed(0),
-              '$' + (e.pay || 0).toFixed(2)
+            head: [['Fecha', 'Persona', 'Ent', 'Sal', 'Desp.', 'Break', 'B.emp', 'B.no pag', 'Admin', 'Prod', 'Tarifa', 'Subtotal']],
+            body: enriched.map(x => [
+              x.e.date, x.e.personName, x.e.start, x.e.end,
+              minsToHHMM(Math.round(x.travelH * 60)),
+              minsToHHMM(Math.round(x.breakH * 60)),
+              minsToHHMM(Math.round(x.companyBreakH * 60)),
+              minsToHHMM(Math.round(x.breakUnpaidH * 60)),
+              minsToHHMM(Math.round(x.adminH * 60)),
+              x.prodH.toFixed(2) + 'h',
+              '$' + (parseFloat(x.e.rate) || 0).toFixed(0),
+              '$' + (x.e.pay || 0).toFixed(2)
             ]),
-            foot: [['', '', '', '', '', 'TOTAL',
-              sorted.reduce((s, e) => s + (e.productiveH || 0), 0).toFixed(2) + 'h', '',
-              '$' + sorted.reduce((s, e) => s + (e.pay || 0), 0).toFixed(2)]],
-            styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 35, 30] },
-            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 7 },
-            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold' },
+            foot: [['', '', '', '', 'TOTAL',
+              minsToHHMM(Math.round(tBreak * 60)),
+              minsToHHMM(Math.round(tCompanyBreak * 60)),
+              minsToHHMM(Math.round(tBreakUnpaid * 60)),
+              minsToHHMM(Math.round(tAdmin * 60)),
+              tProd.toFixed(2) + 'h',
+              '',
+              '$' + tPay.toFixed(2)]],
+            styles: { fontSize: 6.5, cellPadding: 1.8, textColor: [30, 35, 30], overflow: 'linebreak' },
+            headStyles: { fillColor: SURFACE, textColor: TEXT, fontStyle: 'bold', fontSize: 6 },
+            footStyles: { fillColor: [220, 250, 180], textColor: DARK, fontStyle: 'bold', fontSize: 6.5 },
             alternateRowStyles: { fillColor: [245, 250, 242] },
+            columnStyles: { 1: { cellWidth: 26 }, 11: { halign: 'right', fontStyle: 'bold' } }
           });
           y = doc.lastAutoTable.finalY + 8;
         }
@@ -6731,12 +6743,7 @@
       // ─── Company break rule ───
       // For every 4h of (prod+admin) → 15 min break paid by TaskPro
       // Paid = min(what_corresponds, what_was_actually_taken)
-      function calcCompanyBreak(prodH, adminH, actualBreakH) {
-        // Used for single-entry calculations (pricing preview, etc.)
-        const workedH = prodH + adminH;
-        const correspondsH = Math.floor(workedH / 4) * (15 / 60);
-        return Math.min(correspondsH, actualBreakH);
-      }
+      // V53.1 cleanup: helper calcCompanyBreak() removed — logic lives inline in buildPayData step 2.
 
       // Pay = (prodH + adminH + companyBreakH) * rate
       function buildPayData(from, to) {
@@ -6974,8 +6981,7 @@
     </tr>`;
       }
 
-      // No longer used — break is auto-calculated by company rule
-      function onBreakPctChange() { /* replaced by calcCompanyBreak rule */ }
+      // V53.1 cleanup: removed two duplicate stubs of onBreakPctChange (no-ops).
 
       function renderPagoDetalle(personName, prebuiltData) {
         // V53 — defensive guard: operador can only see their own data
@@ -7212,7 +7218,7 @@
             const today = new Date();
             const issueDate = today.toISOString().slice(0, 10);
             const dueDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-            const periodLabel = (from || 'inicio') + ' → ' + (to || 'hoy');
+            const periodLabel = (from || 'inicio') + ' to ' + (to || 'hoy');
 
             // Header — green band
             doc.setFillColor(...GREEN);
@@ -7236,24 +7242,29 @@
             doc.text('ABN: ' + (abn || 'N/A'), pageW - margin, 24, { align: 'right' });
             doc.text('Not registered for GST', pageW - margin, 29, { align: 'right' });
 
-            // Invoice meta box
+            // Invoice meta box — 2 rows for breathing room (V53.1 fix: period was truncated)
             let y = 48;
             doc.setFillColor(245, 247, 250);
             doc.rect(margin, y, pageW - 2 * margin, 30, 'F');
             doc.setTextColor(...DARK);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
+            // Row 1: 3 columns evenly spaced
             doc.text('INVOICE NO.', margin + 4, y + 6);
-            doc.text('ISSUE DATE', margin + 55, y + 6);
-            doc.text('DUE DATE', margin + 105, y + 6);
-            doc.text('PERIOD', margin + 150, y + 6);
+            doc.text('ISSUE DATE', margin + 65, y + 6);
+            doc.text('DUE DATE', margin + 125, y + 6);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(10);
-            doc.text(invoiceNum, margin + 4, y + 14);
-            doc.text(issueDate, margin + 55, y + 14);
-            doc.text(dueDate, margin + 105, y + 14);
-            doc.setFontSize(8);
-            doc.text(periodLabel, margin + 150, y + 14);
+            doc.text(invoiceNum, margin + 4, y + 13);
+            doc.text(issueDate, margin + 65, y + 13);
+            doc.text(dueDate, margin + 125, y + 13);
+            // Row 2: PERIOD on its own line, full width available
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text('PERIOD', margin + 4, y + 21);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(periodLabel, margin + 4, y + 27);
 
             // Bill to (TaskPro)
             y = 90;
@@ -7330,7 +7341,7 @@
             doc.setFont('helvetica', 'italic');
             doc.text('Generated by TaskPro Project Control · ' + new Date().toLocaleString('es-AU'), pageW / 2, pageH - 14, { align: 'center' });
 
-            // Save invoice record to Firebase for tracking
+            // Save invoice record to Firebase for tracking (V53.1: include createdByUid for audit + rules)
             const invRecord = {
               id: 'inv_' + Date.now(),
               number: invoiceNum,
@@ -7345,7 +7356,8 @@
               status: 'unpaid',
               statusManual: false,
               projectId: '',
-              createdAt: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              createdByUid: currentUser ? currentUser.uid : ''
             };
             try {
               await db.ref('taskpro/finance/invoices/' + invRecord.id).set(invRecord);
@@ -8326,10 +8338,7 @@
         const pl = document.getElementById('inc_proyecto_list');
         if (pl) pl.innerHTML = Array.from(projects).map(p => '<option value="' + p + '">').join('');
 
-        // Tipo (B2B/B2C and custom types from param list)
-        const tipos = getParamList('tipos');
-        const tl = document.getElementById('inc_tipo_list');
-        if (tl) tl.innerHTML = tipos.map(t => '<option value="' + t + '">').join('');
+        // V53.1 cleanup: removed dead reference to inc_tipo_list datalist (id never declared in HTML).
 
         // Metodo as <select>
         const metodos = getParamList('metodos');
@@ -9991,13 +10000,9 @@
 
       function invalidatePLCache() { _plCacheVersion++; }
 
-      function calcPLCached(monthKey) {
-        const cacheKey = monthKey + '_v' + _plCacheVersion;
-        if (_plCache[cacheKey]) return _plCache[cacheKey];
-        const result = calcPL(monthKey);
-        _plCache[cacheKey] = result;
-        return result;
-      }
+      // V53.1 cleanup: removed calcPLCached (never called). The cache infrastructure
+      // (_plCache, _plCacheVersion, invalidatePLCache) is kept intact as invalidatePLCache
+      // is still called from other places — leaving it as a harmless no-op preserves call sites.
 
       // ═══════════════════════════════════════════
       // PERFORMANCE: Debounced Firebase listeners
@@ -10651,10 +10656,8 @@
       // ═══════════════════════════════════════════
       // INVOICE BUTTON WRAPPERS
       // ═══════════════════════════════════════════
-      function projBtnInvoice(btn) {
-        const pid = btn.getAttribute('data-pid');
-        getNextInvoiceNumber(invNum => generateInvoicePDF(pid, invNum));
-      }
+      // (V53.1 cleanup: removed duplicate projBtnInvoice that called non-existent generateInvoicePDF.
+      //  The active definition lives further down and uses openSendInvoiceModal.)
 
       function projBtnSendInvoice(btn) {
         const pid = btn.getAttribute('data-pid');
