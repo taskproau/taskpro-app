@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V47</title>
+  <title>TaskPro — Project Control V49</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1756,6 +1756,13 @@
         <div class="nav-item" onclick="showSection('calendar')" id="nav-calendar">
           <span class="nav-icon">🗓️</span> Calendario
         </div>
+        <div class="nav-item" onclick="showSection('mijornada')" id="nav-mijornada">
+          <span class="nav-icon">🟢</span> Mi Jornada
+        </div>
+        <div class="nav-item" onclick="showSection('aprobaciones')" id="nav-aprobaciones">
+          <span class="nav-icon">📋</span> Aprobaciones
+          <span id="nav-aprobaciones-badge" style="margin-left:auto;background:var(--danger);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;display:none;line-height:1.2;">0</span>
+        </div>
         <div class="nav-item" onclick="showSection('equipobase')" id="nav-equipobase" style="display:none;">
           <span class="nav-icon">🏗️</span> Equipo Base
         </div>
@@ -2931,6 +2938,32 @@
           </div>
         </div>
 
+        <!-- ══════════ SECTION: MI JORNADA (V49 placeholder — UI en V50) ══════════ -->
+        <div class="section" id="section-mijornada">
+          <div class="section-title">🟢 Mi Jornada</div>
+          <div class="section-subtitle">Registra tu entrada y salida del día. La UI completa llega en V50.</div>
+          <div class="card" id="mj_root" style="padding:20px;">
+            <div style="color:var(--text2);font-size:13px;line-height:1.6;">
+              <strong style="color:var(--text);">Plumbing V49 listo.</strong><br>
+              Listeners de <code>activeTimelogs</code> y <code>pendingTimelogs</code> activos. Estructura Firebase preparada. La interfaz de check-in/check-out se construye en V50.
+            </div>
+            <div id="mj_diag" style="margin-top:14px;padding:10px;background:var(--surface2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);"></div>
+          </div>
+        </div>
+
+        <!-- ══════════ SECTION: APROBACIONES (V49 placeholder — UI en V51) ══════════ -->
+        <div class="section" id="section-aprobaciones">
+          <div class="section-title">📋 Aprobaciones</div>
+          <div class="section-subtitle">Revisa y aprueba las jornadas registradas por el equipo. La UI completa llega en V51.</div>
+          <div class="card" id="ap_root" style="padding:20px;">
+            <div style="color:var(--text2);font-size:13px;line-height:1.6;">
+              <strong style="color:var(--text);">Plumbing V49 listo.</strong><br>
+              Listeners activos. Contador de pendientes funcional en sidebar. La interfaz de aprobación se construye en V51.
+            </div>
+            <div id="ap_diag" style="margin-top:14px;padding:10px;background:var(--surface2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);"></div>
+          </div>
+        </div>
+
       </main>
     </div>
 
@@ -3227,15 +3260,15 @@
       // Role permissions
       const ROLE_PERMS = {
         admin: {
-          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'],
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'mijornada', 'aprobaciones', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'],
           canDelete: true, canEdit: true
         },
         supervisor: {
-          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'quote'],
+          nav: ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'mijornada', 'aprobaciones', 'quote'],
           canDelete: false, canEdit: true
         },
         operador: {
-          nav: ['timelog', 'calendar'],
+          nav: ['mijornada', 'calendar'],
           canDelete: false, canEdit: false
         }
       };
@@ -3255,7 +3288,7 @@
         const perms = getRolePerms();
 
         // Show/hide nav items
-        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'].forEach(id => {
+        ['timelog', 'materials', 'workers', 'pricing', 'summary', 'calendar', 'mijornada', 'aprobaciones', 'equipobase', 'tiempos', 'pagos', 'quote', 'projects', 'users', 'fin-setup', 'fin-projects', 'fin-income', 'fin-expenses', 'fin-clients', 'fin-invoices', 'fin-summary', 'fin-kpi', 'fin-alerts', 'fin-director-loan'].forEach(id => {
           const el = document.getElementById('nav-' + id);
           if (el) el.style.display = perms.nav.includes(id) ? '' : 'none';
         });
@@ -3868,7 +3901,9 @@
         projects: {},
         currentId: null,
         globalWorkers: [],
-        externalAdmin: []   // [{id, date, person, desc, timeHHMM}]
+        externalAdmin: [],   // [{id, date, person, desc, timeHHMM}]
+        activeTimelogs: {},  // V49: {uid: {workerName, projectId, projectName, date, timeIn, startedAt, workerRate}}
+        pendingTimelogs: {}  // V49: {uid: {id: {...pending entry...}}}
       };
 
       function currentProject() {
@@ -4067,6 +4102,126 @@
           _currentIdLoaded = true;
           _maybeFirstRender();
         });
+
+        // ═══════════════════════════════════════════
+        // V49 — TIMELOG CHECK-IN/OUT LISTENERS (role-scoped)
+        // ═══════════════════════════════════════════
+        // Admin/supervisor: listen to root (sees everyone's active + pending).
+        // Operador: listen to own UID only (Firebase rules enforce isolation).
+        const _isAdminSup = currentUser && (currentUser.role === 'admin' || currentUser.role === 'supervisor');
+
+        // Listener 5: activeTimelogs
+        if (_isAdminSup) {
+          db.ref('taskpro/activeTimelogs').on('value', snap => {
+            state.activeTimelogs = snap.val() || {};
+            _afterTimelogChange();
+          }, _firebaseErr('activeTimelogs'));
+        } else if (currentUser) {
+          db.ref('taskpro/activeTimelogs/' + currentUser.uid).on('value', snap => {
+            state.activeTimelogs = {};
+            const v = snap.val();
+            if (v) state.activeTimelogs[currentUser.uid] = v;
+            _afterTimelogChange();
+          }, _firebaseErr('activeTimelogs/self'));
+        }
+
+        // Listener 6: pendingTimelogs
+        if (_isAdminSup) {
+          db.ref('taskpro/pendingTimelogs').on('value', snap => {
+            state.pendingTimelogs = snap.val() || {};
+            _afterTimelogChange();
+          }, _firebaseErr('pendingTimelogs'));
+        } else if (currentUser) {
+          db.ref('taskpro/pendingTimelogs/' + currentUser.uid).on('value', snap => {
+            state.pendingTimelogs = {};
+            const v = snap.val();
+            if (v) state.pendingTimelogs[currentUser.uid] = v;
+            _afterTimelogChange();
+          }, _firebaseErr('pendingTimelogs/self'));
+        }
+      }
+
+      // ═══════════════════════════════════════════
+      // V49 — TIMELOG HELPERS (used by V50/V51 UI)
+      // ═══════════════════════════════════════════
+      function _afterTimelogChange() {
+        _updatePendingBadge();
+        // Re-render placeholders if active (for diagnostic visibility)
+        if (document.getElementById('section-mijornada') && document.getElementById('section-mijornada').classList.contains('active')) {
+          renderMiJornadaPlaceholder();
+        }
+        if (document.getElementById('section-aprobaciones') && document.getElementById('section-aprobaciones').classList.contains('active')) {
+          renderAprobacionesPlaceholder();
+        }
+      }
+
+      // Count pending entries with status==='pending' (NOT rejected) across all uids
+      function _pendingCountForBadge() {
+        let n = 0;
+        const tree = state.pendingTimelogs || {};
+        Object.keys(tree).forEach(uid => {
+          const byId = tree[uid] || {};
+          Object.keys(byId).forEach(id => {
+            const e = byId[id];
+            if (e && e.status === 'pending') n++;
+          });
+        });
+        return n;
+      }
+
+      // Update the red badge on the "Aprobaciones" nav-item (admin/supervisor only)
+      function _updatePendingBadge() {
+        const badge = document.getElementById('nav-aprobaciones-badge');
+        if (!badge) return;
+        if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'supervisor')) {
+          badge.style.display = 'none';
+          return;
+        }
+        const n = _pendingCountForBadge();
+        if (n > 0) {
+          badge.textContent = String(n);
+          badge.style.display = '';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+
+      // Diagnostic placeholder — replaced by full UI in V50
+      function renderMiJornadaPlaceholder() {
+        const el = document.getElementById('mj_diag');
+        if (!el || !currentUser) return;
+        const myActive = (state.activeTimelogs || {})[currentUser.uid];
+        const myPendings = (state.pendingTimelogs || {})[currentUser.uid] || {};
+        const pendingArr = Object.values(myPendings);
+        const lines = [];
+        lines.push('User: ' + currentUser.email + ' (role: ' + currentUser.role + ')');
+        lines.push('linkedName: ' + (currentUser.linkedName || '—'));
+        lines.push('Active session: ' + (myActive ? (myActive.projectName + ' · in @ ' + myActive.timeIn) : 'none'));
+        lines.push('My pendings: ' + pendingArr.length + ' total · ' + pendingArr.filter(p => p.status === 'pending').length + ' pending · ' + pendingArr.filter(p => p.status === 'rejected').length + ' rejected');
+        el.textContent = lines.join('\n');
+      }
+
+      // Diagnostic placeholder — replaced by full UI in V51
+      function renderAprobacionesPlaceholder() {
+        const el = document.getElementById('ap_diag');
+        if (!el) return;
+        const tree = state.pendingTimelogs || {};
+        const active = state.activeTimelogs || {};
+        let totalPending = 0, totalRejected = 0, totalAutoclosed = 0;
+        Object.keys(tree).forEach(uid => {
+          const byId = tree[uid] || {};
+          Object.values(byId).forEach(e => {
+            if (e.status === 'pending') totalPending++;
+            if (e.status === 'rejected') totalRejected++;
+            if (e.autoclosed) totalAutoclosed++;
+          });
+        });
+        const lines = [];
+        lines.push('Pending count: ' + totalPending);
+        lines.push('Rejected count: ' + totalRejected);
+        lines.push('Auto-closed entries: ' + totalAutoclosed);
+        lines.push('Currently active sessions: ' + Object.keys(active).length);
+        el.textContent = lines.join('\n');
       }
 
       // Render all tabs for the current project (called by Firebase listener & loadProject)
@@ -6590,6 +6745,8 @@
         if (id === 'fin-alerts') { setAlertThisMonth(); }
         if (id === 'fin-director-loan') { if (typeof dla !== 'undefined') dla.refresh(); }
         if (id === 'calendar') { renderCalendar(); }
+        if (id === 'mijornada') { renderMiJornadaPlaceholder(); }
+        if (id === 'aprobaciones') { renderAprobacionesPlaceholder(); }
         if (id === 'workers') { populateWorkerBaseDropdown(); }
         if (id === 'equipobase') { renderBaseTeam(); }
       }
