@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V50</title>
+  <title>TaskPro — Project Control V51</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1392,6 +1392,29 @@
       grid-template-columns: repeat(7, 1fr);
       gap: 4px;
     }
+
+    /* V51 — Aprobaciones tabs */
+    .apr-tab {
+      flex: 1;
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .apr-tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+    .apr-tab-active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: rgba(184,245,90,0.04);
+    }
+    .apr-row-auto { border-left: 3px solid #b85af5 !important; }
+    .apr-row-rejected { opacity: 0.7; }
 
     .cal-cell {
       background: rgba(255, 255, 255, 0.02);
@@ -2958,16 +2981,32 @@
           </div>
         </div>
 
-        <!-- ══════════ SECTION: APROBACIONES (V49 placeholder — UI en V51) ══════════ -->
+        <!-- ══════════ SECTION: APROBACIONES (V51) ══════════ -->
         <div class="section" id="section-aprobaciones">
           <div class="section-title">📋 Aprobaciones</div>
-          <div class="section-subtitle">Revisa y aprueba las jornadas registradas por el equipo. La UI completa llega en V51.</div>
-          <div class="card" id="ap_root" style="padding:20px;">
-            <div style="color:var(--text2);font-size:13px;line-height:1.6;">
-              <strong style="color:var(--text);">Plumbing V49 listo.</strong><br>
-              Listeners activos. Contador de pendientes funcional en sidebar. La interfaz de aprobación se construye en V51.
+          <div class="section-subtitle">Revisa y aprueba las jornadas registradas por el equipo. Las aprobadas pasan al Time Log del proyecto.</div>
+
+          <div class="card" style="padding:0;overflow:hidden;">
+            <!-- Tabs Pendientes / Rechazados -->
+            <div style="display:flex;border-bottom:1px solid var(--border);">
+              <button id="apr_tab_pending" class="apr-tab apr-tab-active" onclick="aprSwitchTab('pending')">
+                Pendientes <span id="apr_count_pending" style="font-size:10px;color:#e8a04a;font-weight:700;margin-left:4px;">(0)</span>
+              </button>
+              <button id="apr_tab_rejected" class="apr-tab" onclick="aprSwitchTab('rejected')">
+                Rechazados <span id="apr_count_rejected" style="font-size:10px;color:var(--danger);font-weight:700;margin-left:4px;">(0)</span>
+              </button>
             </div>
-            <div id="ap_diag" style="margin-top:14px;padding:10px;background:var(--surface2);border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);"></div>
+
+            <!-- Sesiones activas (info, solo en tab Pendientes y solo si hay alguna) -->
+            <div id="apr_active_card" style="padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(184,245,90,0.04);display:none;">
+              <div style="font-size:12px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--accent);">
+                🟢 Sesiones activas en este momento <span id="apr_active_count" style="font-size:10px;color:var(--text2);font-weight:400;"></span>
+              </div>
+              <div id="apr_active_body" style="overflow-x:auto;font-size:12px;"></div>
+            </div>
+
+            <!-- Tabla principal -->
+            <div id="apr_table_body" style="overflow-x:auto;"></div>
           </div>
         </div>
 
@@ -4240,7 +4279,7 @@
           renderMiJornada();
         }
         if (document.getElementById('section-aprobaciones') && document.getElementById('section-aprobaciones').classList.contains('active')) {
-          renderAprobacionesPlaceholder();
+          renderAprobaciones();
         }
       }
 
@@ -4700,27 +4739,276 @@
         });
       }
 
-      // Diagnostic placeholder — replaced by full UI in V51
-      function renderAprobacionesPlaceholder() {
-        const el = document.getElementById('ap_diag');
-        if (!el) return;
+      // ═══════════════════════════════════════════
+      // V51 — APROBACIONES UI (admin/supervisor)
+      // ═══════════════════════════════════════════
+      let _aprCurrentTab = 'pending'; // 'pending' | 'rejected'
+
+      // Flatten state.pendingTimelogs -> [{uid, id, ...entry}]
+      function _aprAllPendings() {
+        const out = [];
         const tree = state.pendingTimelogs || {};
-        const active = state.activeTimelogs || {};
-        let totalPending = 0, totalRejected = 0, totalAutoclosed = 0;
         Object.keys(tree).forEach(uid => {
           const byId = tree[uid] || {};
-          Object.values(byId).forEach(e => {
-            if (e.status === 'pending') totalPending++;
-            if (e.status === 'rejected') totalRejected++;
-            if (e.autoclosed) totalAutoclosed++;
+          Object.keys(byId).forEach(id => {
+            const e = byId[id];
+            if (e) out.push(Object.assign({ _uid: uid, _id: id }, e));
           });
         });
-        const lines = [];
-        lines.push('Pending count: ' + totalPending);
-        lines.push('Rejected count: ' + totalRejected);
-        lines.push('Auto-closed entries: ' + totalAutoclosed);
-        lines.push('Currently active sessions: ' + Object.keys(active).length);
-        el.textContent = lines.join('\n');
+        return out;
+      }
+
+      // Compute totalH/productiveH/pay from a pending entry (mirror of addTimeEntry math)
+      function _aprCalcEntry(p) {
+        const startMins = timeToMins(p.timeIn || '00:00');
+        const endMins = timeToMins(p.timeOut || '00:00');
+        const totalH = endMins > startMins ? (endMins - startMins) / 60 : 0;
+        const breakH = parseFloat(p.breakH) || 0;
+        const adminH = parseFloat(p.adminH) || 0;
+        const travelH = parseFloat(p.travelH) || 0;
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const rate = parseFloat(p.workerRate) || 0;
+        const pay = (productiveH + travelH) * rate;
+        return { totalH, productiveH, pay, rate, breakH, adminH, travelH };
+      }
+
+      // Switch between Pendientes / Rechazados tabs
+      function aprSwitchTab(tab) {
+        _aprCurrentTab = (tab === 'rejected') ? 'rejected' : 'pending';
+        const tp = document.getElementById('apr_tab_pending');
+        const tr = document.getElementById('apr_tab_rejected');
+        if (tp) tp.classList.toggle('apr-tab-active', _aprCurrentTab === 'pending');
+        if (tr) tr.classList.toggle('apr-tab-active', _aprCurrentTab === 'rejected');
+        renderAprobaciones();
+      }
+
+      // Main render
+      function renderAprobaciones() {
+        aprUpdateCounts();
+        aprRenderActiveSessions();
+        aprRenderTable();
+      }
+
+      function aprUpdateCounts() {
+        const all = _aprAllPendings();
+        const nP = all.filter(p => p.status === 'pending').length;
+        const nR = all.filter(p => p.status === 'rejected').length;
+        const ep = document.getElementById('apr_count_pending');
+        const er = document.getElementById('apr_count_rejected');
+        if (ep) ep.textContent = '(' + nP + ')';
+        if (er) er.textContent = '(' + nR + ')';
+      }
+
+      // Show active sessions info card (only on Pendientes tab, only if any active)
+      function aprRenderActiveSessions() {
+        const card = document.getElementById('apr_active_card');
+        const body = document.getElementById('apr_active_body');
+        const count = document.getElementById('apr_active_count');
+        if (!card || !body) return;
+
+        if (_aprCurrentTab !== 'pending') {
+          card.style.display = 'none';
+          return;
+        }
+
+        const active = state.activeTimelogs || {};
+        const entries = Object.entries(active);
+        if (entries.length === 0) {
+          card.style.display = 'none';
+          return;
+        }
+
+        card.style.display = '';
+        if (count) count.textContent = '· ' + entries.length;
+
+        let html = '<table style="width:100%;border-collapse:collapse;">';
+        entries.forEach(([uid, a]) => {
+          const elapsedMs = a.startedAt ? Date.now() - a.startedAt : 0;
+          const elapsedH = (elapsedMs / 3600000).toFixed(2);
+          const stale = elapsedMs > 12 * 3600 * 1000;
+          html += '<tr style="border-top:1px solid var(--border);">';
+          html += '<td style="padding:6px 8px;">' + _esc(a.workerName || '—') + '</td>';
+          html += '<td style="padding:6px 8px;color:var(--text2);">' + _esc(a.projectName || '—') + '</td>';
+          html += '<td style="padding:6px 8px;font-family:\'DM Mono\',monospace;color:var(--text2);">desde ' + _esc(a.timeIn || '—') + '</td>';
+          html += '<td style="padding:6px 8px;text-align:right;font-family:\'DM Mono\',monospace;' + (stale ? 'color:var(--danger);font-weight:700;' : 'color:var(--accent);') + '">' + elapsedH + 'h' + (stale ? ' ⚠' : '') + '</td>';
+          html += '</tr>';
+        });
+        html += '</table>';
+        body.innerHTML = html;
+      }
+
+      // Render main table (pending or rejected based on _aprCurrentTab)
+      function aprRenderTable() {
+        const body = document.getElementById('apr_table_body');
+        if (!body) return;
+
+        const all = _aprAllPendings();
+        const filtered = all.filter(p => p.status === _aprCurrentTab);
+        // Most recent first
+        filtered.sort((a, b) => (b.submittedAt || 0) - (a.submittedAt || 0));
+
+        if (filtered.length === 0) {
+          const msg = _aprCurrentTab === 'pending'
+            ? 'Sin jornadas pendientes de aprobación.'
+            : 'Sin jornadas rechazadas.';
+          body.innerHTML = '<div style="text-align:center;color:var(--text2);padding:40px 20px;font-size:13px;">' + msg + '</div>';
+          return;
+        }
+
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+        html += '<thead><tr style="background:var(--surface2);">';
+        html += '<th style="text-align:left;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">WORKER</th>';
+        html += '<th style="text-align:left;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">PROYECTO</th>';
+        html += '<th style="text-align:center;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">FECHA</th>';
+        html += '<th style="text-align:center;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">ENT/SAL</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">TOTAL</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">PROD</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">TARIFA</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">SUBTOTAL</th>';
+        html += '<th style="text-align:center;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">ESTADO</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">ACCIONES</th>';
+        html += '</tr></thead><tbody>';
+
+        filtered.forEach(p => {
+          const c = _aprCalcEntry(p);
+          const projExists = !!state.projects[p.projectId];
+
+          let badge = '';
+          if (p.autoclosed) {
+            badge = '<span style="background:rgba(184,90,245,0.15);color:#b85af5;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">AUTO-CERRADO</span>';
+          } else if (p.status === 'rejected') {
+            badge = '<span style="background:var(--danger-dim);color:var(--danger);padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">RECHAZADO</span>';
+          } else {
+            badge = '<span style="background:rgba(232,160,74,0.15);color:#e8a04a;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;">PENDIENTE</span>';
+          }
+
+          let actions = '';
+          if (p.status === 'pending') {
+            const approveDisabled = !projExists ? ' disabled title="Proyecto eliminado, no se puede aprobar"' : '';
+            actions += '<button class="btn btn-sm" style="background:var(--accent);color:#000;font-weight:700;padding:5px 10px;margin-right:6px;"' + approveDisabled + ' onclick="aprApprove(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')">✓ Aprobar</button>';
+            actions += '<button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:5px 10px;" onclick="aprReject(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')">✕ Rechazar</button>';
+          } else if (p.status === 'rejected') {
+            actions += '<button class="btn btn-ghost btn-sm" style="color:var(--text2);padding:5px 10px;" onclick="aprDeleteRejected(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')">🗑️ Borrar</button>';
+          }
+
+          const rowClass = p.autoclosed ? 'apr-row-auto' : (p.status === 'rejected' ? 'apr-row-rejected' : '');
+          const projWarn = !projExists ? ' <span style="font-size:10px;color:var(--danger);">⚠ proyecto eliminado</span>' : '';
+
+          html += '<tr class="' + rowClass + '" style="border-top:1px solid var(--border);">';
+          html += '<td style="padding:10px;font-weight:600;">' + _esc(p.workerName || '—') + '</td>';
+          html += '<td style="padding:10px;color:var(--text2);">' + _esc(p.projectName || '—') + projWarn + '</td>';
+          html += '<td style="text-align:center;padding:10px;font-family:\'DM Mono\',monospace;">' + _esc(p.date || '—') + '</td>';
+          html += '<td style="text-align:center;padding:10px;font-family:\'DM Mono\',monospace;font-size:11px;">' + _esc(p.timeIn || '—') + '<br><span style="color:var(--text2);">' + _esc(p.timeOut || '—') + '</span></td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;">' + c.totalH.toFixed(2) + 'h</td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;color:var(--accent);font-weight:600;">' + c.productiveH.toFixed(2) + 'h</td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;color:var(--text2);">$' + c.rate.toFixed(0) + '</td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;font-weight:700;">$' + c.pay.toFixed(2) + '</td>';
+          html += '<td style="text-align:center;padding:10px;">' + badge + '</td>';
+          html += '<td style="text-align:right;padding:10px;white-space:nowrap;">' + actions + '</td>';
+          html += '</tr>';
+
+          // Sub-row for rejected: show who/when
+          if (p.status === 'rejected' && (p.rejectedAt || p.rejectedBy)) {
+            const when = p.rejectedAt ? new Date(p.rejectedAt).toLocaleString() : '—';
+            const by = p.rejectedBy || '—';
+            html += '<tr class="apr-row-rejected"><td colspan="10" style="padding:6px 14px 12px 14px;font-size:10px;color:var(--text2);font-style:italic;">Rechazada el ' + _esc(when) + ' (uid: ' + _esc(by) + ')</td></tr>';
+          }
+        });
+        html += '</tbody></table>';
+        body.innerHTML = html;
+      }
+
+      // ─── Approve: convert pending → projects/{pid}/timelog[] entry ───
+      function aprApprove(uid, id) {
+        const p = ((state.pendingTimelogs || {})[uid] || {})[id];
+        if (!p) { alert('Pendiente no encontrado.'); return; }
+        if (p.status !== 'pending') { alert('Solo pendientes activos pueden aprobarse.'); return; }
+
+        const proj = state.projects[p.projectId];
+        if (!proj) { alert('El proyecto ya no existe. No se puede aprobar.'); return; }
+
+        const c = _aprCalcEntry(p);
+        if (c.totalH <= 0) { alert('Datos inválidos: total horas <= 0.'); return; }
+        if (c.breakH + c.adminH > c.totalH) {
+          if (!confirm('⚠️ Break + Admin (' + (c.breakH + c.adminH).toFixed(2) + 'h) > Total (' + c.totalH.toFixed(2) + 'h). Productiva sería 0. ¿Aprobar de todos modos?')) return;
+        }
+
+        const isAuto = !!p.autoclosed;
+        const confirmMsg = '¿Aprobar la jornada de ' + (p.workerName || 'worker') + ' del ' + (p.date || '—') + '?\n\n'
+          + 'Total: ' + c.totalH.toFixed(2) + 'h · Productiva: ' + c.productiveH.toFixed(2) + 'h · Subtotal: $' + c.pay.toFixed(2)
+          + (isAuto ? '\n\n⚠ Esta jornada fue auto-cerrada por exceder 12h. Verifica los datos antes de aprobar.' : '');
+        if (!confirm(confirmMsg)) return;
+
+        // Match worker.id from current project (by name); fallback to synthetic id if no longer assigned
+        let personId = '';
+        if (Array.isArray(proj.workers)) {
+          const w = proj.workers.find(x => x && x.name === p.workerName);
+          if (w) personId = w.id || '';
+        }
+        if (!personId) personId = 'legacy_' + (id || Date.now());
+
+        const entry = {
+          id: 'tl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          date: p.date || '',
+          personId: personId,
+          personName: p.workerName || '—',
+          rate: c.rate,
+          start: p.timeIn || '',
+          end: p.timeOut || '',
+          breakH: c.breakH,
+          adminH: c.adminH,
+          travelH: c.travelH,
+          totalH: c.totalH,
+          productiveH: c.productiveH,
+          pay: c.pay
+        };
+
+        // Read current timelog fresh from the project state, append, write only the timelog subnode
+        const newTimelog = (Array.isArray(proj.timelog) ? proj.timelog.slice() : []).concat([entry]);
+
+        db.ref('taskpro/projects/' + p.projectId + '/timelog').set(newTimelog)
+          .then(() => db.ref('taskpro/pendingTimelogs/' + uid + '/' + id).remove())
+          .then(() => {
+            showSyncBanner('✅ Jornada aprobada y agregada al Time Log', 'success');
+            // If user is currently viewing that project, refresh visible sections
+            if (state.currentId === p.projectId) {
+              if (typeof renderTimeLog === 'function') renderTimeLog();
+              if (typeof renderPricing === 'function') renderPricing();
+              if (typeof renderSummary === 'function') renderSummary();
+            }
+          })
+          .catch(err => alert('Error al aprobar: ' + (err.message || err)));
+      }
+
+      // ─── Reject: mark status='rejected', do NOT delete (worker needs to see + get toast) ───
+      function aprReject(uid, id) {
+        const p = ((state.pendingTimelogs || {})[uid] || {})[id];
+        if (!p) { alert('Pendiente no encontrado.'); return; }
+        if (p.status !== 'pending') { alert('Solo pendientes activos pueden rechazarse.'); return; }
+
+        if (!confirm('¿Rechazar la jornada de ' + (p.workerName || 'worker') + ' del ' + (p.date || '—') + '?\n\nEl worker recibirá una notificación al volver a entrar.')) return;
+
+        const updates = {
+          status: 'rejected',
+          rejectedAt: Date.now(),
+          rejectedBy: currentUser ? currentUser.uid : '',
+          notifiedReject: false
+        };
+
+        db.ref('taskpro/pendingTimelogs/' + uid + '/' + id).update(updates)
+          .then(() => showSyncBanner('❌ Jornada rechazada — el worker será notificado', 'success'))
+          .catch(err => alert('Error: ' + (err.message || err)));
+      }
+
+      // ─── Permanently delete a rejected entry from history (admin housekeeping) ───
+      function aprDeleteRejected(uid, id) {
+        const p = ((state.pendingTimelogs || {})[uid] || {})[id];
+        if (!p) return;
+        if (p.status !== 'rejected') { alert('Solo se pueden borrar entradas ya rechazadas.'); return; }
+        if (!confirm('¿Borrar permanentemente esta entrada rechazada? No se puede deshacer.')) return;
+        db.ref('taskpro/pendingTimelogs/' + uid + '/' + id).remove()
+          .then(() => showSyncBanner('🗑️ Entrada eliminada del historial', 'success'))
+          .catch(err => alert('Error: ' + (err.message || err)));
       }
 
       // Render all tabs for the current project (called by Firebase listener & loadProject)
@@ -7245,7 +7533,7 @@
         if (id === 'fin-director-loan') { if (typeof dla !== 'undefined') dla.refresh(); }
         if (id === 'calendar') { renderCalendar(); }
         if (id === 'mijornada') { renderMiJornada(); }
-        if (id === 'aprobaciones') { renderAprobacionesPlaceholder(); }
+        if (id === 'aprobaciones') { renderAprobaciones(); }
         if (id === 'workers') { populateWorkerBaseDropdown(); }
         if (id === 'equipobase') { renderBaseTeam(); }
       }
