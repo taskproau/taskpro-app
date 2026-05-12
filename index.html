@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V54</title>
+  <title>TaskPro — Project Control V55</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -251,6 +251,11 @@
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
     }
+
+    /* V55 — mobile-only elements: hidden on desktop, shown by mobile media query */
+    .mobile-menu-btn { display: none; }
+    .mobile-drawer-header { display: none; }
+    .drawer-backdrop { display: none; }
 
     .sidebar-label {
       font-size: 10px;
@@ -793,23 +798,134 @@
         scrollbar-width: none;
       }
 
+      /* V55 — MOBILE DRAWER OVERRIDE (overrides the row-scroll behavior above on mobile only) */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        max-width: 85vw;
+        height: 100vh;
+        max-height: 100vh;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 16px 0 24px 0;
+        gap: 0;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        border-bottom: none;
+        transform: translateX(-100%);
+        transition: transform 0.22s ease-out;
+        z-index: 1100;
+        box-shadow: 4px 0 18px rgba(0, 0, 0, 0.35);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      /* Mobile drawer header (logo + close button) — visible inside the drawer on mobile only */
+      .mobile-drawer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 16px 16px 16px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 8px;
+        position: sticky;
+        top: 0;
+        background: var(--surface);
+        z-index: 1;
+      }
+
+      .mobile-drawer-header .drawer-logo {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .mobile-drawer-header .drawer-logo span {
+        color: var(--accent);
+      }
+
+      .mobile-drawer-close {
+        background: transparent;
+        border: none;
+        color: var(--text2);
+        font-size: 22px;
+        cursor: pointer;
+        padding: 4px 10px;
+        border-radius: 6px;
+        line-height: 1;
+      }
+
+      .mobile-drawer-close:hover {
+        background: var(--surface2);
+        color: var(--text);
+      }
+
+      /* Backdrop overlay behind the drawer */
+      .drawer-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.22s ease-out;
+        z-index: 1090;
+      }
+
+      .drawer-backdrop.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* Hamburger button in mobile header */
+      .mobile-menu-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 18px;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 6px;
+        line-height: 1;
+        margin-right: 6px;
+      }
+
+      .mobile-menu-btn:hover,
+      .mobile-menu-btn:active {
+        background: var(--surface2);
+        border-color: var(--accent);
+      }
+
+      /* Re-style nav items inside the drawer (full-width, vertical) — overrides the tab style above */
       .nav-item {
-        border-left: none;
-        border-bottom: 2px solid transparent;
-        white-space: nowrap;
-        padding: 8px 12px;
-        font-size: 12px;
-        gap: 6px;
+        border-left: 2px solid transparent;
+        border-bottom: none;
+        white-space: normal;
+        padding: 12px 18px;
+        font-size: 13px;
+        gap: 10px;
+        width: 100%;
       }
 
       .nav-item.active {
-        border-left: none;
-        border-bottom-color: var(--accent);
+        border-left-color: var(--accent);
+        border-bottom-color: transparent;
       }
 
       .nav-icon {
-        font-size: 13px;
+        font-size: 14px;
       }
+
+      /* V55 — Activate mobile-only elements */
+      .mobile-menu-btn { display: inline-flex; align-items: center; justify-content: center; }
+      .mobile-drawer-header { display: flex; }
+      .drawer-backdrop { display: block; }
 
       /* Header */
       .header {
@@ -1732,6 +1848,7 @@
 
     <!-- HEADER -->
     <div class="header">
+      <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileDrawer()" aria-label="Abrir menú">☰</button>
       <div class="logo">Task<span>Pro</span> <span
           style="color:var(--text3);font-weight:400;font-size:13px;margin-left:8px;">Project Control</span> <span
           id="syncDot"
@@ -1768,8 +1885,16 @@
     </div>
 
     <div class="layout">
+      <!-- V55 — Mobile drawer backdrop (visible only when sidebar.open) -->
+      <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeMobileDrawer()"></div>
+
       <!-- SIDEBAR -->
-      <nav class="sidebar">
+      <nav class="sidebar" id="sidebar">
+        <!-- V55 — Mobile-only drawer header (logo + close button) -->
+        <div class="mobile-drawer-header">
+          <div class="drawer-logo">Task<span>Pro</span></div>
+          <button class="mobile-drawer-close" onclick="closeMobileDrawer()" aria-label="Cerrar menú">✕</button>
+        </div>
         <div class="sidebar-label">Proyecto</div>
         <div class="nav-item active" onclick="showSection('timelog')" id="nav-timelog">
           <span class="nav-icon">⏱</span> Time Log
@@ -7714,11 +7839,36 @@
       // ═══════════════════════════════════════════
       // NAV
       // ═══════════════════════════════════════════
+      // ═══════════════════════════════════════════
+      // V55 — MOBILE DRAWER (hamburger menu)
+      // ═══════════════════════════════════════════
+      function toggleMobileDrawer() {
+        const sb = document.getElementById('sidebar');
+        const bd = document.getElementById('drawerBackdrop');
+        if (!sb || !bd) return;
+        const opening = !sb.classList.contains('open');
+        sb.classList.toggle('open', opening);
+        bd.classList.toggle('open', opening);
+        // Prevent body scroll while drawer is open
+        document.body.style.overflow = opening ? 'hidden' : '';
+      }
+
+      function closeMobileDrawer() {
+        const sb = document.getElementById('sidebar');
+        const bd = document.getElementById('drawerBackdrop');
+        if (!sb || !bd) return;
+        sb.classList.remove('open');
+        bd.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+
       function showSection(id) {
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById('section-' + id).classList.add('active');
         document.getElementById('nav-' + id).classList.add('active');
+        // V55 — close mobile drawer on navigation (no-op on desktop, the classes are removed harmlessly)
+        closeMobileDrawer();
         if (id === 'summary') renderSummary();
         if (id === 'projects') renderAllProjects();
         if (id === 'tiempos') { setTiemposThisMonth(); setupHHMMInput('ea_time'); populateEaPersonDropdown(); }
