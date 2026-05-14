@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V55</title>
+  <title>TaskPro — Project Control V56</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -3335,6 +3335,31 @@
       </div>
     </div>
 
+    <!-- ══════════ MODAL: MI JORNADA — FINALIZAR DESPLAZAMIENTO (V56) ══════════ -->
+    <div class="modal-overlay" id="mjEndTravelModal">
+      <div class="modal">
+        <div class="modal-title">🏁 Finalizar desplazamiento</div>
+        <div
+          style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
+          <div><span style="color:var(--text2);">Tiempo de desplazamiento:</span> <strong id="mjet_elapsed"
+              style="font-family:'DM Mono',monospace;color:#e8a04a;">—</strong></div>
+        </div>
+        <div class="form-group">
+          <label>¿A qué proyecto vas?</label>
+          <select id="mjet_project"
+            style="width:100%;padding:12px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;"></select>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5;">
+            El tiempo se sumará automáticamente al desplazamiento del check-out del proyecto elegido.<br>
+            Si seleccionás "Solo registrar", queda como una jornada de solo desplazamiento para que el supervisor decida.
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="mjEndTravel()">✅ Confirmar</button>
+          <button class="btn btn-ghost" onclick="closeModal('mjEndTravelModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ══════════ MODAL: MI JORNADA — EDIT PENDING (V50) ══════════ -->
     <div class="modal-overlay" id="mjEditPendingModal">
       <div class="modal">
@@ -3376,6 +3401,51 @@
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="mjSavePendingEdit()">Guardar cambios</button>
           <button class="btn btn-ghost" onclick="closeModal('mjEditPendingModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ MODAL: APROBACIONES — ADMIN EDIT PENDING (V56) ══════════ -->
+    <div class="modal-overlay" id="aprEditPendingModal">
+      <div class="modal">
+        <div class="modal-title">✏️ Editar jornada (admin)</div>
+        <input type="hidden" id="aep_uid">
+        <input type="hidden" id="aep_id">
+        <div
+          style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
+          <div><span style="color:var(--text2);">Worker:</span> <strong id="aep_worker">—</strong></div>
+          <div><span style="color:var(--text2);">Proyecto:</span> <strong id="aep_proj">—</strong></div>
+          <div><span style="color:var(--text2);">Fecha:</span> <strong id="aep_date">—</strong></div>
+        </div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>Hora entrada</label>
+            <input type="time" id="aep_in" oninput="_aprUpdateEditPreview()">
+          </div>
+          <div class="form-group">
+            <label>Hora salida</label>
+            <input type="time" id="aep_out" oninput="_aprUpdateEditPreview()">
+          </div>
+          <div class="form-group">
+            <label>Break (HH:MM)</label>
+            <input type="text" id="aep_break" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_aprUpdateEditPreview()">
+          </div>
+          <div class="form-group">
+            <label>Admin (HH:MM)</label>
+            <input type="text" id="aep_admin" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_aprUpdateEditPreview()">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Desplazamiento (HH:MM)</label>
+            <input type="text" id="aep_travel" value="00:00" placeholder="00:00" maxlength="5" pattern="\d{2}:\d{2}" oninput="_aprUpdateEditPreview()">
+          </div>
+        </div>
+        <div id="aep_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.5;">
+          Al guardar, la jornada quedará marcada como editada por admin y el worker recibirá una notificación.
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="aprSavePendingEdit()">💾 Guardar cambios</button>
+          <button class="btn btn-ghost" onclick="closeModal('aprEditPendingModal')">Cancelar</button>
         </div>
       </div>
     </div>
@@ -4164,7 +4234,8 @@
         globalWorkers: [],
         externalAdmin: [],   // [{id, date, person, desc, timeHHMM}]
         activeTimelogs: {},  // V49: {uid: {workerName, projectId, projectName, date, timeIn, startedAt, workerRate}}
-        pendingTimelogs: {}  // V49: {uid: {id: {...pending entry...}}}
+        pendingTimelogs: {},  // V49: {uid: {id: {...pending entry...}}}
+        activeTravels: {}    // V56: {uid: {workerName, startedAt, fromProjectId, fromProjectName}}
       };
 
       function currentProject() {
@@ -4289,6 +4360,10 @@
         setupHHMMInput('mjep_break');
         setupHHMMInput('mjep_admin');
         setupHHMMInput('mjep_travel');
+        // V56 — admin edit pending modal
+        setupHHMMInput('aep_break');
+        setupHHMMInput('aep_admin');
+        setupHHMMInput('aep_travel');
         showLoadingState();
 
         const migrated = await migrateFromLocalStorage();
@@ -4405,6 +4480,21 @@
             _afterTimelogChange();
           }, _firebaseErr('pendingTimelogs/self'));
         }
+
+        // Listener 7 (V56): activeTravels — paralelo a activeTimelogs
+        if (_isAdminSup) {
+          db.ref('taskpro/activeTravels').on('value', snap => {
+            state.activeTravels = snap.val() || {};
+            _afterTimelogChange();
+          }, _firebaseErr('activeTravels'));
+        } else if (currentUser) {
+          db.ref('taskpro/activeTravels/' + currentUser.uid).on('value', snap => {
+            state.activeTravels = {};
+            const v = snap.val();
+            if (v) state.activeTravels[currentUser.uid] = v;
+            _afterTimelogChange();
+          }, _firebaseErr('activeTravels/self'));
+        }
       }
 
       // ═══════════════════════════════════════════
@@ -4460,6 +4550,68 @@
       }
 
       // ═══════════════════════════════════════════
+      // ═══════════════════════════════════════════
+      // V56 — OVERLAP DETECTION (cross-project anti-collision)
+      // ═══════════════════════════════════════════
+      // Returns { overlaps: boolean, conflict?: {source, projectName, timeIn, timeOut} }
+      // Checks: (1) other pendings of same uid/date, (2) approved timelog entries of same personName/date
+      function _checkOverlap(uid, personName, date, timeIn, timeOut, excludeId) {
+        if (!date || !timeIn || !timeOut) return { overlaps: false };
+        const newStart = timeToMins(timeIn);
+        const newEnd = timeToMins(timeOut);
+        if (newEnd <= newStart) return { overlaps: false }; // invalid range, let the caller handle
+
+        // (1) Other pendings of same uid
+        const myPendings = (state.pendingTimelogs || {})[uid] || {};
+        for (const id in myPendings) {
+          if (id === excludeId) continue;
+          const p = myPendings[id];
+          if (!p || p.date !== date) continue;
+          if (p.status === 'rejected') continue;
+          const pStart = timeToMins(p.timeIn || '00:00');
+          const pEnd = timeToMins(p.timeOut || '00:00');
+          if (pEnd <= pStart) continue;
+          // Overlap if ranges intersect strictly (touching at the edge is OK: A ends 12:00, B starts 12:00)
+          if (newStart < pEnd && pStart < newEnd) {
+            return {
+              overlaps: true,
+              conflict: {
+                source: 'pending',
+                projectName: p.projectName || '—',
+                timeIn: p.timeIn,
+                timeOut: p.timeOut
+              }
+            };
+          }
+        }
+
+        // (2) Approved entries in projects[*].timelog[] matching personName + date
+        const projs = state.projects || {};
+        for (const pid in projs) {
+          const proj = projs[pid];
+          if (!proj || !Array.isArray(proj.timelog)) continue;
+          for (const e of proj.timelog) {
+            if (!e || e.personName !== personName || e.date !== date) continue;
+            const eStart = timeToMins(e.start || '00:00');
+            const eEnd = timeToMins(e.end || '00:00');
+            if (eEnd <= eStart) continue;
+            if (newStart < eEnd && eStart < newEnd) {
+              return {
+                overlaps: true,
+                conflict: {
+                  source: 'approved',
+                  projectName: proj.name || '—',
+                  timeIn: e.start,
+                  timeOut: e.end
+                }
+              };
+            }
+          }
+        }
+
+        return { overlaps: false };
+      }
+
       // V50 — MI JORNADA UI (worker check-in/check-out)
       // ═══════════════════════════════════════════
 
@@ -4513,46 +4665,74 @@
       }
 
       // Hero card: either selector+start (state A) or active session+stop (state B)
+      // V56: now handles 3 states — active jornada (B) > active travel (T) > nothing (A)
       function mjRenderHero() {
         const hero = document.getElementById('mj_hero');
         if (!hero || !currentUser) return;
         const at = (state.activeTimelogs || {})[currentUser.uid];
+        const tr = (state.activeTravels || {})[currentUser.uid];
 
         if (at) {
-          // STATE B — active session
+          // STATE B — active jornada (unchanged behavior)
           const elapsed = at.startedAt ? Date.now() - at.startedAt : 0;
+          let travelBanner = '';
+          if (at.pendingTravelMinutes && at.pendingTravelMinutes > 0) {
+            const m = at.pendingTravelMinutes;
+            const hh = Math.floor(m / 60), mm = m % 60;
+            const lbl = (hh > 0 ? hh + 'h ' : '') + mm + 'min';
+            travelBanner = '<div style="background:rgba(232,160,74,0.12);color:#e8a04a;padding:6px 12px;border-radius:6px;font-size:11px;margin-bottom:12px;display:inline-block;">🚗 Desplazamiento previo: <strong>' + lbl + '</strong> (se sumará al check-out)</div><br>';
+          }
           hero.innerHTML = ''
             + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Jornada en curso</div>'
             + '<div style="font-size:22px;font-weight:700;margin-bottom:6px;color:var(--accent);">🟢 ' + _esc(at.projectName || '—') + '</div>'
-            + '<div style="font-size:13px;color:var(--text2);margin-bottom:18px;">Iniciaste a las <strong style="color:var(--text);font-family:\'DM Mono\',monospace;">' + _esc(at.timeIn || '—') + '</strong> · ' + _esc(at.date || '—') + '</div>'
+            + '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Iniciaste a las <strong style="color:var(--text);font-family:\'DM Mono\',monospace;">' + _esc(at.timeIn || '—') + '</strong> · ' + _esc(at.date || '—') + '</div>'
+            + travelBanner
             + '<div id="mj_timer" style="font-size:42px;font-family:\'DM Mono\',monospace;font-weight:600;margin-bottom:24px;color:var(--accent);letter-spacing:2px;">' + _mjFormatElapsed(elapsed) + '</div>'
             + '<button class="btn" style="background:var(--danger);color:#fff;font-size:15px;padding:14px 32px;font-weight:700;border:none;cursor:pointer;border-radius:8px;" onclick="mjOpenCheckoutModal()">🔴 FINALIZAR JORNADA</button>';
           _mjStartTimer();
-        } else {
-          // STATE A — no active session
-          _mjStopTimer();
-          const projects = _mjFindWorkerProjects();
-          if (projects.length === 0) {
-            hero.innerHTML = ''
-              + '<div style="padding:18px;line-height:1.6;font-size:14px;color:var(--text2);">'
-              + '<div style="font-size:32px;margin-bottom:10px;">⚠️</div>'
-              + '<strong style="color:var(--text);font-size:16px;">No estás asignado a ningún proyecto activo.</strong><br>'
-              + '<span style="font-size:13px;">Hablá con el supervisor para que te asigne a un proyecto antes de iniciar tu jornada.</span>'
-              + '</div>';
-            return;
-          }
-          let opts = '<option value="">— Selecciona un proyecto —</option>';
-          projects.forEach(p => {
-            const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
-            opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
-          });
-          hero.innerHTML = ''
-            + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Iniciar jornada</div>'
-            + '<div style="max-width:480px;margin:0 auto 18px auto;">'
-            + '<select id="mj_project_select" style="width:100%;padding:14px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;">' + opts + '</select>'
-            + '</div>'
-            + '<button class="btn btn-primary" style="font-size:15px;padding:14px 32px;font-weight:700;" onclick="mjStartShift()">🟢 INICIAR JORNADA</button>';
+          return;
         }
+
+        if (tr) {
+          // STATE T (V56) — active travel: timer + Finalizar button only
+          const elapsed = tr.startedAt ? Date.now() - tr.startedAt : 0;
+          const fromLine = tr.fromProjectName
+            ? '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Saliste de <strong style="color:var(--text);">' + _esc(tr.fromProjectName) + '</strong></div>'
+            : '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Desplazamiento sin proyecto de origen</div>';
+          hero.innerHTML = ''
+            + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Desplazamiento en curso</div>'
+            + '<div style="font-size:22px;font-weight:700;margin-bottom:6px;color:#e8a04a;">🚗 En camino...</div>'
+            + fromLine
+            + '<div id="mj_timer" style="font-size:42px;font-family:\'DM Mono\',monospace;font-weight:600;margin-bottom:24px;color:#e8a04a;letter-spacing:2px;">' + _mjFormatElapsed(elapsed) + '</div>'
+            + '<button class="btn" style="background:#e8a04a;color:#000;font-size:15px;padding:14px 32px;font-weight:700;border:none;cursor:pointer;border-radius:8px;" onclick="mjOpenEndTravelModal()">🏁 FINALIZAR DESPLAZAMIENTO</button>';
+          _mjStartTimer();
+          return;
+        }
+
+        // STATE A — no active session
+        _mjStopTimer();
+        const projects = _mjFindWorkerProjects();
+        if (projects.length === 0) {
+          hero.innerHTML = ''
+            + '<div style="padding:18px;line-height:1.6;font-size:14px;color:var(--text2);">'
+            + '<div style="font-size:32px;margin-bottom:10px;">⚠️</div>'
+            + '<strong style="color:var(--text);font-size:16px;">No estás asignado a ningún proyecto activo.</strong><br>'
+            + '<span style="font-size:13px;">Hablá con el supervisor para que te asigne a un proyecto antes de iniciar tu jornada.</span>'
+            + '</div>';
+          return;
+        }
+        let opts = '<option value="">— Selecciona un proyecto —</option>';
+        projects.forEach(p => {
+          const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
+          opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
+        });
+        hero.innerHTML = ''
+          + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Iniciar jornada</div>'
+          + '<div style="max-width:480px;margin:0 auto 18px auto;">'
+          + '<select id="mj_project_select" style="width:100%;padding:14px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;">' + opts + '</select>'
+          + '</div>'
+          + '<button class="btn btn-primary" style="font-size:15px;padding:14px 32px;font-weight:700;margin-right:8px;" onclick="mjStartShift()">🟢 INICIAR JORNADA</button>'
+          + '<button class="btn" style="background:#e8a04a;color:#000;font-size:14px;padding:14px 24px;font-weight:700;border:none;cursor:pointer;border-radius:8px;" onclick="mjStartTravel()">🚗 INICIAR DESPLAZAMIENTO</button>';
       }
 
       // Pendings table
@@ -4632,6 +4812,11 @@
           alert('Ya tienes una jornada activa. Finalízala antes de iniciar otra.');
           return;
         }
+        // V56 Guard: no jornada start if travel is active (must finalize travel first)
+        if ((state.activeTravels || {})[currentUser.uid]) {
+          alert('Tenés un desplazamiento en curso. Finalízalo primero (te va a preguntar a qué proyecto vas).');
+          return;
+        }
 
         const p = state.projects[projId];
         if (!p) { alert('Proyecto no encontrado.'); return; }
@@ -4651,12 +4836,141 @@
           projectName: p.name || '—',
           date: date,
           timeIn: timeIn,
-          startedAt: Date.now()
+          startedAt: Date.now(),
+          pendingTravelMinutes: 0
         };
 
         db.ref('taskpro/activeTimelogs/' + currentUser.uid).set(active)
           .then(() => showSyncBanner('🟢 Jornada iniciada en ' + (p.name || ''), 'success'))
           .catch(err => alert('Error al iniciar: ' + (err.message || err)));
+      }
+
+      // ─── V56: Travel start ───
+      function mjStartTravel() {
+        if (!currentUser) return;
+        // Guards: no active jornada or active travel
+        if ((state.activeTimelogs || {})[currentUser.uid]) {
+          alert('Tenés una jornada activa. Finalízala antes de iniciar un desplazamiento.');
+          return;
+        }
+        if ((state.activeTravels || {})[currentUser.uid]) {
+          alert('Ya tenés un desplazamiento en curso.');
+          return;
+        }
+        const tr = {
+          uid: currentUser.uid,
+          workerName: currentUser.linkedName || '',
+          startedAt: Date.now(),
+          fromProjectId: '',
+          fromProjectName: ''
+        };
+        db.ref('taskpro/activeTravels/' + currentUser.uid).set(tr)
+          .then(() => showSyncBanner('🚗 Desplazamiento iniciado', 'success'))
+          .catch(err => alert('Error al iniciar desplazamiento: ' + (err.message || err)));
+      }
+
+      // ─── V56: Open "Finalizar desplazamiento" modal ───
+      function mjOpenEndTravelModal() {
+        if (!currentUser) return;
+        const tr = (state.activeTravels || {})[currentUser.uid];
+        if (!tr) { alert('No hay desplazamiento activo.'); return; }
+
+        const elapsedMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
+        document.getElementById('mjet_elapsed').textContent = minsToHHMM(elapsedMin) + ' (' + elapsedMin + ' min)';
+
+        // Populate project dropdown with worker-assigned projects (option (a) confirmed by user)
+        const projects = _mjFindWorkerProjects();
+        const sel = document.getElementById('mjet_project');
+        let opts = '<option value="">— Selecciona proyecto destino —</option>';
+        projects.forEach(p => {
+          const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
+          opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
+        });
+        opts += '<option value="__none__">— Solo registrar desplazamiento sin proyecto —</option>';
+        sel.innerHTML = opts;
+
+        document.getElementById('mjEndTravelModal').classList.add('open');
+      }
+
+      // ─── V56: Confirm end of travel ───
+      function mjEndTravel() {
+        if (!currentUser) return;
+        const tr = (state.activeTravels || {})[currentUser.uid];
+        if (!tr) { alert('No hay desplazamiento activo.'); return; }
+
+        const sel = document.getElementById('mjet_project');
+        const choice = sel.value;
+        if (!choice) { alert('Selecciona un proyecto destino o "Solo registrar".'); return; }
+
+        const elapsedMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
+
+        // Path 1: register travel-only pending (no project)
+        if (choice === '__none__') {
+          const now = new Date();
+          const date = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+          const id = 'pt_travel_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+          const pending = {
+            id: id,
+            uid: currentUser.uid,
+            workerName: tr.workerName || '',
+            workerRate: 0,
+            projectId: '',
+            projectName: '(Solo desplazamiento)',
+            date: date,
+            timeIn: '',
+            timeOut: '',
+            breakH: 0,
+            adminH: 0,
+            travelH: elapsedMin / 60,
+            travelOnly: true,
+            status: 'pending',
+            submittedAt: Date.now(),
+            autoclosed: false,
+            notifiedAutoclose: false,
+            notifiedReject: false,
+            notifiedEdit: false
+          };
+          db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id).set(pending)
+            .then(() => db.ref('taskpro/activeTravels/' + currentUser.uid).remove())
+            .then(() => {
+              closeModal('mjEndTravelModal');
+              showSyncBanner('🏁 Desplazamiento registrado (sin proyecto)', 'success');
+            })
+            .catch(err => alert('Error al guardar: ' + (err.message || err)));
+          return;
+        }
+
+        // Path 2: auto check-in to destination project, carrying pendingTravelMinutes
+        const projId = choice;
+        const p = state.projects[projId];
+        if (!p) { alert('Proyecto no encontrado.'); return; }
+        if (!Array.isArray(p.workers)) { alert('Proyecto sin equipo asignado.'); return; }
+        const w = p.workers.find(x => x && x.name === currentUser.linkedName);
+        if (!w) { alert('No estás asignado a este proyecto.'); return; }
+
+        const now = new Date();
+        const timeIn = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const date = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const active = {
+          uid: currentUser.uid,
+          workerName: currentUser.linkedName,
+          workerRate: parseFloat(w.rate) || 0,
+          projectId: projId,
+          projectName: p.name || '—',
+          date: date,
+          timeIn: timeIn,
+          startedAt: Date.now(),
+          pendingTravelMinutes: elapsedMin
+        };
+
+        // Write active first, remove travel second (safer on network drops)
+        db.ref('taskpro/activeTimelogs/' + currentUser.uid).set(active)
+          .then(() => db.ref('taskpro/activeTravels/' + currentUser.uid).remove())
+          .then(() => {
+            closeModal('mjEndTravelModal');
+            showSyncBanner('🏁 Desplazamiento finalizado · 🟢 Jornada iniciada en ' + (p.name || ''), 'success');
+          })
+          .catch(err => alert('Error: ' + (err.message || err)));
       }
 
       // ─── Check-out (open modal) ───
@@ -4674,7 +4988,11 @@
         document.getElementById('mjco_out').value = timeOut;
         document.getElementById('mjco_break').value = '00:00';
         document.getElementById('mjco_admin').value = '00:00';
-        document.getElementById('mjco_travel').value = '00:00';
+        // V56: pre-fill travel from pendingTravelMinutes (from a previous travel into this project)
+        const pendMins = parseInt(at.pendingTravelMinutes, 10) || 0;
+        document.getElementById('mjco_travel').value = pendMins > 0
+          ? minsToHHMM(pendMins)
+          : '00:00';
 
         _mjUpdateCheckoutPreview();
         document.getElementById('mjCheckoutModal').classList.add('open');
@@ -4732,6 +5050,18 @@
         const travelH = timeToMins(travelStr) / 60;
         const totalH = (endMins - startMins) / 60;
         if (breakH + adminH > totalH) { alert('Break + Admin no puede superar el total trabajado.'); return; }
+
+        // V56 — overlap check (hard block for worker)
+        const ov = _checkOverlap(currentUser.uid, at.workerName || '', at.date || '', at.timeIn || '', out, null);
+        if (ov.overlaps) {
+          const c = ov.conflict;
+          alert('⚠️ Esta jornada se solapa con otra:\n\n' +
+            'Proyecto: ' + c.projectName + '\n' +
+            'Horario: ' + c.timeIn + ' - ' + c.timeOut + '\n' +
+            '(' + (c.source === 'approved' ? 'ya aprobada' : 'pendiente') + ')\n\n' +
+            'Ajustá los horarios antes de confirmar.');
+          return;
+        }
 
         const id = 'pt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         const pending = {
@@ -4838,6 +5168,18 @@
         const totalH = (endMins - startMins) / 60;
         if (breakH + adminH > totalH) { alert('Break + Admin no puede superar el total trabajado.'); return; }
 
+        // V56 — overlap check (hard block for worker), excluding the pending being edited
+        const ov = _checkOverlap(currentUser.uid, p.workerName || '', p.date || '', inS, outS, id);
+        if (ov.overlaps) {
+          const c = ov.conflict;
+          alert('⚠️ Estos horarios se solapan con otra jornada:\n\n' +
+            'Proyecto: ' + c.projectName + '\n' +
+            'Horario: ' + c.timeIn + ' - ' + c.timeOut + '\n' +
+            '(' + (c.source === 'approved' ? 'ya aprobada' : 'pendiente') + ')\n\n' +
+            'Ajustá los horarios antes de guardar.');
+          return;
+        }
+
         const updates = {
           timeIn: inS,
           timeOut: outS,
@@ -4880,6 +5222,12 @@
             _mjShownToasts.add('rj:' + id);
             showSyncBanner('❌ Tu jornada del ' + (p.date || '—') + ' fue rechazada. Hablá con el Supervisor.', 'warn');
             db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id + '/notifiedReject').set(true).catch(console.error);
+          }
+          // V56 — admin edit notification
+          if (p.editedByAdmin && !p.notifiedEdit && !_mjShownToasts.has('ed:' + id)) {
+            _mjShownToasts.add('ed:' + id);
+            showSyncBanner('ℹ️ Tu jornada del ' + (p.date || '—') + ' fue editada por el admin antes de aprobar. Revisá los nuevos horarios.', 'info');
+            db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id + '/notifiedEdit').set(true).catch(console.error);
           }
         });
       }
@@ -5031,6 +5379,7 @@
           if (p.status === 'pending') {
             const approveDisabled = !projExists ? ' disabled title="Proyecto eliminado, no se puede aprobar"' : '';
             actions += '<button class="btn btn-sm" style="background:var(--accent);color:#000;font-weight:700;padding:5px 10px;margin-right:6px;"' + approveDisabled + ' onclick="aprApprove(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')">✓ Aprobar</button>';
+            actions += '<button class="btn btn-ghost btn-sm" style="color:var(--text);padding:5px 10px;margin-right:6px;" onclick="aprOpenEditPendingModal(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')" title="Editar antes de aprobar">✏️ Editar</button>';
             actions += '<button class="btn btn-ghost btn-sm" style="color:var(--danger);padding:5px 10px;" onclick="aprReject(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')">✕ Rechazar</button>';
           } else if (p.status === 'rejected') {
             actions += '<button class="btn btn-ghost btn-sm" style="color:var(--text2);padding:5px 10px;" onclick="aprDeleteRejected(\'' + _esc(p._uid) + '\',\'' + _esc(p._id) + '\')">🗑️ Borrar</button>';
@@ -5069,6 +5418,13 @@
         if (!p) { alert('Pendiente no encontrado.'); return; }
         if (p.status !== 'pending') { alert('Solo pendientes activos pueden aprobarse.'); return; }
 
+        // V56 — travel-only pendings (no project): can't be approved into a project's timelog.
+        // Admin must edit (assign project + times) or delete.
+        if (p.travelOnly || !p.projectId) {
+          alert('⚠️ Esta entrada es solo desplazamiento (sin proyecto).\n\nPara aprobarla, editala primero asignando un proyecto y horarios de jornada, o rechazala.');
+          return;
+        }
+
         const proj = state.projects[p.projectId];
         if (!proj) { alert('El proyecto ya no existe. No se puede aprobar.'); return; }
 
@@ -5078,10 +5434,23 @@
           if (!confirm('⚠️ Break + Admin (' + (c.breakH + c.adminH).toFixed(2) + 'h) > Total (' + c.totalH.toFixed(2) + 'h). Productiva sería 0. ¿Aprobar de todos modos?')) return;
         }
 
+        // V56 — overlap check (warning for admin, can override)
+        const ov = _checkOverlap(uid, p.workerName || '', p.date || '', p.timeIn || '', p.timeOut || '', id);
+        if (ov.overlaps) {
+          const cf = ov.conflict;
+          if (!confirm('⚠️ Esta jornada se solapa con otra:\n\n' +
+            'Proyecto: ' + cf.projectName + '\n' +
+            'Horario: ' + cf.timeIn + ' - ' + cf.timeOut + '\n' +
+            '(' + (cf.source === 'approved' ? 'ya aprobada' : 'pendiente') + ')\n\n' +
+            '¿Aprobar de todos modos?')) return;
+        }
+
         const isAuto = !!p.autoclosed;
+        const wasEdited = !!p.editedByAdmin;
         const confirmMsg = '¿Aprobar la jornada de ' + (p.workerName || 'worker') + ' del ' + (p.date || '—') + '?\n\n'
           + 'Total: ' + c.totalH.toFixed(2) + 'h · Productiva: ' + c.productiveH.toFixed(2) + 'h · Subtotal: $' + c.pay.toFixed(2)
-          + (isAuto ? '\n\n⚠ Esta jornada fue auto-cerrada por exceder 12h. Verifica los datos antes de aprobar.' : '');
+          + (isAuto ? '\n\n⚠ Esta jornada fue auto-cerrada por exceder 12h. Verifica los datos antes de aprobar.' : '')
+          + (wasEdited ? '\n\nℹ Esta jornada fue editada por admin antes de aprobar.' : '');
         if (!confirm(confirmMsg)) return;
 
         // Match worker.id from current project (by name); fallback to synthetic id if no longer assigned
@@ -5105,7 +5474,12 @@
           travelH: c.travelH,
           totalH: c.totalH,
           productiveH: c.productiveH,
-          pay: c.pay
+          pay: c.pay,
+          // V56 audit flags carried over from pending
+          adminEdited: wasEdited,
+          editedBy: p.editedBy || '',
+          editedAt: p.editedAt || 0,
+          autoclosedSource: !!p.autoclosed
         };
 
         // Read current timelog fresh from the project state, append, write only the timelog subnode
@@ -5154,6 +5528,112 @@
         db.ref('taskpro/pendingTimelogs/' + uid + '/' + id).remove()
           .then(() => showSyncBanner('🗑️ Entrada eliminada del historial', 'success'))
           .catch(err => alert('Error: ' + (err.message || err)));
+      }
+
+      // ─── V56: Admin edits a pending before approving (with audit trail + worker notification) ───
+      function aprOpenEditPendingModal(uid, id) {
+        const p = ((state.pendingTimelogs || {})[uid] || {})[id];
+        if (!p) { alert('Pendiente no encontrado.'); return; }
+        if (p.status !== 'pending') { alert('Solo pendientes activos pueden editarse.'); return; }
+
+        document.getElementById('aep_uid').value = uid;
+        document.getElementById('aep_id').value = id;
+        document.getElementById('aep_worker').textContent = p.workerName || '—';
+        document.getElementById('aep_proj').textContent = p.projectName || '—';
+        document.getElementById('aep_date').textContent = p.date || '—';
+        document.getElementById('aep_in').value = p.timeIn || '';
+        document.getElementById('aep_out').value = p.timeOut || '';
+        document.getElementById('aep_break').value = minsToHHMM(Math.round((parseFloat(p.breakH) || 0) * 60));
+        document.getElementById('aep_admin').value = minsToHHMM(Math.round((parseFloat(p.adminH) || 0) * 60));
+        document.getElementById('aep_travel').value = minsToHHMM(Math.round((parseFloat(p.travelH) || 0) * 60));
+
+        _aprUpdateEditPreview();
+        document.getElementById('aprEditPendingModal').classList.add('open');
+      }
+
+      function _aprUpdateEditPreview() {
+        const uid = document.getElementById('aep_uid').value;
+        const id = document.getElementById('aep_id').value;
+        const p = ((state.pendingTimelogs || {})[uid] || {})[id];
+        const previewEl = document.getElementById('aep_preview');
+        if (!p || !previewEl) return;
+
+        const inS = document.getElementById('aep_in').value;
+        const outS = document.getElementById('aep_out').value;
+        const breakH = timeToMins(document.getElementById('aep_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('aep_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('aep_travel').value || '00:00') / 60;
+
+        const startMins = timeToMins(inS || '00:00');
+        const endMins = timeToMins(outS || '00:00');
+
+        if (!inS || !outS || endMins <= startMins) {
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Hora salida debe ser mayor a entrada.';
+          return;
+        }
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) {
+          previewEl.style.color = 'var(--danger)';
+          previewEl.textContent = '⚠ Break + Admin (' + (breakH + adminH).toFixed(2) + 'h) > Total (' + totalH.toFixed(2) + 'h).';
+          return;
+        }
+        const productiveH = Math.max(0, totalH - breakH - adminH);
+        const rate = parseFloat(p.workerRate) || 0;
+        const pay = (productiveH + travelH) * rate;
+        previewEl.style.color = '';
+        previewEl.textContent = 'Total: ' + totalH.toFixed(2) + 'h · Productiva: ' + productiveH.toFixed(2) + 'h · Tarifa: $' + rate.toFixed(0) + '/h · Subtotal: $' + pay.toFixed(2);
+      }
+
+      function aprSavePendingEdit() {
+        const uid = document.getElementById('aep_uid').value;
+        const id = document.getElementById('aep_id').value;
+        const p = ((state.pendingTimelogs || {})[uid] || {})[id];
+        if (!p) { alert('Pendiente no encontrado.'); return; }
+        if (p.status !== 'pending') { alert('No editable.'); return; }
+
+        const inS = document.getElementById('aep_in').value;
+        const outS = document.getElementById('aep_out').value;
+        if (!inS || !outS) { alert('Entrada y salida requeridas.'); return; }
+        const startMins = timeToMins(inS);
+        const endMins = timeToMins(outS);
+        if (endMins <= startMins) { alert('Hora salida debe ser mayor a entrada.'); return; }
+
+        const breakH = timeToMins(document.getElementById('aep_break').value || '00:00') / 60;
+        const adminH = timeToMins(document.getElementById('aep_admin').value || '00:00') / 60;
+        const travelH = timeToMins(document.getElementById('aep_travel').value || '00:00') / 60;
+        const totalH = (endMins - startMins) / 60;
+        if (breakH + adminH > totalH) { alert('Break + Admin no puede superar el total trabajado.'); return; }
+
+        // V56 — overlap check (soft warn for admin, can override)
+        const ov = _checkOverlap(uid, p.workerName || '', p.date || '', inS, outS, id);
+        if (ov.overlaps) {
+          const c = ov.conflict;
+          if (!confirm('⚠️ Estos horarios se solapan con otra jornada:\n\n' +
+            'Proyecto: ' + c.projectName + '\n' +
+            'Horario: ' + c.timeIn + ' - ' + c.timeOut + '\n' +
+            '(' + (c.source === 'approved' ? 'ya aprobada' : 'pendiente') + ')\n\n' +
+            '¿Guardar de todos modos?')) return;
+        }
+
+        const updates = {
+          timeIn: inS,
+          timeOut: outS,
+          breakH: breakH,
+          adminH: adminH,
+          travelH: travelH,
+          editedByAdmin: true,
+          editedAt: Date.now(),
+          editedBy: currentUser ? currentUser.uid : '',
+          notifiedEdit: false
+        };
+
+        db.ref('taskpro/pendingTimelogs/' + uid + '/' + id).update(updates)
+          .then(() => {
+            closeModal('aprEditPendingModal');
+            showSyncBanner('✅ Jornada editada — el worker será notificado', 'success');
+          })
+          .catch(err => alert('Error al guardar: ' + (err.message || err)));
       }
 
       // ═══════════════════════════════════════════
