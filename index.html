@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V56</title>
+  <title>TaskPro — Project Control V56.1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -4648,9 +4648,12 @@
         _mjTimerInt = setInterval(() => {
           const el = document.getElementById('mj_timer');
           if (!el || !currentUser) { _mjStopTimer(); return; }
+          // V56.1 — read from activeTimelogs (jornada) OR activeTravels (desplazamiento)
           const at = (state.activeTimelogs || {})[currentUser.uid];
-          if (!at || !at.startedAt) { _mjStopTimer(); return; }
-          el.textContent = _mjFormatElapsed(Date.now() - at.startedAt);
+          const tr = (state.activeTravels || {})[currentUser.uid];
+          const src = at || tr;
+          if (!src || !src.startedAt) { _mjStopTimer(); return; }
+          el.textContent = _mjFormatElapsed(Date.now() - src.startedAt);
         }, 1000);
       }
 
@@ -5356,6 +5359,8 @@
         html += '<th style="text-align:center;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">ENT/SAL</th>';
         html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">TOTAL</th>';
         html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">PROD</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">BREAK</th>';
+        html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">DESPL</th>';
         html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">TARIFA</th>';
         html += '<th style="text-align:right;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">SUBTOTAL</th>';
         html += '<th style="text-align:center;padding:10px;font-size:10px;color:var(--text2);font-weight:600;">ESTADO</th>';
@@ -5395,6 +5400,8 @@
           html += '<td style="text-align:center;padding:10px;font-family:\'DM Mono\',monospace;font-size:11px;">' + _esc(p.timeIn || '—') + '<br><span style="color:var(--text2);">' + _esc(p.timeOut || '—') + '</span></td>';
           html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;">' + c.totalH.toFixed(2) + 'h</td>';
           html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;color:var(--accent);font-weight:600;">' + c.productiveH.toFixed(2) + 'h</td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;color:var(--text2);font-size:11px;">' + minsToHHMM(Math.round((c.breakH || 0) * 60)) + '</td>';
+          html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;color:#e8a04a;font-size:11px;">' + minsToHHMM(Math.round((c.travelH || 0) * 60)) + '</td>';
           html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;color:var(--text2);">$' + c.rate.toFixed(0) + '</td>';
           html += '<td style="text-align:right;padding:10px;font-family:\'DM Mono\',monospace;font-weight:700;">$' + c.pay.toFixed(2) + '</td>';
           html += '<td style="text-align:center;padding:10px;">' + badge + '</td>';
@@ -5405,7 +5412,7 @@
           if (p.status === 'rejected' && (p.rejectedAt || p.rejectedBy)) {
             const when = p.rejectedAt ? new Date(p.rejectedAt).toLocaleString() : '—';
             const by = p.rejectedBy || '—';
-            html += '<tr class="apr-row-rejected"><td colspan="10" style="padding:6px 14px 12px 14px;font-size:10px;color:var(--text2);font-style:italic;">Rechazada el ' + _esc(when) + ' (uid: ' + _esc(by) + ')</td></tr>';
+            html += '<tr class="apr-row-rejected"><td colspan="12" style="padding:6px 14px 12px 14px;font-size:10px;color:var(--text2);font-style:italic;">Rechazada el ' + _esc(when) + ' (uid: ' + _esc(by) + ')</td></tr>';
           }
         });
         html += '</tbody></table>';
