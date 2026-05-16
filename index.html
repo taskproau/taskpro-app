@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V57</title>
+  <title>TaskPro — Project Control V58</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2201,7 +2201,7 @@
 
           <div class="card">
             <div class="card-title">➕ Agregar persona al equipo base</div>
-            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div class="form-grid" style="grid-template-columns:2fr 2fr 1fr 1fr 2fr;gap:12px;margin-bottom:12px;">
               <div class="form-group">
                 <label>Nombre completo</label>
                 <input type="text" id="eb_name" placeholder="Ej: Carlos Perez">
@@ -2217,6 +2217,10 @@
               <div class="form-group">
                 <label>ABN (opcional)</label>
                 <input type="text" id="eb_abn" placeholder="11 222 333 444" maxlength="14">
+              </div>
+              <div class="form-group">
+                <label>Email personal</label>
+                <input type="email" id="eb_email" placeholder="worker@gmail.com">
               </div>
             </div>
             <button class="btn btn-primary" onclick="addBaseTeamMember()">Agregar al equipo base</button>
@@ -3848,8 +3852,9 @@
         const role = document.getElementById('eb_role').value.trim();
         const rate = parseFloat(document.getElementById('eb_rate').value) || 0;
         const abn = document.getElementById('eb_abn').value.trim();
+        const email = document.getElementById('eb_email').value.trim();
         if (!name) { alert('Ingresa el nombre del miembro.'); return; }
-        const member = { id: 'eb_' + Date.now(), name, role, rate, abn };
+        const member = { id: 'eb_' + Date.now(), name, role, rate, abn, email };
         db.ref('taskpro/equipoBase/' + member.id).set(member)
           .then(() => { showSyncBanner('Miembro agregado al equipo base', 'success'); renderBaseTeam(); })
           .catch(err => showSyncBanner('Error guardando: ' + err.message, 'warn'));
@@ -3857,6 +3862,7 @@
         document.getElementById('eb_role').value = '';
         document.getElementById('eb_rate').value = '';
         document.getElementById('eb_abn').value = '';
+        document.getElementById('eb_email').value = '';
       }
 
       function removeBaseTeamMember(id) {
@@ -3879,7 +3885,7 @@
           }
           container.innerHTML = `
             <table class="data-table">
-              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th>Email</th><th></th></tr></thead>
               <tbody>
                 ${entries.map(([id, m]) => `
                   <tr>
@@ -3887,9 +3893,10 @@
                     <td style="color:var(--text2);">${m.role || '—'}</td>
                     <td class="num">$${(m.rate || 0).toFixed(0)}/h</td>
                     <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);">${m.abn || '—'}</td>
+                    <td style="font-size:11px;color:${m.email ? 'var(--text2)' : 'var(--danger)'};">${m.email || '⚠ Sin email'}</td>
                     <td style="white-space:nowrap;">
                       <button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"
-                        data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role || ''}" data-ebrate="${m.rate || 0}" data-ebabn="${m.abn || ''}"
+                        data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role || ''}" data-ebrate="${m.rate || 0}" data-ebabn="${m.abn || ''}" data-ebemail="${m.email || ''}"
                         onclick="openEditBaseModalFromBtn(this)">✏️</button>
                       <button class="btn btn-danger btn-sm" onclick="removeBaseTeamMember('${id}')">✕</button>
                     </td>
@@ -3934,16 +3941,18 @@
           btn.getAttribute('data-ebname'),
           btn.getAttribute('data-ebrole'),
           btn.getAttribute('data-ebrate'),
-          btn.getAttribute('data-ebabn')
+          btn.getAttribute('data-ebabn'),
+          btn.getAttribute('data-ebemail')
         );
       }
 
-      function openEditBaseModal(id, name, role, rate, abn) {
+      function openEditBaseModal(id, name, role, rate, abn, email) {
         document.getElementById('ebm_id').value = id;
         document.getElementById('ebm_name').value = name;
         document.getElementById('ebm_role').value = role;
         document.getElementById('ebm_rate').value = rate;
         document.getElementById('ebm_abn').value = abn || '';
+        document.getElementById('ebm_email').value = email || '';
         document.getElementById('editBaseMsg').textContent = '';
         document.getElementById('editBaseModal').classList.add('open');
       }
@@ -3954,11 +3963,12 @@
         const role = document.getElementById('ebm_role').value.trim();
         const rate = parseFloat(document.getElementById('ebm_rate').value) || 0;
         const abn = document.getElementById('ebm_abn').value.trim();
+        const email = document.getElementById('ebm_email').value.trim();
         const msg = document.getElementById('editBaseMsg');
         if (!name) { msg.style.color = 'var(--danger)'; msg.textContent = 'El nombre es requerido.'; return; }
         msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
         try {
-          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn });
+          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn, email });
           msg.style.color = 'var(--accent)'; msg.textContent = 'Actualizado correctamente.';
           // Refresh all dropdowns
           populateWorkerBaseDropdown();
@@ -6208,6 +6218,18 @@
         const e = (p.timelog || []).find(x => x.id === eid);
         if (!e) { alert('Registro no encontrado.'); return; }
 
+        // V58 — warn if this entry was already invoiced (lock check)
+        if (e.invoicedAt) {
+          const dt = new Date(e.invoicedAt);
+          const fmt = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+          if (!confirm('⚠️ Este registro ya fue FACTURADO\n\n' +
+            'Invoice: ' + (e.invoiceId || '?') + '\n' +
+            'Facturado el: ' + fmt + '\n\n' +
+            'Si lo modificás ahora, el invoice quedará inconsistente con la realidad. ' +
+            'El monto del invoice ya enviado NO cambia automáticamente.\n\n' +
+            '¿Continuar editando igual?')) return;
+        }
+
         document.getElementById('et_id').value = e.id;
         document.getElementById('et_date').value = e.date || '';
         document.getElementById('et_start').value = e.start || '';
@@ -7483,7 +7505,7 @@
         const data = {};
 
         // Step 1: collect all raw entries per person
-        Object.values(state.projects).forEach(p => {
+        Object.entries(state.projects).forEach(([pid, p]) => {
           toArr(p.timelog).forEach(e => {
             if (!inRange(e.date, from, to)) return;
             const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
@@ -7501,7 +7523,10 @@
               rate, prodH, breakH, adminH, travelH,
               companyBreakH: 0,  // set in step 2
               breakUnpaidH: 0,  // set in step 2
-              pay: 0
+              pay: 0,
+              // V58 — expose raw + projectId for invoice generation and lock checks
+              _raw: e,
+              _projectId: pid
             });
             data[name].prodH += prodH;
             data[name].breakH += breakH;
@@ -7746,6 +7771,67 @@
           return;
         }
 
+        // V58 — Validate readiness for "Confirmar y enviar invoice"
+        const _v58FromS = from || '';
+        const _v58ToS = to || '';
+        // Get the equipoBase email for this worker
+        const _v58Member = Object.values(state.equipoBase || {}).find(m => m && m.name === personName);
+        const _v58Email = _v58Member && _v58Member.email ? _v58Member.email.trim() : '';
+        // Count unapproved pendings of this worker in the range
+        let _v58UnapprovedCount = 0;
+        Object.keys(state.pendingTimelogs || {}).forEach(uid => {
+          const myPend = state.pendingTimelogs[uid] || {};
+          Object.values(myPend).forEach(p => {
+            if (!p || p.workerName !== personName) return;
+            if (p.status !== 'pending') return;
+            const d = p.date || '';
+            if (_v58FromS && d < _v58FromS) return;
+            if (_v58ToS && d > _v58ToS) return;
+            _v58UnapprovedCount++;
+          });
+        });
+        // Detect entries already invoiced in range (lock granular per entry)
+        let _v58AlreadyInvoiced = 0;
+        let _v58FreshCount = 0;
+        let _v58LastInvoiceDate = '';
+        let _v58LastInvoiceNum = '';
+        d.entries.forEach(e => {
+          if (e._raw && e._raw.invoicedAt) {
+            _v58AlreadyInvoiced++;
+            const t = e._raw.invoicedAt;
+            if (typeof t === 'number' && t > 0) {
+              const dt = new Date(t);
+              const fmt = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+              if (fmt > _v58LastInvoiceDate) _v58LastInvoiceDate = fmt;
+              if (e._raw.invoiceId && !_v58LastInvoiceNum) _v58LastInvoiceNum = e._raw.invoiceId;
+            }
+          } else {
+            _v58FreshCount++;
+          }
+        });
+        // Build confirm button state
+        let _v58Disabled = '';
+        let _v58Tooltip = '';
+        let _v58BtnLabel = '✅ Confirmar y enviar invoice';
+        if (_v58UnapprovedCount > 0) {
+          _v58Disabled = 'disabled';
+          _v58Tooltip = 'Hay ' + _v58UnapprovedCount + ' jornada(s) sin aprobar en este rango. Esperá aprobación antes de confirmar.';
+        } else if (_v58FreshCount === 0) {
+          _v58Disabled = 'disabled';
+          _v58Tooltip = _v58AlreadyInvoiced > 0
+            ? 'Todas las jornadas de este rango ya fueron facturadas' + (_v58LastInvoiceDate ? ' (último: ' + _v58LastInvoiceDate + ')' : '') + '.'
+            : 'Sin jornadas para facturar en este rango.';
+        } else if (!_v58Email) {
+          _v58Disabled = 'disabled';
+          _v58Tooltip = 'Sin email personal en Equipo Base. Pedile al admin que lo configure.';
+        } else {
+          _v58Tooltip = _v58AlreadyInvoiced > 0
+            ? 'Enviar invoice de complemento (' + _v58FreshCount + ' jornada(s) nueva(s) sin facturar)'
+            : 'Enviar invoice por email a ' + _v58Email + ' (con copia a TaskPro)';
+          if (_v58AlreadyInvoiced > 0) _v58BtnLabel = '✅ Enviar invoice complementario (' + _v58FreshCount + ')';
+        }
+        const _v58ConfirmBtn = '<button class="btn btn-primary btn-sm" ' + _v58Disabled + ' onclick="confirmAndSendPersonalInvoice(\'' + personName.replace(/'/g, "\\'") + '\')" title="' + _v58Tooltip.replace(/"/g, '&quot;') + '" style="background:var(--accent);color:#0d0f0e;font-weight:700;">' + _v58BtnLabel + '</button>';
+
         document.getElementById('pagosDetalle').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
       <div>
@@ -7756,7 +7842,8 @@
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn btn-ghost btn-sm" onclick="exportPagoTimesheetPDF('${personName}')" title="Plantilla de horarios (detalle por proyecto)">↓ Plantilla Horario</button>
-        <button class="btn btn-primary btn-sm" onclick="exportPagoInvoicePDF('${personName}')" title="Invoice formal AU con ABN del trabajador">↓ Invoice Personal</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportPagoInvoicePDF('${personName}')" title="Descargar preview del invoice (no lo envía)">↓ Descargar Preview</button>
+        ${_v58ConfirmBtn}
       </div>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -7774,9 +7861,16 @@
         <th class="num">Total</th>
       </tr></thead>
       <tbody>
-        ${d.entries.map(e => `
-          <tr>
-            <td style="font-family:'DM Mono',monospace;">${e.date}</td>
+        ${d.entries.map(e => {
+          // V58 — show lock icon if entry is already invoiced
+          const _locked = e._raw && e._raw.invoicedAt;
+          const _lockBadge = _locked
+            ? ' <span style="color:#888;font-size:10px;" title="Facturado en ' + (e._raw.invoiceId || '?') + '">🔒</span>'
+            : '';
+          const _rowStyle = _locked ? 'opacity:0.55;' : '';
+          return `
+          <tr style="${_rowStyle}">
+            <td style="font-family:'DM Mono',monospace;">${e.date}${_lockBadge}</td>
             <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text2);">${e.project}</td>
             <td class="num" style="font-family:'DM Mono',monospace;color:var(--text2);">${e.start || '—'}</td>
             <td class="num" style="font-family:'DM Mono',monospace;color:var(--text2);">${e.end || '—'}</td>
@@ -7788,7 +7882,8 @@
             <td class="num" style="color:var(--text3);">${minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60))}</td>
             <td class="num">${minsToHHMM(Math.round(e.adminH * 60))}</td>
             <td class="num" style="font-weight:700;">$${e.pay.toFixed(2)}</td>
-          </tr>`).join('')}
+          </tr>`;
+        }).join('')}
         <tr class="total-row">
           <td colspan="4"><strong>TOTAL ${personName.toUpperCase()}</strong></td>
           <td class="num"></td>
@@ -8103,6 +8198,254 @@
             resolve();
           }, 'personal');
         });
+      }
+
+      // ═══════════════════════════════════════════
+      // V58 — CONFIRMAR Y ENVIAR INVOICE PERSONAL POR EMAIL
+      // ═══════════════════════════════════════════
+      async function confirmAndSendPersonalInvoice(personName) {
+        // Guard: operador only sends own
+        if (currentUser && currentUser.role === 'operador') {
+          if (!currentUser.linkedName || personName !== currentUser.linkedName) {
+            alert('Solo podés enviar tu propio invoice.');
+            return;
+          }
+        }
+        const from = document.getElementById('pp_from').value;
+        const to = document.getElementById('pp_to').value;
+        const data = buildPayData(from, to);
+        recalcPayData(data);
+        const d = data[personName];
+        if (!d || !d.entries.length) {
+          alert('Sin jornadas en este rango.');
+          return;
+        }
+
+        // Filter: only entries WITHOUT invoicedAt (lock per entry)
+        const freshEntries = d.entries.filter(e => !e._raw || !e._raw.invoicedAt);
+        if (freshEntries.length === 0) {
+          alert('Todas las jornadas de este rango ya fueron facturadas.');
+          return;
+        }
+
+        // Re-check pendings (defensive — UI already disables but double-check)
+        let unapproved = 0;
+        Object.keys(state.pendingTimelogs || {}).forEach(uid => {
+          const myPend = state.pendingTimelogs[uid] || {};
+          Object.values(myPend).forEach(p => {
+            if (!p || p.workerName !== personName) return;
+            if (p.status !== 'pending') return;
+            if (from && p.date < from) return;
+            if (to && p.date > to) return;
+            unapproved++;
+          });
+        });
+        if (unapproved > 0) {
+          alert('No se puede confirmar: hay ' + unapproved + ' jornada(s) sin aprobar en este rango.');
+          return;
+        }
+
+        // Recalculate totals using only FRESH entries
+        const sumPay = freshEntries.reduce((s, e) => s + (e.pay || 0), 0);
+        if (sumPay <= 0) {
+          alert('El total a facturar es $0. No se puede enviar.');
+          return;
+        }
+
+        // Get worker email + ABN from equipoBase
+        const member = Object.values(state.equipoBase || {}).find(m => m && m.name === personName);
+        const workerEmail = member && member.email ? member.email.trim() : '';
+        const abn = member && member.abn ? member.abn.trim() : '';
+        if (!workerEmail) {
+          alert('Sin email personal en Equipo Base. Pedile al admin que lo configure.');
+          return;
+        }
+
+        // Confirm dialog
+        const isComplement = (d.entries.length > freshEntries.length);
+        const confirmMsg = (isComplement ? '⚠️ INVOICE COMPLEMENTARIO\n\n' : '') +
+          'Vas a enviar el invoice por email a:\n' +
+          '  · ' + workerEmail + ' (tu email personal)\n' +
+          '  · info@taskproau.com (TaskPro)\n\n' +
+          'Período: ' + (from || 'inicio') + ' to ' + (to || 'hoy') + '\n' +
+          'Jornadas en este invoice: ' + freshEntries.length +
+          (isComplement ? ' (de ' + d.entries.length + ' totales, ' + (d.entries.length - freshEntries.length) + ' ya facturadas)' : '') + '\n' +
+          'Monto total: $' + sumPay.toFixed(2) + '\n\n' +
+          'Una vez confirmado, estas jornadas quedan bloqueadas y no podrás re-enviar.\n\n' +
+          '¿Confirmar y enviar?';
+        if (!confirm(confirmMsg)) return;
+
+        // Get next correlative invoice number (atomic Firebase txn)
+        showSyncBanner('Generando invoice...', 'info');
+        let invoiceNum;
+        try {
+          invoiceNum = await new Promise((resolve) => {
+            getNextInvoiceNumber(num => resolve(num), 'personal');
+          });
+        } catch (e) {
+          alert('Error generando número de invoice: ' + (e.message || e));
+          return;
+        }
+
+        // Dates
+        const now = new Date();
+        const issueDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const dueDt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const dueDate = dueDt.getFullYear() + '-' + String(dueDt.getMonth() + 1).padStart(2, '0') + '-' + String(dueDt.getDate()).padStart(2, '0');
+        const periodLabel = (from || 'inicio') + ' to ' + (to || 'hoy');
+
+        // Build HTML email body (inline, no attachment)
+        const htmlBody = _buildInvoiceEmailHTML({
+          invoiceNum, personName, abn, workerEmail, issueDate, dueDate, periodLabel,
+          freshEntries, totalAmount: sumPay, isComplement
+        });
+
+        // Build invoice record
+        const invId = 'inv_' + Date.now();
+        const invRecord = {
+          id: invId,
+          number: invoiceNum,
+          type: 'personal',
+          contractorName: personName,
+          contractorAbn: abn,
+          contractorEmail: workerEmail,
+          clientName: 'TaskPro',
+          amount: sumPay,
+          issueDate, dueDate,
+          periodFrom: from || '',
+          periodTo: to || '',
+          status: 'sent',
+          statusManual: false,
+          projectId: '',
+          sentAt: Date.now(),
+          sentTo: workerEmail + '; info@taskproau.com',
+          isComplement: !!isComplement,
+          entryCount: freshEntries.length,
+          createdAt: new Date().toISOString(),
+          createdByUid: currentUser ? currentUser.uid : ''
+        };
+
+        // 1) Save invoice record
+        try {
+          await db.ref('taskpro/finance/invoices/' + invId).set(invRecord);
+        } catch (e) {
+          alert('Error guardando registro del invoice: ' + (e.message || e));
+          return;
+        }
+
+        // 2) Send email via EmailJS (HTML inline in message variable)
+        try {
+          if (typeof emailjs === 'undefined') throw new Error('EmailJS no cargado');
+          const params = {
+            to_email: workerEmail,
+            to_name: personName,
+            from_name: 'TaskPro',
+            subject: 'Invoice ' + invoiceNum + ' - ' + personName + ' - Period ' + periodLabel,
+            message: htmlBody,
+            html_content: htmlBody,
+            invoice_number: invoiceNum,
+            period: periodLabel,
+            amount: '$' + sumPay.toFixed(2) + ' AUD'
+          };
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
+          // BCC to TaskPro
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { ...params, to_email: 'info@taskproau.com' });
+        } catch (e) {
+          // Email failed BUT record was saved — flag it
+          console.error('Email send failed:', e);
+          await db.ref('taskpro/finance/invoices/' + invId + '/status').set('email_failed').catch(() => { });
+          alert('⚠️ El invoice fue registrado pero el email FALLÓ.\n\nError: ' + (e.message || e) + '\n\nDescargá el preview manualmente y enviá por otro medio.');
+          renderPagos();
+          return;
+        }
+
+        // 3) Lock each fresh entry by writing invoicedAt + invoiceId
+        const lockTimestamp = Date.now();
+        const lockPromises = [];
+        freshEntries.forEach(e => {
+          if (!e._projectId || !e._raw || !e._raw.id) return;
+          const proj = state.projects[e._projectId];
+          if (!proj || !Array.isArray(proj.timelog)) return;
+          // Find the entry index in the project's timelog
+          const idx = proj.timelog.findIndex(te => te && te.id === e._raw.id);
+          if (idx < 0) return;
+          lockPromises.push(
+            db.ref('taskpro/projects/' + e._projectId + '/timelog/' + idx + '/invoicedAt').set(lockTimestamp)
+              .then(() => db.ref('taskpro/projects/' + e._projectId + '/timelog/' + idx + '/invoiceId').set(invoiceNum))
+          );
+        });
+        try {
+          await Promise.all(lockPromises);
+        } catch (e) {
+          console.error('Lock writes failed (non-fatal):', e);
+        }
+
+        showSyncBanner('✅ Invoice ' + invoiceNum + ' enviado a ' + workerEmail + ' y a TaskPro', 'success');
+        // Refresh view
+        renderPagos();
+      }
+
+      // V58 — Build email HTML body (inline, no attachment)
+      function _buildInvoiceEmailHTML(p) {
+        const rows = p.freshEntries.map(e => {
+          return '<tr style="border-bottom:1px solid #e0e0e0;">' +
+            '<td style="padding:8px;font-family:monospace;font-size:12px;">' + (e.date || '') + '</td>' +
+            '<td style="padding:8px;font-size:12px;">' + (e.project || '') + '</td>' +
+            '<td style="padding:8px;font-size:12px;text-align:right;font-family:monospace;">' + (e.prodH + (e.travelH || 0)).toFixed(2) + 'h</td>' +
+            '<td style="padding:8px;font-size:12px;text-align:right;font-family:monospace;">$' + (e.rate || 0).toFixed(0) + '</td>' +
+            '<td style="padding:8px;font-size:12px;text-align:right;font-family:monospace;font-weight:bold;">$' + (e.pay || 0).toFixed(2) + '</td>' +
+            '</tr>';
+        }).join('');
+        const complementBanner = p.isComplement
+          ? '<div style="background:#fff7e0;border-left:4px solid #e8a04a;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#7a4c00;">⚠️ <strong>Invoice complementario</strong> — Contiene únicamente jornadas no facturadas previamente para este período.</div>'
+          : '';
+        return '' +
+          '<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;background:#fff;color:#1a1a1a;">' +
+          '<div style="background:#b8f55a;padding:20px 24px;">' +
+          '<h1 style="margin:0;font-size:24px;color:#0d0f0e;">TAX INVOICE</h1>' +
+          '<div style="font-size:12px;color:#0d0f0e;margin-top:4px;">No GST charged</div>' +
+          '</div>' +
+          '<div style="padding:20px 24px;">' +
+          complementBanner +
+          '<table style="width:100%;font-size:13px;margin-bottom:16px;">' +
+          '<tr><td style="padding:4px 0;color:#666;">Invoice No.</td><td style="padding:4px 0;font-weight:bold;">' + p.invoiceNum + '</td>' +
+          '<td style="padding:4px 0;color:#666;text-align:right;">Issue Date</td><td style="padding:4px 0;font-weight:bold;text-align:right;">' + p.issueDate + '</td></tr>' +
+          '<tr><td style="padding:4px 0;color:#666;">Due Date</td><td style="padding:4px 0;font-weight:bold;">' + p.dueDate + '</td>' +
+          '<td style="padding:4px 0;color:#666;text-align:right;">Period</td><td style="padding:4px 0;font-weight:bold;text-align:right;">' + p.periodLabel + '</td></tr>' +
+          '</table>' +
+          '<div style="margin-bottom:14px;font-size:13px;">' +
+          '<div style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">From</div>' +
+          '<div><strong>' + p.personName + '</strong> · Contractor</div>' +
+          '<div>ABN: ' + (p.abn || 'N/A') + '</div>' +
+          '<div style="font-size:11px;color:#666;">Not registered for GST</div>' +
+          '</div>' +
+          '<div style="margin-bottom:14px;font-size:13px;">' +
+          '<div style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Bill To</div>' +
+          '<div><strong>TaskPro</strong></div>' +
+          '<div>info@taskproau.com</div>' +
+          '<div>Melbourne, VIC, Australia</div>' +
+          '</div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+          '<thead><tr style="background:#0d0f0e;color:#fff;">' +
+          '<th style="padding:10px 8px;text-align:left;font-size:11px;">DATE</th>' +
+          '<th style="padding:10px 8px;text-align:left;font-size:11px;">PROJECT</th>' +
+          '<th style="padding:10px 8px;text-align:right;font-size:11px;">HOURS</th>' +
+          '<th style="padding:10px 8px;text-align:right;font-size:11px;">RATE</th>' +
+          '<th style="padding:10px 8px;text-align:right;font-size:11px;">AMOUNT</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+          '<div style="background:#b8f55a;padding:14px 18px;text-align:right;font-size:18px;font-weight:bold;margin-bottom:18px;">' +
+          'TOTAL: $' + p.totalAmount.toFixed(2) + ' AUD' +
+          '</div>' +
+          '<div style="font-size:11px;color:#666;line-height:1.6;">' +
+          '<div style="font-weight:bold;color:#1a1a1a;margin-bottom:4px;">NOTES</div>' +
+          'No GST has been charged on this invoice. The contractor is not registered for GST.<br>' +
+          'Please process payment by due date: ' + p.dueDate + '.<br><br>' +
+          'Generated by TaskPro Project Control · ' + new Date().toLocaleString('es-AU') +
+          '</div>' +
+          '</div>' +
+          '</div>';
       }
 
       // ═══════════════════════════════════════════
@@ -12702,6 +13045,10 @@
           <div class="form-group">
             <label>ABN</label>
             <input type="text" id="ebm_abn" placeholder="11 222 333 444" maxlength="14">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Email personal</label>
+            <input type="email" id="ebm_email" placeholder="worker@gmail.com">
           </div>
         </div>
         <div id="editBaseMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
