@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V58.1</title>
+  <title>TaskPro — Project Control V58.3</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -8359,6 +8359,8 @@
         // 2) Send email via EmailJS (HTML inline in message variable)
         try {
           if (typeof emailjs === 'undefined') throw new Error('EmailJS no cargado');
+          // V58.3 — defensive re-init using v4 syntax { publicKey }
+          try { emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch (_) { /* already initialized, ignore */ }
           const params = {
             to_email: workerEmail,
             to_name: personName,
@@ -11389,6 +11391,15 @@
       const EMAILJS_SERVICE_ID = 'service_14p8989';
       const EMAILJS_TEMPLATE_ID = 'template_s8irk2m';
 
+      // V58.3 — FIX: EmailJS browser v4 requires init({ publicKey }) — passing a string is silently ignored
+      try {
+        if (typeof emailjs !== 'undefined' && emailjs.init) {
+          emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+        }
+      } catch (e) {
+        console.error('EmailJS init failed:', e);
+      }
+
       // ═══════════════════════════════════════════
       // CLIENTS CRUD
       // ═══════════════════════════════════════════
@@ -12189,7 +12200,7 @@
         statusEl.textContent = '⏳ Enviando email...';
 
         try {
-          emailjs.init(EMAILJS_PUBLIC_KEY);
+          emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
           // Send without attachment (plain text params only)
           const params = {
