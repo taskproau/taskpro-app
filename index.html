@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V58</title>
+  <title>TaskPro — Project Control V58.1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -7594,7 +7594,24 @@
       const _ppSort = { col: 'name', asc: true };
       function _ppSortBy(col) { _ppSort.asc = _ppSort.col === col ? !_ppSort.asc : true; _ppSort.col = col; updatePagosResumen(window._ppData, window._ppPersons); }
 
+      // V58.1 — Cache for equipoBase (no global listener exists, so fetch on entry to Pago Personal)
+      let _v58EquipoBaseCache = {};
+      async function _v58RefreshEquipoBaseCache() {
+        try {
+          const snap = await db.ref('taskpro/equipoBase').get();
+          _v58EquipoBaseCache = snap.val() || {};
+        } catch (e) {
+          console.error('Error fetching equipoBase cache:', e);
+          _v58EquipoBaseCache = {};
+        }
+      }
+
       function renderPagos() {
+        // V58.1 — refresh equipoBase cache, then continue rendering
+        _v58RefreshEquipoBaseCache().then(() => _renderPagosBody());
+      }
+
+      function _renderPagosBody() {
         // V53 — operador mode: scope to own data only, hide global summary
         const isOperator = currentUser && currentUser.role === 'operador';
         const resumenCard = document.getElementById('pagos_resumen_card');
@@ -7775,7 +7792,7 @@
         const _v58FromS = from || '';
         const _v58ToS = to || '';
         // Get the equipoBase email for this worker
-        const _v58Member = Object.values(state.equipoBase || {}).find(m => m && m.name === personName);
+        const _v58Member = Object.values(_v58EquipoBaseCache || {}).find(m => m && m.name === personName);
         const _v58Email = _v58Member && _v58Member.email ? _v58Member.email.trim() : '';
         // Count unapproved pendings of this worker in the range
         let _v58UnapprovedCount = 0;
@@ -7830,7 +7847,10 @@
             : 'Enviar invoice por email a ' + _v58Email + ' (con copia a TaskPro)';
           if (_v58AlreadyInvoiced > 0) _v58BtnLabel = '✅ Enviar invoice complementario (' + _v58FreshCount + ')';
         }
-        const _v58ConfirmBtn = '<button class="btn btn-primary btn-sm" ' + _v58Disabled + ' onclick="confirmAndSendPersonalInvoice(\'' + personName.replace(/'/g, "\\'") + '\')" title="' + _v58Tooltip.replace(/"/g, '&quot;') + '" style="background:var(--accent);color:#0d0f0e;font-weight:700;">' + _v58BtnLabel + '</button>';
+        const _v58BtnStyle = _v58Disabled
+          ? 'background:var(--surface2);color:var(--text2);font-weight:600;cursor:not-allowed;opacity:0.55;'
+          : 'background:var(--accent);color:#0d0f0e;font-weight:700;';
+        const _v58ConfirmBtn = '<button class="btn btn-primary btn-sm" ' + _v58Disabled + ' onclick="confirmAndSendPersonalInvoice(\'' + personName.replace(/'/g, "\\'") + '\')" title="' + _v58Tooltip.replace(/"/g, '&quot;') + '" style="' + _v58BtnStyle + '">' + _v58BtnLabel + '</button>';
 
         document.getElementById('pagosDetalle').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -8252,8 +8272,11 @@
           return;
         }
 
-        // Get worker email + ABN from equipoBase
-        const member = Object.values(state.equipoBase || {}).find(m => m && m.name === personName);
+        // Get worker email + ABN from equipoBase (V58.1: refresh cache defensively in case it's stale)
+        if (!_v58EquipoBaseCache || Object.keys(_v58EquipoBaseCache).length === 0) {
+          await _v58RefreshEquipoBaseCache();
+        }
+        const member = Object.values(_v58EquipoBaseCache || {}).find(m => m && m.name === personName);
         const workerEmail = member && member.email ? member.email.trim() : '';
         const abn = member && member.abn ? member.abn.trim() : '';
         if (!workerEmail) {
