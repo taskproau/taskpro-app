@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V58.5</title>
+  <title>TaskPro — Project Control V59</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -17,22 +17,25 @@
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     :root {
-      --bg: #0d0f0e;
-      --surface: #141714;
-      --surface2: #1c201b;
-      --surface3: #232723;
-      --border: #2a2f29;
-      --accent: #b8f55a;
-      --accent2: #5af5a0;
-      --accent-dim: rgba(184, 245, 90, 0.12);
-      --accent-dim2: rgba(90, 245, 160, 0.10);
-      --text: #e8ede6;
-      --text2: #8a9688;
-      --text3: #5a635a;
+      /* V59 — TaskPro brand palette (navy + beige + teal sobrio) */
+      --bg: #0f1a23;
+      --surface: #162533;
+      --surface2: #1e3142;
+      --surface3: #263c50;
+      --border: #2a3e52;
+      --accent: #e8dcc4;         /* Beige logo — buttons primary, branding */
+      --accent2: #a8c8d8;        /* Light blue complementary */
+      --accent-dim: rgba(232, 220, 196, 0.12);
+      --accent-dim2: rgba(168, 200, 216, 0.10);
+      --success: #5a9d8f;        /* Sober teal — totals, success indicators, sync */
+      --success-dim: rgba(90, 157, 143, 0.15);
+      --text: #e8dcc4;
+      --text2: #8aa0b0;
+      --text3: #5a6f80;
       --danger: #f55a5a;
       --danger-dim: rgba(245, 90, 90, 0.12);
-      --warn: #f5c55a;
-      --warn-dim: rgba(245, 197, 90, 0.12);
+      --warn: #e8a04a;
+      --warn-dim: rgba(232, 160, 74, 0.12);
       --radius: 8px;
       --radius-lg: 14px;
     }
@@ -186,11 +189,11 @@
 
     .btn-primary {
       background: var(--accent);
-      color: #0d0f0e;
+      color: #0f1a23;
     }
 
     .btn-primary:hover {
-      background: #d4ff7a;
+      background: #f0e5d0;
     }
 
     .btn-ghost {
@@ -666,7 +669,7 @@
 
     .alert-success {
       background: var(--accent-dim);
-      border: 1px solid rgba(184, 245, 90, 0.2);
+      border: 1px solid rgba(232, 220, 196, 0.2);
       color: var(--accent);
     }
 
@@ -1314,7 +1317,7 @@
       height: 22px;
       border-radius: 50%;
       background: var(--accent);
-      color: #0d0f0e;
+      color: #0f1a23;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1332,7 +1335,7 @@
     }
 
     .role-admin {
-      background: rgba(184, 245, 90, 0.15);
+      background: rgba(232, 220, 196, 0.15);
       color: var(--accent);
     }
 
@@ -1532,7 +1535,7 @@
     .apr-tab-active {
       color: var(--accent);
       border-bottom-color: var(--accent);
-      background: rgba(184, 245, 90, 0.04);
+      background: rgba(232, 220, 196, 0.04);
     }
 
     .apr-row-auto {
@@ -1560,7 +1563,7 @@
 
     .cal-cell:hover {
       background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(184, 245, 90, 0.25);
+      border-color: rgba(232, 220, 196, 0.25);
     }
 
     .cal-cell.cal-other-month {
@@ -1689,7 +1692,7 @@
       width: 420px;
       max-width: 90vw;
       background: var(--bg2);
-      border-left: 1px solid rgba(184, 245, 90, 0.15);
+      border-left: 1px solid rgba(232, 220, 196, 0.15);
       box-shadow: -4px 0 24px rgba(0, 0, 0, 0.5);
       z-index: 999;
       transform: translateX(100%);
@@ -1840,6 +1843,57 @@
       </div>
       <button class="btn btn-primary login-btn" onclick="doLogin()">Ingresar</button>
       <div class="login-error" id="loginError"></div>
+      <!-- V59 — Forgot password link -->
+      <div style="margin-top:14px;text-align:center;">
+        <a href="javascript:void(0)" onclick="openForgotPasswordModal()"
+          style="font-size:12px;color:var(--text2);text-decoration:underline;cursor:pointer;">¿Olvidaste tu contraseña?</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- V59 — Modal: Cambiar contraseña (desde dentro de la app) -->
+  <div class="modal-overlay" id="changePasswordModal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-title">🔐 Cambiar contraseña</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5;">
+        Por seguridad, ingresá tu contraseña actual antes de cambiarla.
+      </div>
+      <div class="form-group">
+        <label>Contraseña actual</label>
+        <input type="password" id="cp_current" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label>Nueva contraseña <span style="color:var(--text3);font-size:10px;font-weight:400;">(mín. 6 caracteres)</span></label>
+        <input type="password" id="cp_new" placeholder="••••••••" autocomplete="new-password" minlength="6">
+      </div>
+      <div class="form-group">
+        <label>Confirmar nueva contraseña</label>
+        <input type="password" id="cp_confirm" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div id="cp_msg" style="font-size:12px;margin-bottom:10px;min-height:16px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="doChangePassword()">Cambiar contraseña</button>
+        <button class="btn btn-ghost" onclick="closeModal('changePasswordModal')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- V59 — Modal: Forgot Password (desde login) -->
+  <div class="modal-overlay" id="forgotPasswordModal">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-title">📧 Recuperar contraseña</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5;">
+        Te enviaremos un email con un link para restablecer tu contraseña.
+      </div>
+      <div class="form-group">
+        <label>Email registrado</label>
+        <input type="email" id="fp_email" placeholder="tu@email.com">
+      </div>
+      <div id="fp_msg" style="font-size:12px;margin-bottom:10px;min-height:16px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="doForgotPassword()">Enviar email</button>
+        <button class="btn btn-ghost" onclick="closeModal('forgotPasswordModal')">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -1876,9 +1930,12 @@
     </div>
     <div id="userMenu" style="display:none;position:fixed;top:58px;right:16px;z-index:999;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:8px 0;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+  padding:8px 0;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
       <div style="padding:8px 14px;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;"
         id="userMenuEmail">—</div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+      <div style="padding:8px 14px;font-size:12px;cursor:pointer;color:var(--text);" onclick="openChangePasswordModal()">
+        🔐 Cambiar contraseña</div>
       <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
       <div style="padding:6px 14px;font-size:12px;cursor:pointer;color:var(--danger);" onclick="doLogout()">⏏ Cerrar
         sesión</div>
@@ -1941,7 +1998,7 @@
         <div class="nav-item" onclick="showSection('users')" id="nav-users" style="display:none;">
           <span class="nav-icon">👤</span> Gestión Usuarios
         </div>
-        <hr class="divider" style="margin:8px 20px;border-color:rgba(184,245,90,0.15);">
+        <hr class="divider" style="margin:8px 20px;border-color:rgba(232, 220, 196,0.15);">
         <div class="sidebar-label" id="nav-label-finance" style="display:none;">Control Financiero</div>
         <div class="nav-item" onclick="showSection('fin-setup')" id="nav-fin-setup" style="display:none;">
           <span class="nav-icon">⚙️</span> Parámetros
@@ -2247,7 +2304,7 @@
             <button class="btn btn-primary" onclick="addBaseTeamMember()">Agregar al equipo base</button>
           </div>
 
-          <div class="card" style="border-color:rgba(184,245,90,0.2);">
+          <div class="card" style="border-color:rgba(232, 220, 196,0.2);">
             <div class="card-title">🔄 Sincronizar nombres en proyectos</div>
             <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">
               Actualiza automáticamente los nombres cortos (ej: "Carlos") por los nombres completos
@@ -2536,7 +2593,7 @@
             <div style="margin-top:8px;font-size:11px;color:var(--accent);" id="fp_save_msg"></div>
           </div>
 
-          <div class="card" style="border-color:rgba(184,245,90,0.25);">
+          <div class="card" style="border-color:rgba(232, 220, 196,0.25);">
             <div class="card-title">🔢 Contadores de invoices</div>
             <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
               Hay dos contadores separados: <strong>INV</strong> para invoices de proyecto (Todos los Proyectos) y
@@ -2592,7 +2649,7 @@
             </div>
           </div>
 
-          <div class="card" style="border-color:rgba(184,245,90,0.25);">
+          <div class="card" style="border-color:rgba(232, 220, 196,0.25);">
             <div class="card-title">🗂 Listas de clasificación</div>
             <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
               Gestiona las opciones que aparecen en los formularios de <strong>Ingresos</strong> y
@@ -2608,7 +2665,7 @@
             </div>
           </div>
 
-          <div class="card" style="border-color:rgba(184,245,90,0.25);">
+          <div class="card" style="border-color:rgba(232, 220, 196,0.25);">
             <div class="card-title">📥 Importar datos desde Excel</div>
             <p style="font-size:12px;color:var(--text2);margin-bottom:14px;">
               Sube el archivo <strong>TASKPRO_Control_Financiero</strong> para importar el historial de
@@ -2626,7 +2683,7 @@
             <div id="excel_import_progress" style="margin-top:12px;"></div>
           </div>
 
-          <div class="card" style="border-color:rgba(184,245,90,0.25);">
+          <div class="card" style="border-color:rgba(232, 220, 196,0.25);">
             <div class="card-title">💾 Backup y Restauración</div>
             <div id="backup_status_indicator"
               style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;font-size:12px;margin-bottom:14px;background:var(--surface2);">
@@ -2766,7 +2823,7 @@
         <div class="section" id="section-fin-expenses">
           <div class="section-title">💸 Egresos</div>
           <div class="section-sub">Todos los gastos del negocio. No borres historico.</div>
-          <div class="card" style="border-color:rgba(184,245,90,0.15);padding:12px 16px;margin-bottom:4px;">
+          <div class="card" style="border-color:rgba(232, 220, 196,0.15);padding:12px 16px;margin-bottom:4px;">
             <div
               style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">
               Guía de Áreas</div>
@@ -3165,7 +3222,7 @@
 
             <!-- Sesiones activas (info, solo en tab Pendientes y solo si hay alguna) -->
             <div id="apr_active_card"
-              style="padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(184,245,90,0.04);display:none;">
+              style="padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(232, 220, 196,0.04);display:none;">
               <div
                 style="font-size:12px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--accent);">
                 🟢 Sesiones activas en este momento <span id="apr_active_count"
@@ -3309,7 +3366,7 @@
           </div>
         </div>
         <div id="et_preview"
-          style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;display:none;">
+          style="margin-top:12px;padding:10px;background:rgba(232, 220, 196,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;display:none;">
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="saveTimelogEdit()">Guardar cambios</button>
@@ -3355,7 +3412,7 @@
           </div>
         </div>
         <div id="mjco_preview"
-          style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;">
+          style="margin-top:12px;padding:10px;background:rgba(232, 220, 196,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;">
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="mjConfirmCheckout()">✅ Confirmar jornada</button>
@@ -3433,7 +3490,7 @@
           </div>
         </div>
         <div id="mjep_preview"
-          style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;">
+          style="margin-top:12px;padding:10px;background:rgba(232, 220, 196,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;">
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;">
           <button class="btn btn-primary" onclick="mjSavePendingEdit()">Guardar cambios</button>
@@ -3480,7 +3537,7 @@
           <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">💬 Nota del worker (sólo lectura)</label>
           <div id="aep_note_view" style="padding:10px 12px;background:rgba(91,155,213,0.08);border-left:3px solid #5b9bd5;border-radius:4px;font-size:12px;color:var(--text);font-style:italic;white-space:pre-wrap;line-height:1.5;"></div>
         </div>
-        <div id="aep_preview" style="margin-top:12px;padding:10px;background:rgba(184,245,90,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
+        <div id="aep_preview" style="margin-top:12px;padding:10px;background:rgba(232, 220, 196,0.05);border-radius:6px;font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;"></div>
         <div style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.5;">
           Al guardar, la jornada quedará marcada como editada por admin y el worker recibirá una notificación.
         </div>
@@ -3751,6 +3808,122 @@
       async function doLogout() {
         toggleUserMenu(false);
         await auth.signOut();
+      }
+
+      // ═══════════════════════════════════════════
+      // V59 — CHANGE PASSWORD (desde dentro de la app)
+      // ═══════════════════════════════════════════
+      function openChangePasswordModal() {
+        toggleUserMenu(false);
+        document.getElementById('cp_current').value = '';
+        document.getElementById('cp_new').value = '';
+        document.getElementById('cp_confirm').value = '';
+        document.getElementById('cp_msg').textContent = '';
+        document.getElementById('cp_msg').style.color = '';
+        document.getElementById('changePasswordModal').classList.add('open');
+      }
+
+      async function doChangePassword() {
+        const current = document.getElementById('cp_current').value;
+        const newPwd = document.getElementById('cp_new').value;
+        const confirm = document.getElementById('cp_confirm').value;
+        const msg = document.getElementById('cp_msg');
+        msg.style.color = '';
+
+        if (!current || !newPwd || !confirm) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Todos los campos son requeridos.';
+          return;
+        }
+        if (newPwd.length < 6) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'La nueva contraseña debe tener al menos 6 caracteres.';
+          return;
+        }
+        if (newPwd !== confirm) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Las contraseñas nuevas no coinciden.';
+          return;
+        }
+        if (newPwd === current) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'La nueva contraseña debe ser distinta a la actual.';
+          return;
+        }
+
+        const user = auth.currentUser;
+        if (!user || !user.email) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'No hay sesión activa.';
+          return;
+        }
+
+        msg.style.color = 'var(--text2)';
+        msg.textContent = '⏳ Cambiando contraseña...';
+
+        try {
+          // Step 1: re-authenticate with current password (Firebase requires this for sensitive ops)
+          const credential = firebase.auth.EmailAuthProvider.credential(user.email, current);
+          await user.reauthenticateWithCredential(credential);
+          // Step 2: update password
+          await user.updatePassword(newPwd);
+          msg.style.color = 'var(--success)';
+          msg.textContent = '✅ Contraseña actualizada correctamente.';
+          setTimeout(() => {
+            closeModal('changePasswordModal');
+            showSyncBanner('🔐 Contraseña actualizada', 'success');
+          }, 1200);
+        } catch (e) {
+          msg.style.color = 'var(--danger)';
+          let errMsg = e.message || 'Error desconocido';
+          if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+            errMsg = 'La contraseña actual es incorrecta.';
+          } else if (e.code === 'auth/weak-password') {
+            errMsg = 'La nueva contraseña es muy débil.';
+          } else if (e.code === 'auth/requires-recent-login') {
+            errMsg = 'Por seguridad, cerrá sesión y volvé a entrar antes de cambiar la contraseña.';
+          }
+          msg.textContent = '⚠️ ' + errMsg;
+        }
+      }
+
+      // ═══════════════════════════════════════════
+      // V59 — FORGOT PASSWORD (desde la pantalla de login)
+      // ═══════════════════════════════════════════
+      function openForgotPasswordModal() {
+        const loginEmail = document.getElementById('login_email').value || '';
+        document.getElementById('fp_email').value = loginEmail;
+        document.getElementById('fp_msg').textContent = '';
+        document.getElementById('fp_msg').style.color = '';
+        document.getElementById('forgotPasswordModal').classList.add('open');
+      }
+
+      async function doForgotPassword() {
+        const email = document.getElementById('fp_email').value.trim();
+        const msg = document.getElementById('fp_msg');
+        msg.style.color = '';
+        if (!email) {
+          msg.style.color = 'var(--danger)';
+          msg.textContent = 'Ingresá tu email.';
+          return;
+        }
+        msg.style.color = 'var(--text2)';
+        msg.textContent = '⏳ Enviando email...';
+        try {
+          await auth.sendPasswordResetEmail(email);
+          msg.style.color = 'var(--success)';
+          msg.textContent = '✅ Revisá tu email. Te enviamos un link para restablecer la contraseña.';
+          setTimeout(() => closeModal('forgotPasswordModal'), 2800);
+        } catch (e) {
+          msg.style.color = 'var(--danger)';
+          let errMsg = e.message || 'Error desconocido';
+          if (e.code === 'auth/user-not-found') {
+            errMsg = 'No existe una cuenta con ese email.';
+          } else if (e.code === 'auth/invalid-email') {
+            errMsg = 'Email inválido.';
+          }
+          msg.textContent = '⚠️ ' + errMsg;
+        }
       }
 
       // ── User menu toggle ──
@@ -6674,7 +6847,7 @@
     </div>
 
     ${c.clientPrice > 0 ? `
-      <div class="card" style="border-color:${c.profitVsClient >= 0 ? 'rgba(184,245,90,0.3)' : 'rgba(245,90,90,0.3)'};">
+      <div class="card" style="border-color:${c.profitVsClient >= 0 ? 'rgba(232, 220, 196,0.3)' : 'rgba(245,90,90,0.3)'};">
         <div class="compare-section">
           <div class="compare-side">
             <div class="compare-label">Precio sugerido (calculado)</div>
@@ -7081,7 +7254,7 @@
         const pageW = doc.internal.pageSize.getWidth();
         const margin = 15;
         let y = 20;
-        const GREEN = [184, 245, 90];
+        const BRAND_NAVY = [15, 26, 35]; const BRAND_BEIGE = [232, 220, 196]; const BRAND_SUCCESS = [90, 157, 143]; const GREEN = BRAND_NAVY;
         const DARK = [13, 15, 14];
         const SURFACE = [28, 32, 27];
         const TEXT = [232, 237, 230];
@@ -7107,7 +7280,7 @@
           y += 3;
           doc.setFillColor(...GREEN);
           doc.rect(margin, y, pageW - margin * 2, 7, 'F');
-          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
           doc.text(title.toUpperCase(), margin + 3, y + 5);
           y += 10;
         }
@@ -7829,7 +8002,7 @@
           b.style.color = '';
         });
         const activeBtn = document.getElementById('btn_pago_' + personName.replace(/\s/g, '_'));
-        if (activeBtn) { activeBtn.style.background = 'var(--accent)'; activeBtn.style.color = '#0d0f0e'; }
+        if (activeBtn) { activeBtn.style.background = 'var(--accent)'; activeBtn.style.color = '#0f1a23'; }
 
         if (!d || !d.entries.length) {
           document.getElementById('pagosDetalle').innerHTML =
@@ -7898,7 +8071,7 @@
         }
         const _v58BtnStyle = _v58Disabled
           ? 'background:var(--surface2);color:var(--text2);font-weight:600;cursor:not-allowed;opacity:0.55;'
-          : 'background:var(--accent);color:#0d0f0e;font-weight:700;';
+          : 'background:var(--accent);color:#0f1a23;font-weight:700;';
         const _v58ConfirmBtn = '<button class="btn btn-primary btn-sm" ' + _v58Disabled + ' onclick="confirmAndSendPersonalInvoice(\'' + personName.replace(/'/g, "\\'") + '\')" title="' + _v58Tooltip.replace(/"/g, '&quot;') + '" style="' + _v58BtnStyle + '">' + _v58BtnLabel + '</button>';
 
         document.getElementById('pagosDetalle').innerHTML = `
@@ -7988,7 +8161,7 @@
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const pageW = doc.internal.pageSize.getWidth();
         const margin = 15;
-        const GREEN = [184, 245, 90];
+        const BRAND_NAVY = [15, 26, 35]; const BRAND_BEIGE = [232, 220, 196]; const BRAND_SUCCESS = [90, 157, 143]; const GREEN = BRAND_NAVY;
         const DARK = [13, 15, 14];
         const SURFACE = [28, 32, 27];
         const TEXT = [232, 237, 230];
@@ -8013,9 +8186,9 @@
         y += 12;
 
         // Summary box
-        doc.setFillColor(...GREEN);
+        doc.setFillColor(...BRAND_SUCCESS);
         doc.rect(margin, y, pageW - margin * 2, 14, 'F');
-        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
         doc.text('TOTAL A PAGAR', margin + 4, y + 6);
         doc.setFontSize(14);
         doc.text('$' + d.pay.toFixed(2), pageW - margin - 4, y + 9, { align: 'right' });
@@ -8024,7 +8197,7 @@
         // Detail table
         doc.setFillColor(...GREEN);
         doc.rect(margin, y, pageW - margin * 2, 7, 'F');
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
         doc.text('DETALLE DE JORNADAS', margin + 3, y + 5);
         y += 10;
 
@@ -8105,7 +8278,7 @@
         const pageW = doc.internal.pageSize.getWidth();
         const pageH = doc.internal.pageSize.getHeight();
         const margin = 20;
-        const GREEN = [184, 245, 90];
+        const BRAND_NAVY = [15, 26, 35]; const BRAND_BEIGE = [232, 220, 196]; const BRAND_SUCCESS = [90, 157, 143]; const GREEN = BRAND_NAVY;
         const DARK = [30, 33, 36];
         const MUTED = [120, 125, 130];
 
@@ -8121,7 +8294,7 @@
             // Header — green band
             doc.setFillColor(...GREEN);
             doc.rect(0, 0, pageW, 35, 'F');
-            doc.setTextColor(...DARK);
+            doc.setTextColor(...BRAND_BEIGE);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(24);
             doc.text('TAX INVOICE', margin, 22);
@@ -8210,9 +8383,9 @@
             doc.setLineWidth(0.3);
             doc.line(margin, y, pageW - margin, y);
             y += 8;
-            doc.setFillColor(...GREEN);
+            doc.setFillColor(...BRAND_SUCCESS);
             doc.rect(pageW - margin - 80, y, 80, 12, 'F');
-            doc.setTextColor(...DARK);
+            doc.setTextColor(...BRAND_BEIGE);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
             doc.text('TOTAL', pageW - margin - 75, y + 8);
@@ -8226,11 +8399,11 @@
               doc.setFillColor(248, 249, 250);
               const boxH = 36;
               doc.rect(margin, y - 4, pageW - 2 * margin, boxH, 'F');
-              doc.setFillColor(...GREEN);
+              doc.setFillColor(...BRAND_SUCCESS);
               doc.rect(margin, y - 4, 2, boxH, 'F');
               doc.setFont('helvetica', 'bold');
               doc.setFontSize(9);
-              doc.setTextColor(...DARK);
+              doc.setTextColor(...BRAND_BEIGE);
               doc.text('PAYMENT INSTRUCTIONS', margin + 6, y + 2);
               doc.setFont('helvetica', 'normal');
               doc.setFontSize(9);
@@ -8503,7 +8676,7 @@
         // Bank details section (only shown if at least one field is set)
         const hasBank = !!(p.bsb || p.accNum || p.bank || p.accName);
         const bankSection = hasBank
-          ? '<div style="margin-top:18px;padding:14px 16px;background:#f8f9fa;border-radius:6px;border-left:3px solid #b8f55a;">' +
+          ? '<div style="margin-top:18px;padding:14px 16px;background:#f8f9fa;border-radius:6px;border-left:3px solid #5a9d8f;">' +
             '<div style="font-weight:bold;color:#1a1a1a;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Payment Instructions</div>' +
             '<div style="font-size:12px;color:#444;line-height:1.7;">' +
             'Currency: AUD<br>' +
@@ -8517,9 +8690,9 @@
           : '';
         return '' +
           '<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;background:#fff;color:#1a1a1a;">' +
-          '<div style="background:#b8f55a;padding:20px 24px;">' +
-          '<h1 style="margin:0;font-size:24px;color:#0d0f0e;">TAX INVOICE</h1>' +
-          '<div style="font-size:12px;color:#0d0f0e;margin-top:4px;">No GST charged</div>' +
+          '<div style="background:#0f1a23;padding:20px 24px;">' +
+          '<h1 style="margin:0;font-size:24px;color:#e8dcc4;">TAX INVOICE</h1>' +
+          '<div style="font-size:12px;color:#e8dcc4;margin-top:4px;">No GST charged</div>' +
           '</div>' +
           '<div style="padding:20px 24px;">' +
           complementBanner +
@@ -8542,7 +8715,7 @@
           '<div>Melbourne, VIC, Australia</div>' +
           '</div>' +
           '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">' +
-          '<thead><tr style="background:#0d0f0e;color:#fff;">' +
+          '<thead><tr style="background:#0f1a23;color:#fff;">' +
           '<th style="padding:12px;text-align:left;font-size:11px;">DESCRIPTION</th>' +
           '<th style="padding:12px;text-align:right;font-size:11px;">AMOUNT (AUD)</th>' +
           '</tr></thead>' +
@@ -8554,7 +8727,7 @@
           '<td style="padding:14px 12px;font-size:14px;text-align:right;font-family:monospace;font-weight:bold;">$' + p.totalAmount.toFixed(2) + '</td>' +
           '</tr></tbody>' +
           '</table>' +
-          '<div style="background:#b8f55a;padding:14px 18px;text-align:right;font-size:18px;font-weight:bold;margin-bottom:18px;">' +
+          '<div style="background:#5a9d8f;padding:14px 18px;text-align:right;font-size:18px;font-weight:bold;margin-bottom:18px;color:#ffffff;">' +
           'TOTAL: $' + p.totalAmount.toFixed(2) + ' AUD' +
           '</div>' +
           bankSection +
@@ -8748,7 +8921,7 @@
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const pageW = doc.internal.pageSize.getWidth();
         const margin_pg = 15;
-        const GREEN = [184, 245, 90];
+        const BRAND_NAVY = [15, 26, 35]; const BRAND_BEIGE = [232, 220, 196]; const BRAND_SUCCESS = [90, 157, 143]; const GREEN = BRAND_NAVY;
         const DARK = [13, 15, 14];
         const SURFACE = [28, 32, 27];
         const TEXT = [232, 237, 230];
@@ -8771,9 +8944,9 @@
         doc.text('Cliente: ' + client, margin_pg, y); y += 12;
 
         // Price highlight box
-        doc.setFillColor(...GREEN);
+        doc.setFillColor(...BRAND_SUCCESS);
         doc.rect(margin_pg, y, pageW - margin_pg * 2, 14, 'F');
-        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
         doc.text('PRECIO SUGERIDO AL CLIENTE', margin_pg + 4, y + 6);
         doc.setFontSize(14);
         doc.text('$' + total.toFixed(2), pageW - margin_pg - 4, y + 9, { align: 'right' });
@@ -8783,7 +8956,7 @@
         if (quoteLabour.filter(r => r.rate > 0 && r.hours > 0).length) {
           doc.setFillColor(...GREEN);
           doc.rect(margin_pg, y, pageW - margin_pg * 2, 7, 'F');
-          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
           doc.text('MANO DE OBRA', margin_pg + 3, y + 5);
           y += 10;
           doc.autoTable({
@@ -8810,7 +8983,7 @@
           if (y > 220) { doc.addPage(); y = 20; }
           doc.setFillColor(...GREEN);
           doc.rect(margin_pg, y, pageW - margin_pg * 2, 7, 'F');
-          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+          doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
           doc.text('MATERIALES Y COSTOS DIRECTOS', margin_pg + 3, y + 5);
           y += 10;
           doc.autoTable({
@@ -8834,7 +9007,7 @@
         if (y > 200) { doc.addPage(); y = 20; }
         doc.setFillColor(...GREEN);
         doc.rect(margin_pg, y, pageW - margin_pg * 2, 7, 'F');
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...DARK);
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BRAND_BEIGE);
         doc.text('DESGLOSE FINANCIERO', margin_pg + 3, y + 5);
         y += 10;
         doc.autoTable({
@@ -10686,7 +10859,7 @@
               : (delta >= 0 ? '+' : '') + delta.toFixed(0);
           const isGood = good === 'high' ? value >= (typeof target === 'number' ? target : value) : value <= (typeof target === 'number' ? target : value);
           const statusColor = isGood ? 'var(--accent)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'var(--warn)' : 'var(--danger)';
-          const borderColor = isGood ? 'rgba(184,245,90,0.25)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'rgba(245,197,90,0.25)' : 'rgba(245,90,90,0.25)';
+          const borderColor = isGood ? 'rgba(232, 220, 196,0.25)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'rgba(245,197,90,0.25)' : 'rgba(245,90,90,0.25)';
           const deltaColor = (good === 'high' ? delta >= 0 : delta <= 0) ? 'var(--accent)' : 'var(--danger)';
           return '<div class="card" style="border-color:' + borderColor + ';text-align:center;">'
             + '<div style="font-size:24px;margin-bottom:4px;">' + icon + '</div>'
@@ -10724,7 +10897,7 @@
           const ohH = Math.max(0, (pl.totalOH / maxRev) * (chartH - 20));
           const x = idx * (barW + barGap);
           return '<g>'
-            + '<rect x="' + x + '" y="' + (chartH - 20 - revH) + '" width="' + barW + '" height="' + revH + '" fill="rgba(184,245,90,0.3)" rx="2"/>'
+            + '<rect x="' + x + '" y="' + (chartH - 20 - revH) + '" width="' + barW + '" height="' + revH + '" fill="rgba(232, 220, 196,0.3)" rx="2"/>'
             + '<rect x="' + x + '" y="' + (chartH - 20 - costH) + '" width="' + (barW / 2) + '" height="' + costH + '" fill="rgba(245,197,90,0.7)" rx="1"/>'
             + '<rect x="' + (x + barW / 2) + '" y="' + (chartH - 20 - ohH) + '" width="' + (barW / 2) + '" height="' + ohH + '" fill="rgba(245,90,90,0.5)" rx="1"/>'
             + '<text x="' + (x + barW / 2) + '" y="' + (chartH - 4) + '" text-anchor="middle" fill="#5a635a" font-size="9">' + label.split('-')[0] + '</text>'
@@ -10745,7 +10918,7 @@
         });
         const linePath = mPoints.map((p, i) => (i === 0 ? 'M' : 'L') + p.mx + ',' + p.my).join(' ');
         const lineSVG = '<svg viewBox="0 0 ' + (lineW * trendPL.length + 20) + ' ' + chartH + '" style="width:100%;max-width:500px;overflow:hidden;">'
-          + '<line x1="10" y1="' + (chartH - 25 - 15 * 1.5) + '" x2="' + (lineW * trendPL.length + 10) + '" y2="' + (chartH - 25 - 15 * 1.5) + '" stroke="rgba(184,245,90,0.3)" stroke-width="1" stroke-dasharray="4,4"/>'
+          + '<line x1="10" y1="' + (chartH - 25 - 15 * 1.5) + '" x2="' + (lineW * trendPL.length + 10) + '" y2="' + (chartH - 25 - 15 * 1.5) + '" stroke="rgba(232, 220, 196,0.3)" stroke-width="1" stroke-dasharray="4,4"/>'
           + '<path d="' + linePath + '" fill="none" stroke="var(--accent)" stroke-width="2"/>'
           + mPoints.map(p => '<circle cx="' + p.mx + '" cy="' + p.my + '" r="3" fill="' + (p.pct >= getParam('min_margin') / 100 ? 'var(--accent)' : 'var(--danger)') + '"/>'
             + '<text x="' + p.mx + '" y="' + (p.my - 6) + '" text-anchor="middle" fill="#8a9688" font-size="8">' + (p.pct * 100).toFixed(0) + '%</text>'
@@ -10781,7 +10954,7 @@
           + '<div class="kpi-charts-grid">'
           + '<div class="card"><div class="card-title">📊 Revenue vs Costos (6 meses)</div>'
           + '<div style="display:flex;gap:12px;margin-bottom:8px;font-size:10px;color:var(--text2);">'
-          + '<span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:8px;background:rgba(184,245,90,0.3);display:inline-block;border-radius:2px;"></span>Revenue</span>'
+          + '<span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:8px;background:rgba(232, 220, 196,0.3);display:inline-block;border-radius:2px;"></span>Revenue</span>'
           + '<span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:8px;background:rgba(245,197,90,0.7);display:inline-block;border-radius:2px;"></span>Direct</span>'
           + '<span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:8px;background:rgba(245,90,90,0.5);display:inline-block;border-radius:2px;"></span>Overhead</span>'
           + chartSVG + '</div>'
@@ -10811,7 +10984,7 @@
           const fmtVal = format === '$' ? '$' + valor.toFixed(2)
             : format === '%' ? (valor * 100).toFixed(1) + '%'
               : String(valor);
-          const bgColor = nivel === 'CRITICO' ? 'rgba(245,90,90,0.08)' : nivel === 'ALERTA' ? 'rgba(245,197,90,0.08)' : 'rgba(184,245,90,0.08)';
+          const bgColor = nivel === 'CRITICO' ? 'rgba(245,90,90,0.08)' : nivel === 'ALERTA' ? 'rgba(245,197,90,0.08)' : 'rgba(232, 220, 196,0.08)';
           return '<tr style="background:' + bgColor + ';">'
             + '<td style="font-weight:600;">' + indicador + '</td>'
             + '<td class="num" style="font-weight:700;">' + fmtVal + '</td>'
@@ -10860,7 +11033,7 @@
           + '<div style="background:rgba(245,197,90,0.12);border:1px solid rgba(245,197,90,0.3);border-radius:var(--radius);padding:10px 16px;text-align:center;">'
           + '<div style="font-size:22px;font-weight:800;color:var(--warn);">' + alertCount + '</div>'
           + '<div style="font-size:10px;color:var(--warn);">ALERTA</div></div>'
-          + '<div style="background:rgba(184,245,90,0.12);border:1px solid rgba(184,245,90,0.3);border-radius:var(--radius);padding:10px 16px;text-align:center;">'
+          + '<div style="background:rgba(232, 220, 196,0.12);border:1px solid rgba(232, 220, 196,0.3);border-radius:var(--radius);padding:10px 16px;text-align:center;">'
           + '<div style="font-size:22px;font-weight:800;color:var(--accent);">' + okCount + '</div>'
           + '<div style="font-size:10px;color:var(--accent);">OK</div></div>'
           + '</div>'
@@ -11290,7 +11463,7 @@
           iconEl.textContent = '✅';
           textEl.textContent = 'Último backup: ' + lastFmt + ' (hace ' + days + (days === 1 ? ' día' : ' días') + ').';
           wrapEl.style.color = 'var(--accent)';
-          wrapEl.style.background = 'rgba(184,245,90,0.12)';
+          wrapEl.style.background = 'rgba(232, 220, 196,0.12)';
         } else if (days <= 14) {
           iconEl.textContent = '⏰';
           textEl.textContent = 'Último backup: ' + lastFmt + ' (hace ' + days + ' días). Sugerido: descargar ya.';
@@ -11581,7 +11754,7 @@
             else { unpaid++; unpaidAmt += (i.amount || 0); }
           });
           stats.innerHTML =
-            '<span style="padding:5px 10px;border-radius:8px;background:rgba(184,245,90,0.15);color:var(--accent);"><strong>' + paid + '</strong> Paid · $' + paidAmt.toFixed(0) + '</span>'
+            '<span style="padding:5px 10px;border-radius:8px;background:rgba(232, 220, 196,0.15);color:var(--accent);"><strong>' + paid + '</strong> Paid · $' + paidAmt.toFixed(0) + '</span>'
             + '<span style="padding:5px 10px;border-radius:8px;background:rgba(255,180,50,0.15);color:var(--warn);"><strong>' + unpaid + '</strong> Unpaid · $' + unpaidAmt.toFixed(0) + '</span>'
             + '<span style="padding:5px 10px;border-radius:8px;background:rgba(255,80,80,0.15);color:var(--danger);"><strong>' + overdue + '</strong> Overdue · $' + overdueAmt.toFixed(0) + '</span>';
         }
