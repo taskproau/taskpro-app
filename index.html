@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V59.2</title>
+  <title>TaskPro — Project Control V59.3</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -6873,6 +6873,82 @@
         </div>
       </div>` : `<div class="alert alert-warn">Ingresa el precio acordado con el cliente en Pricing para ver la comparación.</div>`}
 
+    ${c.clientPrice > 0 ? (() => {
+      // V59.3 — Presupuesto Target: dado el clientPrice, ¿cuánto debería gastarse en cada rubro?
+      // Reverse engineering: clientPrice = totalCost × (1 + OH%) × (1 + Markup%) ... pero el cascade real es:
+      //   base = totalCost × (1 + OH% + Cont%)
+      //   total = base × (1 + Markup%)
+      // entonces: factor = (1 + OH/100 + Cont/100) × (1 + Markup/100)
+      const ohP = (p.pricing.overhead || 0) / 100;
+      const ctP = (p.pricing.contingency || 0) / 100;
+      const mkP = (p.pricing.markup || 0) / 100;
+      const factor = (1 + ohP + ctP) * (1 + mkP);
+      if (factor <= 0) return '';
+      const tgtCost = c.clientPrice / factor;
+      const tgtOH = tgtCost * ohP;
+      const tgtCt = tgtCost * ctP;
+      const tgtBase = tgtCost + tgtOH + tgtCt;
+      const tgtMk = tgtBase * mkP;
+      // Comparación real vs target para Costo directo (el más útil para Carlos)
+      const costDelta = tgtCost - c.totalCost;
+      const costStatus = costDelta >= 0 ? 'gain' : 'danger';
+      const costMsg = costDelta >= 0
+        ? 'Margen disponible: $' + costDelta.toFixed(2) + ' antes de tocar markup'
+        : 'Te pasaste $' + Math.abs(costDelta).toFixed(2) + ' del techo presupuestal';
+      return `
+    <div class="card" style="border-color:rgba(168, 200, 216, 0.25);">
+      <div class="card-title">💡 Presupuesto Target — según precio cliente</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.5;">
+        Si el cliente paga <strong style="color:var(--accent2);">$${c.clientPrice.toFixed(2)}</strong>, para mantener los ratios configurados (OH ${p.pricing.overhead}%, Cont ${p.pricing.contingency}%, Markup ${p.pricing.markup}%) cada rubro tiene este techo presupuestal:
+      </div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table class="data-table" style="min-width:300px;">
+        <thead><tr>
+          <th>Rubro</th>
+          <th class="num">Target</th>
+          <th class="num">Real hoy</th>
+          <th class="num">Δ</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Costo directo</strong> <span style="color:var(--text3);font-size:10px;">(techo)</span></td>
+            <td class="num" style="color:var(--accent2);font-weight:700;">$${tgtCost.toFixed(2)}</td>
+            <td class="num">$${c.totalCost.toFixed(2)}</td>
+            <td class="num" style="color:var(--${costStatus});font-weight:700;">${costDelta >= 0 ? '+' : ''}$${costDelta.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>Overhead (${p.pricing.overhead}%)</td>
+            <td class="num" style="color:var(--accent2);">$${tgtOH.toFixed(2)}</td>
+            <td class="num">$${c.overhead.toFixed(2)}</td>
+            <td class="num" style="color:var(--text3);">—</td>
+          </tr>
+          <tr>
+            <td>Imprevisto (${p.pricing.contingency}%)</td>
+            <td class="num" style="color:var(--accent2);">$${tgtCt.toFixed(2)}</td>
+            <td class="num">$${c.contingency.toFixed(2)}</td>
+            <td class="num" style="color:var(--text3);">—</td>
+          </tr>
+          <tr>
+            <td>Markup (${p.pricing.markup}%)</td>
+            <td class="num" style="color:var(--accent2);">$${tgtMk.toFixed(2)}</td>
+            <td class="num">$${c.markup.toFixed(2)} <span style="color:var(--text3);font-size:10px;">(ideal)</span></td>
+            <td class="num" style="color:var(--text3);">—</td>
+          </tr>
+          <tr class="total-row">
+            <td><strong>Total</strong></td>
+            <td class="num"><strong>$${c.clientPrice.toFixed(2)}</strong></td>
+            <td class="num">$${c.total.toFixed(2)} <span style="color:var(--text3);font-size:10px;">(ideal)</span></td>
+            <td class="num">—</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <div class="alert ${costDelta >= 0 ? 'alert-success' : 'alert-danger'}" style="margin-top:12px;font-size:12px;">
+        ${costDelta >= 0 ? '✓' : '⚠'} ${costMsg}
+      </div>
+    </div>` ;
+    })() : ''}
+
     <div class="card">
       <div class="card-title">📊 Desglose completo</div>
       ${(() => {
@@ -6886,8 +6962,13 @@
               { label: 'Markup (' + p.pricing.markup + '%) - Margen ideal ' + c.margin.toFixed(1) + '%', ideal: c.markup },
             ];
             let remaining = c.clientPrice > 0 ? c.clientPrice : c.total;
-            const realItems = idealItems.map(item => {
-              const real = Math.min(Math.max(remaining, 0), item.ideal);
+            const realItems = idealItems.map((item, idx) => {
+              // V59.3 — Markup uncapped: si hay clientPrice y sobra después de los costos,
+              // todo el excedente cae en Markup (último item idx=3) en lugar de descartarse
+              const isLastMarkup = (idx === idealItems.length - 1);
+              const real = isLastMarkup
+                ? Math.max(remaining, 0)
+                : Math.min(Math.max(remaining, 0), item.ideal);
               remaining -= real;
               const pct = item.ideal > 0 ? (real / item.ideal * 100) : 100;
               return { ...item, real, pct };
@@ -6906,8 +6987,6 @@
               const bar = '<div class="progress-wrap" style="margin-top:4px;"><div class="progress-bar '
                 + (ok ? 'green' : 'red') + '" style="width:' + Math.min(item.pct, 100).toFixed(1) + '%;"></div></div>';
               // V59.2 FIX: % real usa la misma base que el objetivo de cada item.
-              // Overhead/Contingency: % de totalCost (base correcta).
-              // Markup: % de base (= totalCost + overhead + contingency), NO de totalCost.
               const pctRealBases = [c.totalCost, c.totalCost, c.totalCost, c.base];
               const baseForPct = pctRealBases[i] || c.totalCost;
               const pctReal = item.isTotal ? null : (baseForPct > 0 ? (item.real / baseForPct * 100) : 0);
@@ -6932,15 +7011,24 @@
               const baseForPct = pctRealBases[i] || c.totalCost;
               const pctReal = item.isTotal ? null : (baseForPct > 0 ? (item.real / baseForPct * 100) : 0);
               const pctObjStr = item.isTotal ? '—' : pctObj + '%';
+              // V59.3 — Detectar si hay extra (Markup uncapped > ideal) y mostrar visualmente
+              const hasExtra = item.real > item.ideal + 0.01;
+              const extraAmount = hasExtra ? item.real - item.ideal : 0;
+              const valueColor = hasExtra ? 'var(--gain)' : 'var(--accent)';
               const pctRealStr = item.isTotal ? '—'
-                : '<span style="color:var(--accent);font-weight:700;">' + pctReal.toFixed(1) + '%</span>';
+                : '<span style="color:' + valueColor + ';font-weight:700;">' + pctReal.toFixed(1) + '%</span>'
+                + (hasExtra ? '<br><span style="font-size:10px;color:var(--text3);">obj: ' + pctObj + '%</span>' : '');
+              const badge = hasExtra
+                ? '<span class="badge badge-green">100%+</span>'
+                : '<span class="badge badge-green">100%</span>';
               return '<tr' + (item.isTotal ? ' class="total-row"' : '') + '>'
                 + '<td>' + (item.isTotal ? '<strong>' + item.label + '</strong>' : item.label) + '</td>'
                 + '<td class="num" style="color:var(--text2);">' + pctObjStr + '</td>'
                 + '<td class="num">$' + item.ideal.toFixed(2) + '</td>'
-                + '<td class="num" style="color:var(--accent);">$' + item.ideal.toFixed(2) + '</td>'
+                + '<td class="num" style="color:' + valueColor + ';font-weight:' + (hasExtra ? '700' : '400') + ';">$' + item.real.toFixed(2)
+                + (hasExtra ? '<br><span style="font-size:10px;color:var(--gain);">+$' + extraAmount.toFixed(2) + ' sobre ideal</span>' : '') + '</td>'
                 + '<td class="num">' + pctRealStr + '</td>'
-                + '<td class="num"><span class="badge badge-green">100%</span></td>'
+                + '<td class="num">' + badge + '</td>'
                 + '</tr>';
             }).join('');
 
