@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V58.3</title>
+  <title>TaskPro — Project Control V58.4</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -8361,20 +8361,16 @@
           if (typeof emailjs === 'undefined') throw new Error('EmailJS no cargado');
           // V58.3 — defensive re-init using v4 syntax { publicKey }
           try { emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch (_) { /* already initialized, ignore */ }
+          // V58.4 — use personal template + matching variable names ({{name}}, {{html_content}}, {{subject}}, {{to_email}})
           const params = {
             to_email: workerEmail,
-            to_name: personName,
-            from_name: 'TaskPro',
+            name: 'TaskPro',
             subject: 'Invoice ' + invoiceNum + ' - ' + personName + ' - Period ' + periodLabel,
-            message: htmlBody,
-            html_content: htmlBody,
-            invoice_number: invoiceNum,
-            period: periodLabel,
-            amount: '$' + sumPay.toFixed(2) + ' AUD'
+            html_content: htmlBody
           };
-          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
-          // BCC to TaskPro
-          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { ...params, to_email: 'info@taskproau.com' });
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID_PERSONAL, params);
+          // Copy to TaskPro (separate send with different to_email)
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID_PERSONAL, { ...params, to_email: 'info@taskproau.com' });
         } catch (e) {
           // Email failed BUT record was saved — flag it
           console.error('Email send failed:', e);
@@ -11389,7 +11385,8 @@
       // ═══════════════════════════════════════════
       const EMAILJS_PUBLIC_KEY = 'rg4GX14-i_4Z4EAeh';
       const EMAILJS_SERVICE_ID = 'service_14p8989';
-      const EMAILJS_TEMPLATE_ID = 'template_s8irk2m';
+      const EMAILJS_TEMPLATE_ID = 'template_s8irk2m';            // Project invoices (B2B client)
+      const EMAILJS_TEMPLATE_ID_PERSONAL = 'template_hezz407';   // V58.4 — Personal invoices (worker → TaskPro)
 
       // V58.3 — FIX: EmailJS browser v4 requires init({ publicKey }) — passing a string is silently ignored
       try {
