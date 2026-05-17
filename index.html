@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V58.4</title>
+  <title>TaskPro — Project Control V58.5</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2223,6 +2223,27 @@
                 <input type="email" id="eb_email" placeholder="worker@gmail.com">
               </div>
             </div>
+            <div class="form-grid" style="grid-template-columns:2fr 1fr 2fr 1.5fr;gap:12px;margin-bottom:8px;">
+              <div class="form-group">
+                <label>Account Name <span style="color:var(--text3);font-weight:400;font-size:10px;">(banco)</span></label>
+                <input type="text" id="eb_acc_name" placeholder="Manuel Rodriguez Aguayo">
+              </div>
+              <div class="form-group">
+                <label>BSB</label>
+                <input type="text" id="eb_bsb" placeholder="063-010" maxlength="7">
+              </div>
+              <div class="form-group">
+                <label>Account Number</label>
+                <input type="text" id="eb_acc_num" placeholder="15312022" maxlength="20">
+              </div>
+              <div class="form-group">
+                <label>Bank</label>
+                <input type="text" id="eb_bank" placeholder="Commbank">
+              </div>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:12px;line-height:1.5;">
+              💡 Los datos bancarios aparecerán en los invoices personales del worker. Se pueden dejar vacíos y completar después en Editar.
+            </div>
             <button class="btn btn-primary" onclick="addBaseTeamMember()">Agregar al equipo base</button>
           </div>
 
@@ -3853,8 +3874,12 @@
         const rate = parseFloat(document.getElementById('eb_rate').value) || 0;
         const abn = document.getElementById('eb_abn').value.trim();
         const email = document.getElementById('eb_email').value.trim();
+        const accName = document.getElementById('eb_acc_name').value.trim();
+        const bsb = document.getElementById('eb_bsb').value.trim();
+        const accNum = document.getElementById('eb_acc_num').value.trim();
+        const bank = document.getElementById('eb_bank').value.trim();
         if (!name) { alert('Ingresa el nombre del miembro.'); return; }
-        const member = { id: 'eb_' + Date.now(), name, role, rate, abn, email };
+        const member = { id: 'eb_' + Date.now(), name, role, rate, abn, email, accName, bsb, accNum, bank };
         db.ref('taskpro/equipoBase/' + member.id).set(member)
           .then(() => { showSyncBanner('Miembro agregado al equipo base', 'success'); renderBaseTeam(); })
           .catch(err => showSyncBanner('Error guardando: ' + err.message, 'warn'));
@@ -3863,6 +3888,10 @@
         document.getElementById('eb_rate').value = '';
         document.getElementById('eb_abn').value = '';
         document.getElementById('eb_email').value = '';
+        document.getElementById('eb_acc_name').value = '';
+        document.getElementById('eb_bsb').value = '';
+        document.getElementById('eb_acc_num').value = '';
+        document.getElementById('eb_bank').value = '';
       }
 
       function removeBaseTeamMember(id) {
@@ -3885,22 +3914,30 @@
           }
           container.innerHTML = `
             <table class="data-table">
-              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th>Email</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th>Email</th><th>Banco</th><th></th></tr></thead>
               <tbody>
-                ${entries.map(([id, m]) => `
+                ${entries.map(([id, m]) => {
+                  const hasBank = !!(m.bsb && m.accNum && m.bank);
+                  const bankBadge = hasBank
+                    ? '<span style="color:var(--accent);font-size:11px;">✓ Configurado</span>'
+                    : '<span style="color:var(--danger);font-size:11px;">⚠ Falta</span>';
+                  return `
                   <tr>
                     <td><span class="person-tag">👷 ${m.name}</span></td>
                     <td style="color:var(--text2);">${m.role || '—'}</td>
                     <td class="num">$${(m.rate || 0).toFixed(0)}/h</td>
                     <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);">${m.abn || '—'}</td>
                     <td style="font-size:11px;color:${m.email ? 'var(--text2)' : 'var(--danger)'};">${m.email || '⚠ Sin email'}</td>
+                    <td>${bankBadge}</td>
                     <td style="white-space:nowrap;">
                       <button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"
                         data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role || ''}" data-ebrate="${m.rate || 0}" data-ebabn="${m.abn || ''}" data-ebemail="${m.email || ''}"
+                        data-ebaccname="${m.accName || ''}" data-ebbsb="${m.bsb || ''}" data-ebaccnum="${m.accNum || ''}" data-ebbank="${m.bank || ''}"
                         onclick="openEditBaseModalFromBtn(this)">✏️</button>
                       <button class="btn btn-danger btn-sm" onclick="removeBaseTeamMember('${id}')">✕</button>
                     </td>
-                  </tr>`).join('')}
+                  </tr>`;
+                }).join('')}
               </tbody>
             </table>`;
         }).catch(() => {
@@ -3942,17 +3979,25 @@
           btn.getAttribute('data-ebrole'),
           btn.getAttribute('data-ebrate'),
           btn.getAttribute('data-ebabn'),
-          btn.getAttribute('data-ebemail')
+          btn.getAttribute('data-ebemail'),
+          btn.getAttribute('data-ebaccname'),
+          btn.getAttribute('data-ebbsb'),
+          btn.getAttribute('data-ebaccnum'),
+          btn.getAttribute('data-ebbank')
         );
       }
 
-      function openEditBaseModal(id, name, role, rate, abn, email) {
+      function openEditBaseModal(id, name, role, rate, abn, email, accName, bsb, accNum, bank) {
         document.getElementById('ebm_id').value = id;
         document.getElementById('ebm_name').value = name;
         document.getElementById('ebm_role').value = role;
         document.getElementById('ebm_rate').value = rate;
         document.getElementById('ebm_abn').value = abn || '';
         document.getElementById('ebm_email').value = email || '';
+        document.getElementById('ebm_acc_name').value = accName || '';
+        document.getElementById('ebm_bsb').value = bsb || '';
+        document.getElementById('ebm_acc_num').value = accNum || '';
+        document.getElementById('ebm_bank').value = bank || '';
         document.getElementById('editBaseMsg').textContent = '';
         document.getElementById('editBaseModal').classList.add('open');
       }
@@ -3964,11 +4009,15 @@
         const rate = parseFloat(document.getElementById('ebm_rate').value) || 0;
         const abn = document.getElementById('ebm_abn').value.trim();
         const email = document.getElementById('ebm_email').value.trim();
+        const accName = document.getElementById('ebm_acc_name').value.trim();
+        const bsb = document.getElementById('ebm_bsb').value.trim();
+        const accNum = document.getElementById('ebm_acc_num').value.trim();
+        const bank = document.getElementById('ebm_bank').value.trim();
         const msg = document.getElementById('editBaseMsg');
         if (!name) { msg.style.color = 'var(--danger)'; msg.textContent = 'El nombre es requerido.'; return; }
         msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
         try {
-          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn, email });
+          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn, email, accName, bsb, accNum, bank });
           msg.style.color = 'var(--accent)'; msg.textContent = 'Actualizado correctamente.';
           // Refresh all dropdowns
           populateWorkerBaseDropdown();
@@ -8044,8 +8093,9 @@
         const d = data[personName];
         if (!d) { alert('Sin datos de pago para ' + personName); return; }
 
-        // Fetch ABN
-        const abn = await fetchPersonAbn(personName);
+        // V58.5 — Fetch full invoice details (abn + bank)
+        const details = await fetchPersonInvoiceDetails(personName);
+        const abn = details.abn;
         if (!abn) {
           if (!confirm('No se encontró ABN para ' + personName + '. ¿Generar invoice sin ABN?\n\nRecomendación: agrega el ABN en Equipo Base antes de generar invoices formales.')) return;
         }
@@ -8140,9 +8190,10 @@
 
             y += 15;
             doc.setTextColor(...DARK);
-            doc.setFont('helvetica', 'normal');
+            doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
-            doc.text('Servicios de instalación', margin + 3, y);
+            doc.text('Installation and assembly services', margin + 3, y);
+            doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
             doc.setTextColor(...MUTED);
             doc.text('Period: ' + periodLabel, margin + 3, y + 5);
@@ -8168,8 +8219,38 @@
             doc.setFontSize(13);
             doc.text('$' + (d.pay || 0).toFixed(2) + ' AUD', pageW - margin - 3, y + 8, { align: 'right' });
 
-            // Notes + payment info
-            y += 25;
+            // V58.5 — Payment Instructions block (only if bank details set)
+            const hasBank = !!(details.bsb || details.accNum || details.bank || details.accName);
+            if (hasBank) {
+              y += 25;
+              doc.setFillColor(248, 249, 250);
+              const boxH = 36;
+              doc.rect(margin, y - 4, pageW - 2 * margin, boxH, 'F');
+              doc.setFillColor(...GREEN);
+              doc.rect(margin, y - 4, 2, boxH, 'F');
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(9);
+              doc.setTextColor(...DARK);
+              doc.text('PAYMENT INSTRUCTIONS', margin + 6, y + 2);
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(9);
+              doc.setTextColor(...DARK);
+              const bankLines = ['Currency: AUD'];
+              if (details.accName) bankLines.push('Account Name: ' + details.accName);
+              if (details.bsb) bankLines.push('BSB: ' + details.bsb);
+              if (details.accNum) bankLines.push('Account Number: ' + details.accNum);
+              if (details.bank) bankLines.push('Bank: ' + details.bank);
+              if (abn) bankLines.push('ABN: ' + abn);
+              let by = y + 8;
+              bankLines.forEach(line => {
+                doc.text(line, margin + 6, by);
+                by += 4.5;
+              });
+              y = by + 4;
+            }
+
+            // Notes
+            y += 12;
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(...MUTED);
@@ -8279,6 +8360,11 @@
         const member = Object.values(_v58EquipoBaseCache || {}).find(m => m && m.name === personName);
         const workerEmail = member && member.email ? member.email.trim() : '';
         const abn = member && member.abn ? member.abn.trim() : '';
+        // V58.5 — extract bank details for invoice footer
+        const bankAccName = member && member.accName ? member.accName.trim() : '';
+        const bankBsb = member && member.bsb ? member.bsb.trim() : '';
+        const bankAccNum = member && member.accNum ? member.accNum.trim() : '';
+        const bankName = member && member.bank ? member.bank.trim() : '';
         if (!workerEmail) {
           alert('Sin email personal en Equipo Base. Pedile al admin que lo configure.');
           return;
@@ -8320,7 +8406,9 @@
         // Build HTML email body (inline, no attachment)
         const htmlBody = _buildInvoiceEmailHTML({
           invoiceNum, personName, abn, workerEmail, issueDate, dueDate, periodLabel,
-          freshEntries, totalAmount: sumPay, isComplement
+          totalAmount: sumPay, isComplement,
+          // V58.5 — bank details for payment instructions footer
+          accName: bankAccName, bsb: bankBsb, accNum: bankAccNum, bank: bankName
         });
 
         // Build invoice record
@@ -8406,19 +8494,26 @@
         renderPagos();
       }
 
-      // V58 — Build email HTML body (inline, no attachment)
+      // V58.5 — Build email HTML body: single line item + bank details footer
+      // No hours breakdown, no day-by-day table (proper AU contractor invoice format)
       function _buildInvoiceEmailHTML(p) {
-        const rows = p.freshEntries.map(e => {
-          return '<tr style="border-bottom:1px solid #e0e0e0;">' +
-            '<td style="padding:8px;font-family:monospace;font-size:12px;">' + (e.date || '') + '</td>' +
-            '<td style="padding:8px;font-size:12px;">' + (e.project || '') + '</td>' +
-            '<td style="padding:8px;font-size:12px;text-align:right;font-family:monospace;">' + (e.prodH + (e.travelH || 0)).toFixed(2) + 'h</td>' +
-            '<td style="padding:8px;font-size:12px;text-align:right;font-family:monospace;">$' + (e.rate || 0).toFixed(0) + '</td>' +
-            '<td style="padding:8px;font-size:12px;text-align:right;font-family:monospace;font-weight:bold;">$' + (e.pay || 0).toFixed(2) + '</td>' +
-            '</tr>';
-        }).join('');
         const complementBanner = p.isComplement
-          ? '<div style="background:#fff7e0;border-left:4px solid #e8a04a;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#7a4c00;">⚠️ <strong>Invoice complementario</strong> — Contiene únicamente jornadas no facturadas previamente para este período.</div>'
+          ? '<div style="background:#fff7e0;border-left:4px solid #e8a04a;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#7a4c00;">⚠️ <strong>Invoice complementario</strong> — Contiene únicamente servicios no facturados previamente para este período.</div>'
+          : '';
+        // Bank details section (only shown if at least one field is set)
+        const hasBank = !!(p.bsb || p.accNum || p.bank || p.accName);
+        const bankSection = hasBank
+          ? '<div style="margin-top:18px;padding:14px 16px;background:#f8f9fa;border-radius:6px;border-left:3px solid #b8f55a;">' +
+            '<div style="font-weight:bold;color:#1a1a1a;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Payment Instructions</div>' +
+            '<div style="font-size:12px;color:#444;line-height:1.7;">' +
+            'Currency: AUD<br>' +
+            (p.accName ? 'Account Name: ' + p.accName + '<br>' : '') +
+            (p.bsb ? 'BSB: ' + p.bsb + '<br>' : '') +
+            (p.accNum ? 'Account Number: ' + p.accNum + '<br>' : '') +
+            (p.bank ? 'Bank: ' + p.bank + '<br>' : '') +
+            (p.abn ? 'ABN: ' + p.abn : '') +
+            '</div>' +
+            '</div>'
           : '';
         return '' +
           '<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;background:#fff;color:#1a1a1a;">' +
@@ -8446,20 +8541,24 @@
           '<div>info@taskproau.com</div>' +
           '<div>Melbourne, VIC, Australia</div>' +
           '</div>' +
-          '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">' +
+          '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">' +
           '<thead><tr style="background:#0d0f0e;color:#fff;">' +
-          '<th style="padding:10px 8px;text-align:left;font-size:11px;">DATE</th>' +
-          '<th style="padding:10px 8px;text-align:left;font-size:11px;">PROJECT</th>' +
-          '<th style="padding:10px 8px;text-align:right;font-size:11px;">HOURS</th>' +
-          '<th style="padding:10px 8px;text-align:right;font-size:11px;">RATE</th>' +
-          '<th style="padding:10px 8px;text-align:right;font-size:11px;">AMOUNT</th>' +
+          '<th style="padding:12px;text-align:left;font-size:11px;">DESCRIPTION</th>' +
+          '<th style="padding:12px;text-align:right;font-size:11px;">AMOUNT (AUD)</th>' +
           '</tr></thead>' +
-          '<tbody>' + rows + '</tbody>' +
+          '<tbody><tr style="border-bottom:1px solid #e0e0e0;">' +
+          '<td style="padding:14px 12px;font-size:13px;">' +
+          '<div style="font-weight:600;">Installation and assembly services</div>' +
+          '<div style="font-size:11px;color:#666;margin-top:3px;">Period: ' + p.periodLabel + '</div>' +
+          '</td>' +
+          '<td style="padding:14px 12px;font-size:14px;text-align:right;font-family:monospace;font-weight:bold;">$' + p.totalAmount.toFixed(2) + '</td>' +
+          '</tr></tbody>' +
           '</table>' +
           '<div style="background:#b8f55a;padding:14px 18px;text-align:right;font-size:18px;font-weight:bold;margin-bottom:18px;">' +
           'TOTAL: $' + p.totalAmount.toFixed(2) + ' AUD' +
           '</div>' +
-          '<div style="font-size:11px;color:#666;line-height:1.6;">' +
+          bankSection +
+          '<div style="font-size:11px;color:#666;line-height:1.6;margin-top:18px;">' +
           '<div style="font-weight:bold;color:#1a1a1a;margin-bottom:4px;">NOTES</div>' +
           'No GST has been charged on this invoice. The contractor is not registered for GST.<br>' +
           'Please process payment by due date: ' + p.dueDate + '.<br><br>' +
@@ -11748,6 +11847,25 @@
         } catch (e) { return ''; }
       }
 
+      // V58.5 — Fetch full invoice details (abn + bank fields) from equipoBase
+      async function fetchPersonInvoiceDetails(personName) {
+        try {
+          const snap = await db.ref('taskpro/equipoBase').get();
+          const members = snap.val() || {};
+          const match = Object.values(members).find(m => m.name && m.name.toLowerCase() === (personName || '').toLowerCase());
+          if (!match) return { abn: '', accName: '', bsb: '', accNum: '', bank: '' };
+          return {
+            abn: match.abn || '',
+            accName: match.accName || '',
+            bsb: match.bsb || '',
+            accNum: match.accNum || '',
+            bank: match.bank || ''
+          };
+        } catch (e) {
+          return { abn: '', accName: '', bsb: '', accNum: '', bank: '' };
+        }
+      }
+
       // ═══════════════════════════════════════════
       // INVOICE NUMBER — autogenerative from Firebase
       // ═══════════════════════════════════════════
@@ -13080,6 +13198,27 @@
           <div class="form-group" style="grid-column:span 2;">
             <label>Email personal</label>
             <input type="email" id="ebm_email" placeholder="worker@gmail.com">
+          </div>
+        </div>
+        <div style="margin-top:6px;margin-bottom:10px;padding:10px 12px;background:rgba(91,155,213,0.07);border-left:3px solid #5b9bd5;border-radius:4px;font-size:11px;color:var(--text2);line-height:1.5;">
+          💳 <strong>Datos bancarios</strong> (para invoices personales)
+        </div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Account Name (nombre del titular)</label>
+            <input type="text" id="ebm_acc_name" placeholder="Manuel Rodriguez Aguayo">
+          </div>
+          <div class="form-group">
+            <label>BSB</label>
+            <input type="text" id="ebm_bsb" placeholder="063-010" maxlength="7">
+          </div>
+          <div class="form-group">
+            <label>Account Number</label>
+            <input type="text" id="ebm_acc_num" placeholder="15312022" maxlength="20">
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Bank</label>
+            <input type="text" id="ebm_bank" placeholder="Commbank">
           </div>
         </div>
         <div id="editBaseMsg" style="font-size:12px;margin-bottom:10px;font-family:monospace;"></div>
