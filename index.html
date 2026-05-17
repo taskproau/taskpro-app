@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V59</title>
+  <title>TaskPro — Project Control V59.1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -9084,7 +9084,7 @@
         if (id === 'summary') renderSummary();
         if (id === 'projects') renderAllProjects();
         if (id === 'tiempos') { setTiemposThisMonth(); setupHHMMInput('ea_time'); populateEaPersonDropdown(); }
-        if (id === 'pagos') { setPagosThisMonth(); }
+        if (id === 'pagos') { setPagosThisWeek(); }   // V59.1 — default a semana en lugar de mes
         if (id === 'quote') { initQuote(); }
         if (id === 'users') { renderUsersList(); populateLinkedDropdown(); toggleLinkedMember(); }
         if (id === 'fin-setup') { loadFinParams(); }
