@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V59.1</title>
+  <title>TaskPro — Project Control V59.2</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -36,6 +36,9 @@
       --danger-dim: rgba(245, 90, 90, 0.12);
       --warn: #e8a04a;
       --warn-dim: rgba(232, 160, 74, 0.12);
+      /* V59.2 — Semantic colors for financial deltas */
+      --gain: #10b981;
+      --gain-dim: rgba(16, 185, 129, 0.15);
       --radius: 8px;
       --radius-lg: 14px;
     }
@@ -510,6 +513,10 @@
       color: var(--accent);
     }
 
+    .stat-value.gain {
+      color: var(--gain);
+    }
+
     .stat-value.danger {
       color: var(--danger);
     }
@@ -668,9 +675,9 @@
     }
 
     .alert-success {
-      background: var(--accent-dim);
-      border: 1px solid rgba(232, 220, 196, 0.2);
-      color: var(--accent);
+      background: var(--gain-dim);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--gain);
     }
 
     .alert-danger {
@@ -6821,7 +6828,8 @@
         const container = document.getElementById('summaryContent');
         if (!p) { container.innerHTML = ''; return; }
         const c = calcPricing(p);
-        const profitStatus = c.profitVsClient >= 0 ? 'accent' : 'danger';
+        // V59.2 — semantic gain/loss: green when profitable, red when negative
+        const profitStatus = c.profitVsClient >= 0 ? 'gain' : 'danger';
         const days = [...new Set(p.timelog.map(e => e.date))].length;
         const persons = [...new Set(p.timelog.map(e => e.personName))];
         const totalProdH = p.timelog.reduce((s, e) => s + (e.productiveH || 0), 0);
@@ -6847,7 +6855,7 @@
     </div>
 
     ${c.clientPrice > 0 ? `
-      <div class="card" style="border-color:${c.profitVsClient >= 0 ? 'rgba(232, 220, 196,0.3)' : 'rgba(245,90,90,0.3)'};">
+      <div class="card" style="border-color:${c.profitVsClient >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245,90,90,0.3)'};">
         <div class="compare-section">
           <div class="compare-side">
             <div class="compare-label">Precio sugerido (calculado)</div>
@@ -6855,7 +6863,7 @@
           </div>
           <div class="compare-side">
             <div class="compare-label">Precio acordado cliente</div>
-            <div class="compare-value" style="color:${c.profitVsClient >= 0 ? 'var(--accent2)' : 'var(--danger)'}">$${c.clientPrice.toFixed(2)}</div>
+            <div class="compare-value" style="color:${c.profitVsClient >= 0 ? 'var(--gain)' : 'var(--danger)'}">$${c.clientPrice.toFixed(2)}</div>
           </div>
         </div>
         <div style="margin-top:14px;" class="${c.profitVsClient >= 0 ? 'alert alert-success' : 'alert alert-danger'}">
@@ -6897,8 +6905,12 @@
                 : '<span class="badge badge-red">' + item.pct.toFixed(0) + '%</span>';
               const bar = '<div class="progress-wrap" style="margin-top:4px;"><div class="progress-bar '
                 + (ok ? 'green' : 'red') + '" style="width:' + Math.min(item.pct, 100).toFixed(1) + '%;"></div></div>';
-              // % real = real $ as % of totalCost (same base as objective %)
-              const pctReal = item.isTotal ? null : (c.totalCost > 0 ? (item.real / c.totalCost * 100) : 0);
+              // V59.2 FIX: % real usa la misma base que el objetivo de cada item.
+              // Overhead/Contingency: % de totalCost (base correcta).
+              // Markup: % de base (= totalCost + overhead + contingency), NO de totalCost.
+              const pctRealBases = [c.totalCost, c.totalCost, c.totalCost, c.base];
+              const baseForPct = pctRealBases[i] || c.totalCost;
+              const pctReal = item.isTotal ? null : (baseForPct > 0 ? (item.real / baseForPct * 100) : 0);
               const pctObj = pctTargets[i];
               const pctRealStr = item.isTotal ? '—'
                 : '<span style="color:' + color + ';font-weight:700;">' + pctReal.toFixed(1) + '%</span>'
@@ -6915,7 +6927,10 @@
                 + '</tr>';
             }).join('') : realItems.map((item, i) => {
               const pctObj = pctTargets[i];
-              const pctReal = item.isTotal ? null : (c.totalCost > 0 ? (item.real / c.totalCost * 100) : 0);
+              // V59.2 FIX: misma corrección que arriba — markup usa c.base, no c.totalCost
+              const pctRealBases = [c.totalCost, c.totalCost, c.totalCost, c.base];
+              const baseForPct = pctRealBases[i] || c.totalCost;
+              const pctReal = item.isTotal ? null : (baseForPct > 0 ? (item.real / baseForPct * 100) : 0);
               const pctObjStr = item.isTotal ? '—' : pctObj + '%';
               const pctRealStr = item.isTotal ? '—'
                 : '<span style="color:var(--accent);font-weight:700;">' + pctReal.toFixed(1) + '%</span>';
@@ -6946,7 +6961,7 @@
               + '<tr class="total-row"><td><strong>PRECIO TOTAL SUGERIDO</strong></td>'
               + '<td class="num">—</td>'
               + '<td class="num"><strong>$' + c.total.toFixed(2) + '</strong></td>'
-              + '<td class="num" style="color:' + (c.clientPrice > 0 ? (c.profitVsClient >= 0 ? 'var(--accent)' : 'var(--danger)') : 'var(--accent)') + ';font-size:15px;font-weight:800;">'
+              + '<td class="num" style="color:' + (c.clientPrice > 0 ? (c.profitVsClient >= 0 ? 'var(--gain)' : 'var(--danger)') : 'var(--accent)') + ';font-size:15px;font-weight:800;">'
               + '$' + (c.clientPrice > 0 ? c.clientPrice.toFixed(2) : c.total.toFixed(2)) + '</td>'
               + '<td class="num">—</td>'
               + '<td></td></tr>'
@@ -10349,7 +10364,7 @@
           + row('Otros Direct', pl.otherDirect, pl.revenueNeto > 0 ? pl.otherDirect / pl.revenueNeto : 0, null, false, null)
           + row('TOTAL COSTO DIRECTO ★', pl.totalDirect, pl.revenueNeto > 0 ? pl.totalDirect / pl.revenueNeto : 0, null, true, 'var(--warn)')
           + '<tr><td colspan="6"></td></tr>'
-          + row('GROSS PROFIT ★', pl.grossProfit, pl.revenueNeto > 0 ? pl.grossProfit / pl.revenueNeto : 0, getParam('markup') / 100, true, pl.grossProfit >= 0 ? 'var(--accent)' : 'var(--danger)')
+          + row('GROSS PROFIT ★', pl.grossProfit, pl.revenueNeto > 0 ? pl.grossProfit / pl.revenueNeto : 0, getParam('markup') / 100, true, pl.grossProfit >= 0 ? 'var(--gain)' : 'var(--danger)')
           + '<tr><td colspan="6"></td></tr>'
           + '<tr style="background:var(--surface2);"><td colspan="6" style="font-weight:800;color:var(--text2);padding:8px 12px;">▶ OVERHEAD (Costos Fijos)</td></tr>'
           + row('Transport (Peajes, Nafta, Parking)', pl.transport, pl.revenueNeto > 0 ? pl.transport / pl.revenueNeto : 0, null, false, null)
@@ -10360,7 +10375,7 @@
           + row('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, null)
           + row('TOTAL OVERHEAD ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, 'var(--text)')
           + '<tr><td colspan="6"></td></tr>'
-          + row('NET PROFIT ★', pl.netProfit, pl.revenueNeto > 0 ? pl.netProfit / pl.revenueNeto : 0, getParam('min_margin') / 100, true, pl.netProfit >= 0 ? 'var(--accent)' : 'var(--danger)')
+          + row('NET PROFIT ★', pl.netProfit, pl.revenueNeto > 0 ? pl.netProfit / pl.revenueNeto : 0, getParam('min_margin') / 100, true, pl.netProfit >= 0 ? 'var(--gain)' : 'var(--danger)')
           + '<tr><td colspan="6"></td></tr>'
           + '<tr style="background:var(--surface2);"><td colspan="6" style="font-weight:800;color:var(--text3);padding:8px 12px;">▶ VALIDACION PRICING</td></tr>'
           + '<tr><td>Labour % Revenue</td><td class="num">' + (pl.labourPct * 100).toFixed(1) + '%</td>'
@@ -10422,16 +10437,17 @@
 
         // ── Colors ───────────────────────────────────────────────
         const C = {
-          black: [13, 15, 14],
-          surface: [28, 32, 27],
-          accent: [184, 245, 90],
-          accentDim: [90, 100, 60],
-          warn: [245, 197, 90],
+          black: [15, 26, 35],                  // V59 — navy brand
+          surface: [30, 49, 66],                // V59 — surface navy
+          accent: [232, 220, 196],              // V59 — beige brand
+          accentDim: [180, 168, 144],
+          warn: [232, 160, 74],                 // V59 — orange brand
           danger: [245, 90, 90],
-          white: [232, 237, 230],
-          grey: [138, 150, 136],
-          darkgrey: [60, 80, 60],
-          green: [90, 180, 90],
+          white: [232, 220, 196],
+          grey: [138, 160, 176],
+          darkgrey: [60, 80, 100],
+          green: [90, 157, 143],                // V59 — teal sober (success)
+          gain: [16, 185, 129],                 // V59.2 — semantic gain (financial positive)
         };
 
         // ── PAGE 1: HEADER ───────────────────────────────────────
@@ -10474,9 +10490,9 @@
 
         const kpiBoxes = [
           { label: 'REVENUE NETO', value: fmt$(pl.revenueNeto), color: C.accent },
-          { label: 'GROSS PROFIT', value: fmt$(pl.grossProfit), color: pl.grossProfit >= 0 ? C.accent : C.danger },
-          { label: 'NET PROFIT', value: fmt$(pl.netProfit), color: pl.netProfit >= 0 ? C.accent : C.danger },
-          { label: 'NET MARGIN', value: fmtPct(pl.netMarginPct), color: pl.netMarginPct >= getParam('min_margin') / 100 ? C.accent : C.danger },
+          { label: 'GROSS PROFIT', value: fmt$(pl.grossProfit), color: pl.grossProfit >= 0 ? C.gain : C.danger },
+          { label: 'NET PROFIT', value: fmt$(pl.netProfit), color: pl.netProfit >= 0 ? C.gain : C.danger },
+          { label: 'NET MARGIN', value: fmtPct(pl.netMarginPct), color: pl.netMarginPct >= getParam('min_margin') / 100 ? C.gain : C.danger },
         ];
 
         const boxW = (colW - 9) / 4;
@@ -10602,7 +10618,7 @@
 
         separator();
 
-        plRow('GROSS PROFIT  ★', pl.grossProfit, pl.revenueNeto > 0 ? pl.grossProfit / pl.revenueNeto : 0, getParam('markup') / 100, true, false, pl.grossProfit >= 0 ? C.accent : C.danger);
+        plRow('GROSS PROFIT  ★', pl.grossProfit, pl.revenueNeto > 0 ? pl.grossProfit / pl.revenueNeto : 0, getParam('markup') / 100, true, false, pl.grossProfit >= 0 ? C.gain : C.danger);
 
         separator();
 
@@ -10618,7 +10634,7 @@
 
         separator();
 
-        plRow('NET PROFIT  ★', pl.netProfit, pl.revenueNeto > 0 ? pl.netProfit / pl.revenueNeto : 0, getParam('min_margin') / 100, true, false, pl.netProfit >= 0 ? C.accent : C.danger);
+        plRow('NET PROFIT  ★', pl.netProfit, pl.revenueNeto > 0 ? pl.netProfit / pl.revenueNeto : 0, getParam('min_margin') / 100, true, false, pl.netProfit >= 0 ? C.gain : C.danger);
 
         separator();
 
@@ -10858,9 +10874,10 @@
             : format === '%' ? (delta >= 0 ? '+' : '') + (delta * 100).toFixed(1) + '%'
               : (delta >= 0 ? '+' : '') + delta.toFixed(0);
           const isGood = good === 'high' ? value >= (typeof target === 'number' ? target : value) : value <= (typeof target === 'number' ? target : value);
-          const statusColor = isGood ? 'var(--accent)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'var(--warn)' : 'var(--danger)';
-          const borderColor = isGood ? 'rgba(232, 220, 196,0.25)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'rgba(245,197,90,0.25)' : 'rgba(245,90,90,0.25)';
-          const deltaColor = (good === 'high' ? delta >= 0 : delta <= 0) ? 'var(--accent)' : 'var(--danger)';
+          // V59.2 — semantic gain/loss: verde cuando KPI alcanza objetivo, rojo cuando está bajo
+          const statusColor = isGood ? 'var(--gain)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'var(--warn)' : 'var(--danger)';
+          const borderColor = isGood ? 'rgba(16, 185, 129, 0.25)' : value * (good === 'high' ? 1 : -1) > (typeof target === 'number' ? target : 0) * 0.85 * (good === 'high' ? 1 : -1) ? 'rgba(245,197,90,0.25)' : 'rgba(245,90,90,0.25)';
+          const deltaColor = (good === 'high' ? delta >= 0 : delta <= 0) ? 'var(--gain)' : 'var(--danger)';
           return '<div class="card" style="border-color:' + borderColor + ';text-align:center;">'
             + '<div style="font-size:24px;margin-bottom:4px;">' + icon + '</div>'
             + '<div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">' + label + '</div>'
@@ -10963,9 +10980,9 @@
           + lineSVG + '</div>'
           + '</div>'
           + '<div class="card" style="margin-top:12px;"><div class="card-title">💰 Net Profit del mes</div>'
-          + '<div style="font-size:32px;font-weight:800;color:' + (pl.netProfit >= 0 ? 'var(--accent)' : 'var(--danger)') + ';">$' + pl.netProfit.toFixed(2) + '</div>'
+          + '<div style="font-size:32px;font-weight:800;color:' + (pl.netProfit >= 0 ? 'var(--gain)' : 'var(--danger)') + ';">$' + pl.netProfit.toFixed(2) + '</div>'
           + '<div style="font-size:12px;color:var(--text2);margin-top:4px;">vs mes anterior: '
-          + '<span style="color:' + (pl.netProfit - plPrev.netProfit >= 0 ? 'var(--accent)' : 'var(--danger)') + ';font-weight:700;">'
+          + '<span style="color:' + (pl.netProfit - plPrev.netProfit >= 0 ? 'var(--gain)' : 'var(--danger)') + ';font-weight:700;">'
           + (pl.netProfit - plPrev.netProfit >= 0 ? '+' : '') + '$' + (pl.netProfit - plPrev.netProfit).toFixed(2) + '</span></div>'
           + '</div>';
       }
