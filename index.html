@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V60</title>
+  <title>TaskPro — Project Control V61</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -3429,6 +3429,28 @@
     </div>
 
     <!-- ══════════ MODAL: MI JORNADA — FINALIZAR DESPLAZAMIENTO (V56) ══════════ -->
+    <!-- ══════════ V61: MODAL PRE-DESPLAZAMIENTO (elegir destino ANTES de iniciar travel) ══════════ -->
+    <div class="modal-overlay" id="mjStartTravelModal">
+      <div class="modal">
+        <div class="modal-title">🚗 Iniciar desplazamiento</div>
+        <div style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.5;color:var(--text2);">
+          Seleccioná el proyecto destino antes de iniciar. Al finalizar el desplazamiento, la jornada arrancará automáticamente en ese proyecto.
+        </div>
+        <div class="form-group">
+          <label>¿A qué proyecto vas?</label>
+          <select id="mjst_project"
+            style="width:100%;padding:12px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;"></select>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5;">
+            Si elegís "Solo desplazamiento sin proyecto", al finalizar quedará como pending sin arrancar jornada.
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" onclick="mjConfirmStartTravel()">🚗 Iniciar desplazamiento</button>
+          <button class="btn btn-ghost" onclick="closeModal('mjStartTravelModal')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="mjEndTravelModal">
       <div class="modal">
         <div class="modal-title">🏁 Finalizar desplazamiento</div>
@@ -3436,15 +3458,11 @@
           style="background:var(--surface2);padding:12px 14px;border-radius:6px;margin-bottom:14px;font-size:12px;line-height:1.6;">
           <div><span style="color:var(--text2);">Tiempo de desplazamiento:</span> <strong id="mjet_elapsed"
               style="font-family:'DM Mono',monospace;color:#e8a04a;">—</strong></div>
+          <div style="margin-top:6px;"><span style="color:var(--text2);">Destino:</span> <strong id="mjet_dest_label"
+              style="color:var(--accent);">—</strong></div>
         </div>
-        <div class="form-group">
-          <label>¿A qué proyecto vas?</label>
-          <select id="mjet_project"
-            style="width:100%;padding:12px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;"></select>
-          <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5;">
-            El tiempo se sumará automáticamente al desplazamiento del check-out del proyecto elegido.<br>
-            Si seleccionás "Solo registrar", queda como una jornada de solo desplazamiento para que el supervisor decida.
-          </div>
+        <div id="mjet_action_info" style="background:rgba(94, 184, 132, 0.08);border-left:3px solid var(--accent);padding:10px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.5;color:var(--text2);">
+          Al confirmar, se sumará el tiempo de desplazamiento al check-in del proyecto destino y la jornada arrancará automáticamente.
         </div>
         <div class="form-group" style="margin-top:14px;">
           <label>Nota (opcional) <span id="mjet_note_count" style="color:var(--text3);font-size:10px;font-weight:400;">0/500</span></label>
@@ -4999,8 +5017,12 @@
         });
         hero.innerHTML = ''
           + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;">Iniciar jornada</div>'
-          + '<div style="max-width:480px;margin:0 auto 18px auto;">'
+          + '<div style="max-width:480px;margin:0 auto 12px auto;">'
           + '<select id="mj_project_select" style="width:100%;padding:14px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;">' + opts + '</select>'
+          + '</div>'
+          + '<div style="max-width:480px;margin:0 auto 18px auto;">'
+          + '<div style="font-size:10px;color:var(--text3);text-align:left;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Nota inicio <span style="color:var(--text3);font-weight:400;text-transform:none;">(opcional — ej: empecé 7:30, me olvidé clock-in)</span> <span id="mj_start_note_count" style="color:var(--text3);float:right;">0/500</span></div>'
+          + '<textarea id="mj_start_note" maxlength="500" placeholder="Escribí acá si empezaste antes de hacer clock-in u otra observación..." style="width:100%;min-height:50px;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;" oninput="_mjUpdateNoteCount(\'mj_start_note\',\'mj_start_note_count\')"></textarea>'
           + '</div>'
           + '<button class="btn btn-primary" style="font-size:15px;padding:14px 32px;font-weight:700;margin-right:8px;" onclick="mjStartShift()">🟢 INICIAR JORNADA</button>'
           + '<button class="btn" style="background:#e8a04a;color:#000;font-size:14px;padding:14px 24px;font-weight:700;border:none;cursor:pointer;border-radius:8px;" onclick="mjStartTravel()">🚗 INICIAR DESPLAZAMIENTO</button>';
@@ -5108,7 +5130,9 @@
           date: date,
           timeIn: timeIn,
           startedAt: Date.now(),
-          pendingTravelMinutes: 0
+          pendingTravelMinutes: 0,
+          // V61 — Nota opcional de inicio (ej: "Empecé 7:30, me olvidé clock-in")
+          startNote: ((document.getElementById('mj_start_note') || {}).value || '').trim().slice(0, 500)
         };
 
         db.ref('taskpro/activeTimelogs/' + currentUser.uid).set(active)
@@ -5116,7 +5140,7 @@
           .catch(err => alert('Error al iniciar: ' + (err.message || err)));
       }
 
-      // ─── V56: Travel start ───
+      // ─── V56: Travel start (V61: ahora abre modal para preguntar destino ANTES) ───
       function mjStartTravel() {
         if (!currentUser) return;
         // Guards: no active jornada or active travel
@@ -5128,15 +5152,70 @@
           alert('Ya tenés un desplazamiento en curso.');
           return;
         }
+        // V61 — abrir modal preguntando destino ANTES de crear el travel
+        const projects = _mjFindWorkerProjects();
+        const sel = document.getElementById('mjst_project');
+        let opts = '<option value="">— Selecciona proyecto destino —</option>';
+        projects.forEach(p => {
+          const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
+          opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
+        });
+        opts += '<option value="__none__">— Solo desplazamiento sin proyecto —</option>';
+        sel.innerHTML = opts;
+        document.getElementById('mjStartTravelModal').classList.add('open');
+      }
+
+      // V61 — Confirmar inicio de travel desde el modal pre-desplazamiento
+      function mjConfirmStartTravel() {
+        if (!currentUser) return;
+        // Re-validar guards por si cambió el estado mientras estaba abierto el modal
+        if ((state.activeTimelogs || {})[currentUser.uid]) {
+          alert('Tenés una jornada activa. Cerrá el modal y finalizá la jornada primero.');
+          return;
+        }
+        if ((state.activeTravels || {})[currentUser.uid]) {
+          alert('Ya tenés un desplazamiento en curso.');
+          closeModal('mjStartTravelModal');
+          return;
+        }
+        const sel = document.getElementById('mjst_project');
+        const choice = sel ? sel.value : '';
+        if (!choice) { alert('Selecciona un proyecto destino o "Solo desplazamiento".'); return; }
+
+        let destProjectId = '';
+        let destProjectName = '';
+        let destOnly = false;
+        if (choice === '__none__') {
+          destOnly = true;
+          destProjectName = '(Solo desplazamiento)';
+        } else {
+          const p = state.projects[choice];
+          if (!p) { alert('Proyecto no encontrado.'); return; }
+          destProjectId = choice;
+          destProjectName = p.name || '—';
+          // Verificar que el worker esté asignado al proyecto
+          if (!Array.isArray(p.workers) || !p.workers.find(x => x && x.name === currentUser.linkedName)) {
+            alert('No estás asignado a este proyecto.');
+            return;
+          }
+        }
+
         const tr = {
           uid: currentUser.uid,
           workerName: currentUser.linkedName || '',
           startedAt: Date.now(),
           fromProjectId: '',
-          fromProjectName: ''
+          fromProjectName: '',
+          // V61 — destino guardado al iniciar el travel
+          destProjectId: destProjectId,
+          destProjectName: destProjectName,
+          destOnly: destOnly
         };
         db.ref('taskpro/activeTravels/' + currentUser.uid).set(tr)
-          .then(() => showSyncBanner('🚗 Desplazamiento iniciado', 'success'))
+          .then(() => {
+            closeModal('mjStartTravelModal');
+            showSyncBanner('🚗 Desplazamiento iniciado → ' + destProjectName, 'success');
+          })
           .catch(err => alert('Error al iniciar desplazamiento: ' + (err.message || err)));
       }
 
@@ -5149,16 +5228,24 @@
         const elapsedMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
         document.getElementById('mjet_elapsed').textContent = minsToHHMM(elapsedMin) + ' (' + elapsedMin + ' min)';
 
-        // Populate project dropdown with worker-assigned projects (option (a) confirmed by user)
-        const projects = _mjFindWorkerProjects();
-        const sel = document.getElementById('mjet_project');
-        let opts = '<option value="">— Selecciona proyecto destino —</option>';
-        projects.forEach(p => {
-          const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
-          opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
-        });
-        opts += '<option value="__none__">— Solo registrar desplazamiento sin proyecto —</option>';
-        sel.innerHTML = opts;
+        // V61 — Mostrar destino guardado al iniciar el travel (no dropdown editable)
+        const destLabel = document.getElementById('mjet_dest_label');
+        const actionInfo = document.getElementById('mjet_action_info');
+        if (tr.destOnly) {
+          if (destLabel) destLabel.textContent = '(Solo desplazamiento sin proyecto)';
+          if (actionInfo) {
+            actionInfo.style.background = 'rgba(232, 160, 74, 0.08)';
+            actionInfo.style.borderLeftColor = 'var(--warn)';
+            actionInfo.innerHTML = 'Al confirmar, el desplazamiento queda como pending sin proyecto. No arranca jornada.';
+          }
+        } else {
+          if (destLabel) destLabel.textContent = tr.destProjectName || '—';
+          if (actionInfo) {
+            actionInfo.style.background = 'rgba(94, 184, 132, 0.08)';
+            actionInfo.style.borderLeftColor = 'var(--accent)';
+            actionInfo.innerHTML = 'Al confirmar, se sumará el tiempo de desplazamiento al check-in del proyecto destino y la jornada arrancará automáticamente.';
+          }
+        }
 
         // V57 — clear note on each open
         const _noteEl = document.getElementById('mjet_note');
@@ -5175,15 +5262,15 @@
         const tr = (state.activeTravels || {})[currentUser.uid];
         if (!tr) { alert('No hay desplazamiento activo.'); return; }
 
-        const sel = document.getElementById('mjet_project');
-        const choice = sel.value;
-        if (!choice) { alert('Selecciona un proyecto destino o "Solo registrar".'); return; }
+        // V61 — destino ya está guardado en el travel desde el inicio (no se lee dropdown)
+        const destOnly = !!tr.destOnly;
+        const projId = tr.destProjectId || '';
 
         const elapsedMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
         const travelNote = ((document.getElementById('mjet_note') || {}).value || '').trim().slice(0, 500);
 
-        // Path 1: register travel-only pending (no project)
-        if (choice === '__none__') {
+        // Path 1: register travel-only pending (no project) — viene de "destOnly" elegido al inicio
+        if (destOnly) {
           const now = new Date();
           const date = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
           const id = 'pt_travel_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
@@ -5219,10 +5306,13 @@
           return;
         }
 
-        // Path 2: auto check-in to destination project, carrying pendingTravelMinutes
-        const projId = choice;
+        // Path 2: auto check-in to destination project (destino guardado al inicio)
+        if (!projId) {
+          alert('No se encontró proyecto destino en el desplazamiento activo. Cancelá y reiniciá.');
+          return;
+        }
         const p = state.projects[projId];
-        if (!p) { alert('Proyecto no encontrado.'); return; }
+        if (!p) { alert('Proyecto destino no encontrado.'); return; }
         if (!Array.isArray(p.workers)) { alert('Proyecto sin equipo asignado.'); return; }
         const w = p.workers.find(x => x && x.name === currentUser.linkedName);
         if (!w) { alert('No estás asignado a este proyecto.'); return; }
@@ -5240,7 +5330,10 @@
           timeIn: timeIn,
           startedAt: Date.now(),
           pendingTravelMinutes: elapsedMin,
-          pendingTravelNote: travelNote
+          pendingTravelNote: travelNote,
+          // V61 — preservar startNote vacío (worker no tuvo chance de escribirla en este flujo;
+          // si quiere agregar nota, lo puede hacer al clock-out con la nota de cierre)
+          startNote: ''
         };
 
         // Write active first, remove travel second (safer on network drops)
@@ -5360,6 +5453,14 @@
         }
 
         const id = 'pt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        // V61 — combinar nota de inicio (startNote del activeTimelog) con nota de cierre (mjco_note)
+        const _closeNote = ((document.getElementById('mjco_note') || {}).value || '').trim().slice(0, 500);
+        const _startNote = (at.startNote || '').trim().slice(0, 500);
+        const _combinedNote = _startNote && _closeNote
+          ? '📥 Inicio: ' + _startNote + '\n📤 Cierre: ' + _closeNote
+          : _startNote
+            ? '📥 Inicio: ' + _startNote
+            : _closeNote;
         const pending = {
           id: id,
           uid: currentUser.uid,
@@ -5373,7 +5474,7 @@
           breakH: breakH,
           adminH: adminH,
           travelH: travelH,
-          workerNote: ((document.getElementById('mjco_note') || {}).value || '').trim().slice(0, 500),
+          workerNote: _combinedNote.slice(0, 1000),
           status: 'pending',
           submittedAt: Date.now(),
           autoclosed: false,
@@ -5986,6 +6087,8 @@
           breakH: 0,
           adminH: 0,
           travelH: 0,
+          // V61 — preservar nota de inicio si existió
+          workerNote: (active.startNote || '').trim() ? '📥 Inicio: ' + (active.startNote || '').trim().slice(0, 500) : '',
           status: 'pending',
           submittedAt: Date.now(),
           autoclosed: true,
