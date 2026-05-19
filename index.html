@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V59.4</title>
+  <title>TaskPro — Project Control V59.5</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -6808,15 +6808,16 @@
             const prodH = Math.max(0, totalH - breakH - adminH);
             const key = (e.personName || '?') + '|' + (e.date || '?');
             if (!byPersonDate[key]) byPersonDate[key] = [];
-            byPersonDate[key].push({ pid, idx, eid: e.id, prodH, breakH });
+            byPersonDate[key].push({ pid, idx, eid: e.id, totalH, prodH, breakH });
           });
         });
         // Paso 2: para cada (person, date) calcular cuota y repartir
+        // V59.5 — Regla B: cuota basada en horas TOTALES (start→end), no productivas
         const map = {};
         Object.entries(byPersonDate).forEach(([key, dayEntries]) => {
-          const totalProdDay = dayEntries.reduce((s, x) => s + x.prodH, 0);
-          // Cuota: 15min × floor(prodTotal / 4)
-          const cuotaH = 0.25 * Math.floor(totalProdDay / 4);
+          const totalDayHours = dayEntries.reduce((s, x) => s + x.totalH, 0);
+          // Cuota: 15min × floor(totalDayHours / 4) — Regla B
+          const cuotaH = 0.25 * Math.floor(totalDayHours / 4);
           const totalBreakDecl = dayEntries.reduce((s, x) => s + x.breakH, 0);
           if (cuotaH > 0 && totalBreakDecl > 0) {
             dayEntries.forEach(x => {
@@ -7971,10 +7972,11 @@
             const dayAdminH = dayEntries.reduce((s, e) => s + e.adminH, 0);
             const dayBreakH = dayEntries.reduce((s, e) => s + e.breakH, 0);
 
-            // Company break earned for the full day based on total hours worked
-            const dayWorkedH = dayProdH + dayAdminH;
+            // V59.5 — Regla B: cuota basada en horas TOTALES (start→end) del día,
+            // incluyendo break y admin (todo lo que está dentro de la jornada laboral).
+            const dayTotalH = dayProdH + dayAdminH + dayBreakH;
             const dayCompanyBreakH = Math.min(
-              Math.floor(dayWorkedH / 4) * (15 / 60),
+              Math.floor(dayTotalH / 4) * (15 / 60),
               dayBreakH  // can't pay more than actual break taken across the day
             );
 
@@ -10337,9 +10339,82 @@
         const gstTotal = incomeRecs.reduce((s, r) => s + (r.gstAmt || 0), 0);
         const revenueNeto = incomeRecs.reduce((s, r) => s + (r.netoExGST || 0), 0) - refunds;
 
-        // Direct costs from expenses
+        // V59.5 — P&L-X: Labour productive + Admin Workers derived from Time Log
+        // Convert monthKey ("Abr-2026") to date-prefix matcher ("2026-04")
+        const _monthMap = { Ene: '01', Feb: '02', Mar: '03', Abr: '04', May: '05', Jun: '06', Jul: '07', Ago: '08', Sep: '09', Oct: '10', Nov: '11', Dic: '12' };
+        function _matchEntryMonth(eDate) {
+          if (!eDate) return false;
+          if (isAll) return eDate.startsWith(currentYear);
+          const parts = monthKey.split('-'); // e.g. "Abr-2026" → ["Abr", "2026"]
+          if (parts.length !== 2) return false;
+          const mm = _monthMap[parts[0]];
+          if (!mm) return false;
+          return eDate.startsWith(parts[1] + '-' + mm);
+        }
+
+        // Build set of worker names from equipoBase to distinguish workers vs external contractors
+        const workerNames = new Set();
+        if (typeof _v58EquipoBaseCache !== 'undefined' && _v58EquipoBaseCache) {
+          Object.values(_v58EquipoBaseCache).forEach(m => {
+            if (m && m.name) workerNames.add(m.name.toLowerCase().trim());
+          });
+        }
+
+        // Iterate Time Log entries for the month, apply companyBreak from global map
+        let labourFromTimelog = 0;
+        let adminWorkers = 0;
+        const cbMap = _getCompanyBreakMap();
+        Object.entries(state.projects || {}).forEach(([pid, p]) => {
+          const tl = Array.isArray(p.timelog) ? p.timelog : [];
+          tl.forEach(e => {
+            if (!e || !e.id) return;
+            if (!_matchEntryMonth(e.date)) return;
+            const startMins = timeToMins(e.start || '00:00');
+            const endMins = timeToMins(e.end || '00:00');
+            const totalH = endMins > startMins ? (endMins - startMins) / 60 : 0;
+            const breakH = parseFloat(e.breakH) || 0;
+            const adminH = parseFloat(e.adminH) || 0;
+            const travelH = parseFloat(e.travelH) || 0;
+            const prodH = Math.max(0, totalH - breakH - adminH);
+            const rate = parseFloat(e.rate) || 0;
+            const cbH = cbMap[pid + '|' + e.id] || 0;
+            // Labour productive (project cost): prod + companyBreak + travel
+            labourFromTimelog += (prodH + cbH + travelH) * rate;
+            // Admin workers (overhead — Interpretación B): admin × rate
+            adminWorkers += adminH * rate;
+          });
+        });
+
+        // Direct costs from expenses (workers operativos NOT counted here — already in Time Log)
         const directExps = expRecs.filter(r => r.tipo === 'Direct Project');
-        const labour = directExps.filter(r => r.categoria === 'Labour').reduce((s, r) => s + (r.monto || 0), 0);
+        // V59.5 Bloque C — sumar labour cargado para workers operativos (para reconciliación)
+        // Esto es lo que SÍ se cargó como gasto, para comparar contra labourFromTimelog
+        let labourLoadedForWorkers = 0;
+        directExps.forEach(r => {
+          if (r.categoria !== 'Labour') return;
+          const proveedor = (r.proveedor || '').toLowerCase().trim();
+          const notas = (r.notas || '').toLowerCase().trim();
+          for (const wn of workerNames) {
+            if (proveedor.includes(wn) || notas.includes(wn)) {
+              labourLoadedForWorkers += (r.monto || 0);
+              return;
+            }
+          }
+        });
+        // Labour de gastos: solo contractors EXTERNOS (los que NO están en equipoBase)
+        const labourExternal = directExps.filter(r => {
+          if (r.categoria !== 'Labour') return false;
+          // Detectar si el gasto pertenece a un worker operativo (su nombre matchea con equipoBase)
+          const proveedor = (r.proveedor || '').toLowerCase().trim();
+          const notas = (r.notas || '').toLowerCase().trim();
+          for (const wn of workerNames) {
+            if (proveedor.includes(wn) || notas.includes(wn)) return false; // es worker, excluir
+          }
+          return true; // contractor externo, incluir
+        }).reduce((s, r) => s + (r.monto || 0), 0);
+
+        // V59.5 — labour total = derivado del Time Log + contractors externos
+        const labour = labourFromTimelog + labourExternal;
         const materials = directExps.filter(r => r.categoria === 'Materials').reduce((s, r) => s + (r.monto || 0), 0);
         const otherDirect = directExps.filter(r => !['Labour', 'Materials'].includes(r.categoria)).reduce((s, r) => s + (r.monto || 0), 0);
         const totalDirect = labour + materials + otherDirect;
@@ -10353,7 +10428,8 @@
         const tools = ohExps.filter(r => r.categoria === 'Tools' || r.categoria === 'Herramienta').reduce((s, r) => s + (r.monto || 0), 0);
         const matGen = ohExps.filter(r => r.categoria === 'Materials').reduce((s, r) => s + (r.monto || 0), 0);
         const otherOH = ohExps.filter(r => !['Transport', 'Software/Suscripciones', 'Rent', 'Tools', 'Herramienta', 'Materials'].includes(r.categoria)).reduce((s, r) => s + (r.monto || 0), 0);
-        const totalOH = transport + software + rent + tools + matGen + otherOH;
+        // V59.5 — adminWorkers (derivado del Time Log) se suma al Overhead
+        const totalOH = transport + software + rent + tools + matGen + otherOH + adminWorkers;
 
         const netProfit = grossProfit - totalOH;
         const personal = expRecs.filter(r => r.tipo === 'Personal').reduce((s, r) => s + (r.monto || 0), 0);
@@ -10378,6 +10454,11 @@
         return {
           cashTotal, refunds, gstTotal, revenueNeto,
           labour, materials, otherDirect, totalDirect, grossProfit,
+          // V59.5 — nuevas claves para visualización
+          labourFromTimelog, labourExternal, adminWorkers,
+          // V59.5 Bloque C — reconciliación
+          labourLoadedForWorkers,
+          reconcileDiff: (labourFromTimelog + adminWorkers) - labourLoadedForWorkers,
           transport, software, rent, tools, matGen, otherOH, totalOH,
           netProfit, personal, pipeline, totalSugerido,
           labourPct: revenueNeto > 0 ? labour / revenueNeto : 0,
@@ -10532,7 +10613,29 @@
             + '<td></td></tr>';
         }
 
-        container.innerHTML = '<div class="card"><div class="card-title">📊 P&L — ' + title + '</div>'
+        // V59.5 Bloque C — Banner de reconciliación si hay diferencia significativa (>$50)
+        let reconcileBanner = '';
+        const rd = pl.reconcileDiff || 0;
+        if (Math.abs(rd) > 50) {
+          const isPositive = rd > 0;
+          // Amarillo si positivo (falta cargar), rojo si negativo (cargado de más)
+          const bannerBg = isPositive ? 'rgba(232, 160, 74, 0.12)' : 'rgba(245, 90, 90, 0.12)';
+          const bannerBorder = isPositive ? 'var(--warn)' : 'var(--danger)';
+          const bannerIcon = isPositive ? '⚠' : '❗';
+          const bannerColor = isPositive ? 'var(--warn)' : 'var(--danger)';
+          const bannerLabel = isPositive
+            ? 'Falta cargar como gasto'
+            : 'Cargado de más en gastos';
+          const bannerDetail = isPositive
+            ? 'Los workers reportaron $' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + ' en el Time Log pero solo hay $' + pl.labourLoadedForWorkers.toFixed(2) + ' cargado en gastos labour. Diferencia probable: invoices todavía no cargados al sistema.'
+            : 'Los gastos cargados ($' + pl.labourLoadedForWorkers.toFixed(2) + ') exceden lo que el Time Log indica ($' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + '). Posibles causas: pagos duplicados, gastos mal etiquetados, o workers que no reportaron horas.';
+          reconcileBanner = '<div style="background:' + bannerBg + ';border-left:4px solid ' + bannerBorder + ';padding:12px 16px;margin-bottom:12px;border-radius:6px;">'
+            + '<div style="font-weight:700;color:' + bannerColor + ';font-size:13px;margin-bottom:4px;">' + bannerIcon + ' Diferencia Time Log vs Gastos cargados: $' + Math.abs(rd).toFixed(2) + ' (' + bannerLabel + ')</div>'
+            + '<div style="font-size:11px;color:var(--text2);line-height:1.5;">' + bannerDetail + '</div>'
+            + '</div>';
+        }
+
+        container.innerHTML = reconcileBanner + '<div class="card"><div class="card-title">📊 P&L — ' + title + '</div>'
           + '<div style="overflow-x:auto;"><table class="data-table">'
           + '<thead><tr><th>Concepto</th><th class="num">Monto ($AUD)</th><th class="num">% Revenue</th><th class="num">Target</th><th class="num">Var vs Target</th><th>Notas</th></tr></thead><tbody>'
           + '<tr style="background:var(--surface2);"><td colspan="6" style="font-weight:800;color:var(--accent);padding:8px 12px;">▶ INGRESOS</td></tr>'
@@ -10555,6 +10658,7 @@
           + row('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent / pl.revenueNeto : 0, null, false, null)
           + row('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools / pl.revenueNeto : 0, null, false, null)
           + row('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen / pl.revenueNeto : 0, null, false, null)
+          + row('Admin Workers', pl.adminWorkers, pl.revenueNeto > 0 ? pl.adminWorkers / pl.revenueNeto : 0, null, false, 'var(--accent2)')
           + row('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, null)
           + row('TOTAL OVERHEAD ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, 'var(--text)')
           + '<tr><td colspan="6"></td></tr>'
@@ -10699,6 +10803,28 @@
         y += 28;
 
         // ── P&L TABLE ────────────────────────────────────────────
+        // V59.5 Bloque C — Banner reconciliación en PDF
+        const _rd = pl.reconcileDiff || 0;
+        if (Math.abs(_rd) > 50) {
+          const _isPos = _rd > 0;
+          const _bColor = _isPos ? C.warn : C.danger;
+          doc.setFillColor(_bColor[0], _bColor[1], _bColor[2], 0.12);
+          doc.rect(margin, y, colW, 14, 'F');
+          doc.setFillColor(..._bColor);
+          doc.rect(margin, y, 2, 14, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(..._bColor);
+          const _icon = _isPos ? 'AVISO' : 'ALERTA';
+          const _lbl = _isPos ? 'Falta cargar como gasto' : 'Cargado de mas en gastos';
+          doc.text(_icon + ': Diferencia Time Log vs Gastos cargados = $' + Math.abs(_rd).toFixed(2) + ' (' + _lbl + ')', margin + 5, y + 5);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6);
+          doc.setTextColor(...C.text2);
+          doc.text('Time Log: $' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + '   |   Gastos cargados: $' + pl.labourLoadedForWorkers.toFixed(2), margin + 5, y + 10);
+          y += 18;
+        }
+
         // Section header
         doc.setFillColor(...C.surface);
         doc.rect(margin, y, colW, 8, 'F');
@@ -10812,6 +10938,7 @@
         if (pl.rent > 0) plRow('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent / pl.revenueNeto : 0, null, false, true, null);
         if (pl.tools > 0) plRow('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools / pl.revenueNeto : 0, null, false, true, null);
         if (pl.matGen > 0) plRow('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen / pl.revenueNeto : 0, null, false, true, null);
+        if (pl.adminWorkers > 0) plRow('Admin Workers', pl.adminWorkers, pl.revenueNeto > 0 ? pl.adminWorkers / pl.revenueNeto : 0, null, false, true, null);
         if (pl.otherOH > 0) plRow('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, true, null);
         plRow('TOTAL OVERHEAD  ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, false, null);
 
