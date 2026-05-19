@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V59.3</title>
+  <title>TaskPro — Project Control V59.4</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -4671,6 +4671,7 @@
             state.projects[id] = normalizeProject(p);
           });
           _projectsLoaded = true;
+          _invalidateCBreakCache();  // V59.4 — project tree changed, recompute companyBreak map
           if (firstLoad) _maybeFirstRender();
           else _afterDataChange();
         }, _firebaseErr('projects'));
@@ -6415,6 +6416,7 @@
         };
 
         p.timelog.push(entry);
+        _invalidateCBreakCache();  // V59.4 — new entry changes companyBreak distribution
         saveProject(state.currentId);
         showSyncBanner('✅ Jornada guardada', 'success');
         renderTimeLog();
@@ -6579,6 +6581,8 @@
         }
 
         const productiveH = Math.max(0, totalH - breakH - adminH);
+        // V59.4 — pay guardado es el costo del proyecto (sin admin per Interpretación B).
+        // calcPricing() recalcula on-render incluyendo companyBreakH desde el map global.
         const pay = (productiveH + travelH) * resolvedRate;
 
         e.date = date;
@@ -6594,6 +6598,7 @@
         e.productiveH = productiveH;
         e.pay = pay;
 
+        _invalidateCBreakCache();  // V59.4 — fuerza recálculo del companyBreak map en próximo render
         saveProject(state.currentId);
         closeModal('editTimelogModal');
         renderTimeLog();
@@ -6618,11 +6623,17 @@
         if (currentUser && currentUser.role === 'operador' && currentUser.linkedName) {
           sorted = sorted.filter(e => e.personName === currentUser.linkedName);
         }
-        // Recalculate on render — source of truth is raw fields
+        // V59.4 — Recalculate on render with companyBreak from global map
+        // Source of truth: raw fields. Pay shown in Time Log = project cost (NO admin per Interpretación B).
+        // Admin time is paid to worker in Pago Personal, but NOT charged to project.
+        const _curPid = state.currentId;
         sorted.forEach(e => {
           const totalH = (timeToMins(e.end || '00:00') - timeToMins(e.start || '00:00')) / 60;
           e.productiveH = Math.max(0, totalH - (parseFloat(e.breakH) || 0) - (parseFloat(e.adminH) || 0));
-          e.pay = (e.productiveH + (parseFloat(e.travelH) || 0)) * (parseFloat(e.rate) || 0);
+          const cbH = _curPid && e.id ? _getCompanyBreakForEntry(_curPid, e.id) : 0;
+          e.companyBreakH = cbH;
+          // Project cost: prod + companyBreak + travel (admin excluded per Interpretación B)
+          e.pay = (e.productiveH + cbH + (parseFloat(e.travelH) || 0)) * (parseFloat(e.rate) || 0);
         });
 
         const totalProductiveH = sorted.reduce((s, e) => s + e.productiveH, 0);
@@ -6767,10 +6778,86 @@
         hint.innerHTML = `⚠️ Markup ${markup}% = margen real ≈ ${margin.toFixed(1)}% sobre precio final. Los cambios se guardan automáticamente.`;
       }
 
+      // V59.4 — Helper: calcula la cuota de break empresa POR PERSONA/DÍA sumando productiva de TODOS los proyectos
+      // Regla: 15min de break pagado por cada 4h productivas totales del día (capped al break declarado)
+      // Si la persona trabajó en N proyectos el mismo día, la cuota se reparte proporcionalmente al break declarado en cada entry
+      // Cache para no recalcular en cada llamada (se invalida cuando cambian projects)
+      const _cbreakCache = { signature: '', map: {} };
+      function _getCompanyBreakMap() {
+        // Construye un map { person|date|entryId : companyBreakH } usando state.projects
+        // Signature simple: count de entries totales — si cambia el count, invalidamos
+        let totalEntries = 0;
+        Object.values(state.projects || {}).forEach(p => {
+          if (Array.isArray(p.timelog)) totalEntries += p.timelog.length;
+        });
+        const sig = String(totalEntries);
+        if (_cbreakCache.signature === sig && Object.keys(_cbreakCache.map).length > 0) {
+          return _cbreakCache.map;
+        }
+        // Paso 1: agrupar TODAS las entries por (person, date)
+        const byPersonDate = {};
+        Object.entries(state.projects || {}).forEach(([pid, p]) => {
+          const tl = Array.isArray(p.timelog) ? p.timelog : [];
+          tl.forEach((e, idx) => {
+            if (!e || !e.id) return;
+            const startMins = timeToMins(e.start || '00:00');
+            const endMins = timeToMins(e.end || '00:00');
+            const totalH = endMins > startMins ? (endMins - startMins) / 60 : 0;
+            const breakH = parseFloat(e.breakH) || 0;
+            const adminH = parseFloat(e.adminH) || 0;
+            const prodH = Math.max(0, totalH - breakH - adminH);
+            const key = (e.personName || '?') + '|' + (e.date || '?');
+            if (!byPersonDate[key]) byPersonDate[key] = [];
+            byPersonDate[key].push({ pid, idx, eid: e.id, prodH, breakH });
+          });
+        });
+        // Paso 2: para cada (person, date) calcular cuota y repartir
+        const map = {};
+        Object.entries(byPersonDate).forEach(([key, dayEntries]) => {
+          const totalProdDay = dayEntries.reduce((s, x) => s + x.prodH, 0);
+          // Cuota: 15min × floor(prodTotal / 4)
+          const cuotaH = 0.25 * Math.floor(totalProdDay / 4);
+          const totalBreakDecl = dayEntries.reduce((s, x) => s + x.breakH, 0);
+          if (cuotaH > 0 && totalBreakDecl > 0) {
+            dayEntries.forEach(x => {
+              if (x.breakH > 0) {
+                const share = (x.breakH / totalBreakDecl) * cuotaH;
+                const cb = Math.min(share, x.breakH);
+                map[x.pid + '|' + x.eid] = cb;
+              } else {
+                map[x.pid + '|' + x.eid] = 0;
+              }
+            });
+          } else {
+            dayEntries.forEach(x => { map[x.pid + '|' + x.eid] = 0; });
+          }
+        });
+        _cbreakCache.signature = sig;
+        _cbreakCache.map = map;
+        return map;
+      }
+
+      // V59.4 — Helper: cuánto company break corresponde a una entry específica (lookup en map)
+      function _getCompanyBreakForEntry(pid, entryId) {
+        const map = _getCompanyBreakMap();
+        return map[pid + '|' + entryId] || 0;
+      }
+
+      // V59.4 — Invalidar cache cuando se modifican entries (saveProject, deleteEntry, etc.)
+      function _invalidateCBreakCache() {
+        _cbreakCache.signature = '';
+        _cbreakCache.map = {};
+      }
+
       function calcPricing(p) {
         // Always recalculate from raw fields — never trust stored pay/productiveH
         const timelog = p.timelog || [];
         const materials = p.materials || [];
+        // V59.4 — Find this project's ID to lookup companyBreak from map
+        let pid = null;
+        for (const [id, proj] of Object.entries(state.projects || {})) {
+          if (proj === p) { pid = id; break; }
+        }
 
         timelog.forEach(e => {
           const startMins = timeToMins(e.start || '00:00');
@@ -6778,7 +6865,15 @@
           const totalH = endMins > startMins ? (endMins - startMins) / 60 : 0;
           e.productiveH = Math.max(0, totalH - (parseFloat(e.breakH) || 0) - (parseFloat(e.adminH) || 0));
           const travelH = parseFloat(e.travelH) || 0;
-          e.pay = (e.productiveH + travelH) * (parseFloat(e.rate) || 0);
+          const adminH = parseFloat(e.adminH) || 0;
+          const rate = parseFloat(e.rate) || 0;
+          const cbH = pid && e.id ? _getCompanyBreakForEntry(pid, e.id) : 0;
+          e.companyBreakH = cbH;
+          // V59.4 — TWO pay fields (Interpretation B):
+          // - e.payWorker: what is paid to the worker (includes admin + company break + travel)
+          // - e.pay: project direct cost (does NOT include admin — admin is operational expense, not project cost)
+          e.payWorker = (e.productiveH + adminH + cbH + travelH) * rate;
+          e.pay = (e.productiveH + cbH + travelH) * rate;
         });
 
         const labour = timelog.reduce((s, e) => s + e.pay, 0);
