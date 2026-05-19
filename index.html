@@ -10339,7 +10339,9 @@
         const gstTotal = incomeRecs.reduce((s, r) => s + (r.gstAmt || 0), 0);
         const revenueNeto = incomeRecs.reduce((s, r) => s + (r.netoExGST || 0), 0) - refunds;
 
-        // V59.5 — P&L-X: Labour productive + Admin Workers derived from Time Log
+        // V59.5 — Calculamos labourFromTimelog y adminWorkers SOLO para banner de reconciliación informativo.
+        // El P&L sigue usando gastos cargados (Direct Project / Labour) como fuente principal,
+        // no el Time Log. El banner muestra la diferencia para control.
         // Convert monthKey ("Abr-2026") to date-prefix matcher ("2026-04")
         const _monthMap = { Ene: '01', Feb: '02', Mar: '03', Abr: '04', May: '05', Jun: '06', Jul: '07', Ago: '08', Sep: '09', Oct: '10', Nov: '11', Dic: '12' };
         function _matchEntryMonth(eDate) {
@@ -10360,7 +10362,7 @@
           });
         }
 
-        // Iterate Time Log entries for the month, apply companyBreak from global map
+        // Iterate Time Log entries for the month (info-only for banner)
         let labourFromTimelog = 0;
         let adminWorkers = 0;
         const cbMap = _getCompanyBreakMap();
@@ -10378,17 +10380,14 @@
             const prodH = Math.max(0, totalH - breakH - adminH);
             const rate = parseFloat(e.rate) || 0;
             const cbH = cbMap[pid + '|' + e.id] || 0;
-            // Labour productive (project cost): prod + companyBreak + travel
             labourFromTimelog += (prodH + cbH + travelH) * rate;
-            // Admin workers (overhead — Interpretación B): admin × rate
             adminWorkers += adminH * rate;
           });
         });
 
-        // Direct costs from expenses (workers operativos NOT counted here — already in Time Log)
+        // V59.5 — Direct costs from expenses (revert: P&L vuelve a usar gastos como antes)
         const directExps = expRecs.filter(r => r.tipo === 'Direct Project');
-        // V59.5 Bloque C — sumar labour cargado para workers operativos (para reconciliación)
-        // Esto es lo que SÍ se cargó como gasto, para comparar contra labourFromTimelog
+        // Suma de labour cargado para workers operativos (para banner reconciliación)
         let labourLoadedForWorkers = 0;
         directExps.forEach(r => {
           if (r.categoria !== 'Labour') return;
@@ -10401,26 +10400,14 @@
             }
           }
         });
-        // Labour de gastos: solo contractors EXTERNOS (los que NO están en equipoBase)
-        const labourExternal = directExps.filter(r => {
-          if (r.categoria !== 'Labour') return false;
-          // Detectar si el gasto pertenece a un worker operativo (su nombre matchea con equipoBase)
-          const proveedor = (r.proveedor || '').toLowerCase().trim();
-          const notas = (r.notas || '').toLowerCase().trim();
-          for (const wn of workerNames) {
-            if (proveedor.includes(wn) || notas.includes(wn)) return false; // es worker, excluir
-          }
-          return true; // contractor externo, incluir
-        }).reduce((s, r) => s + (r.monto || 0), 0);
-
-        // V59.5 — labour total = derivado del Time Log + contractors externos
-        const labour = labourFromTimelog + labourExternal;
+        // Labour del P&L: TODOS los gastos Direct Project / Labour cargados (workers + externos)
+        const labour = directExps.filter(r => r.categoria === 'Labour').reduce((s, r) => s + (r.monto || 0), 0);
         const materials = directExps.filter(r => r.categoria === 'Materials').reduce((s, r) => s + (r.monto || 0), 0);
         const otherDirect = directExps.filter(r => !['Labour', 'Materials'].includes(r.categoria)).reduce((s, r) => s + (r.monto || 0), 0);
         const totalDirect = labour + materials + otherDirect;
         const grossProfit = revenueNeto - totalDirect;
 
-        // Overhead (Fixed Operating)
+        // Overhead (Fixed Operating) — Admin Workers FUERA del overhead (V59.5 revert)
         const ohExps = expRecs.filter(r => r.tipo === 'Fixed Operating');
         const transport = ohExps.filter(r => r.categoria === 'Transport').reduce((s, r) => s + (r.monto || 0), 0);
         const software = ohExps.filter(r => r.categoria === 'Software/Suscripciones').reduce((s, r) => s + (r.monto || 0), 0);
@@ -10428,8 +10415,7 @@
         const tools = ohExps.filter(r => r.categoria === 'Tools' || r.categoria === 'Herramienta').reduce((s, r) => s + (r.monto || 0), 0);
         const matGen = ohExps.filter(r => r.categoria === 'Materials').reduce((s, r) => s + (r.monto || 0), 0);
         const otherOH = ohExps.filter(r => !['Transport', 'Software/Suscripciones', 'Rent', 'Tools', 'Herramienta', 'Materials'].includes(r.categoria)).reduce((s, r) => s + (r.monto || 0), 0);
-        // V59.5 — adminWorkers (derivado del Time Log) se suma al Overhead
-        const totalOH = transport + software + rent + tools + matGen + otherOH + adminWorkers;
+        const totalOH = transport + software + rent + tools + matGen + otherOH;
 
         const netProfit = grossProfit - totalOH;
         const personal = expRecs.filter(r => r.tipo === 'Personal').reduce((s, r) => s + (r.monto || 0), 0);
@@ -10454,8 +10440,8 @@
         return {
           cashTotal, refunds, gstTotal, revenueNeto,
           labour, materials, otherDirect, totalDirect, grossProfit,
-          // V59.5 — nuevas claves para visualización
-          labourFromTimelog, labourExternal, adminWorkers,
+          // V59.5 — claves info-only para banner de reconciliación
+          labourFromTimelog, adminWorkers,
           // V59.5 Bloque C — reconciliación
           labourLoadedForWorkers,
           reconcileDiff: (labourFromTimelog + adminWorkers) - labourLoadedForWorkers,
@@ -10613,24 +10599,26 @@
             + '<td></td></tr>';
         }
 
-        // V59.5 Bloque C — Banner de reconciliación si hay diferencia significativa (>$50)
+        // V59.5 — Banner de reconciliación INFORMATIVO (no afecta el P&L)
+        // Muestra la diferencia entre lo que el Time Log indica que se les debe a workers
+        // (productive + companyBreak + travel + admin × rate) y lo que se cargó como gasto Labour
+        // de workers operativos. Es solo para control: el P&L sigue usando gastos cargados como antes.
         let reconcileBanner = '';
         const rd = pl.reconcileDiff || 0;
         if (Math.abs(rd) > 50) {
           const isPositive = rd > 0;
-          // Amarillo si positivo (falta cargar), rojo si negativo (cargado de más)
           const bannerBg = isPositive ? 'rgba(232, 160, 74, 0.12)' : 'rgba(245, 90, 90, 0.12)';
           const bannerBorder = isPositive ? 'var(--warn)' : 'var(--danger)';
           const bannerIcon = isPositive ? '⚠' : '❗';
           const bannerColor = isPositive ? 'var(--warn)' : 'var(--danger)';
           const bannerLabel = isPositive
-            ? 'Falta cargar como gasto'
+            ? 'Falta cargar invoices'
             : 'Cargado de más en gastos';
           const bannerDetail = isPositive
-            ? 'Los workers reportaron $' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + ' en el Time Log pero solo hay $' + pl.labourLoadedForWorkers.toFixed(2) + ' cargado en gastos labour. Diferencia probable: invoices todavía no cargados al sistema.'
-            : 'Los gastos cargados ($' + pl.labourLoadedForWorkers.toFixed(2) + ') exceden lo que el Time Log indica ($' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + '). Posibles causas: pagos duplicados, gastos mal etiquetados, o workers que no reportaron horas.';
+            ? 'El Time Log indica que se trabajaron $' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + ' este mes, pero solo $' + pl.labourLoadedForWorkers.toFixed(2) + ' fueron registrados como gasto Labour. Diferencia probable: invoices pendientes de cargar al sistema. Esto NO afecta el P&L (solo es control).'
+            : 'Los gastos Labour cargados ($' + pl.labourLoadedForWorkers.toFixed(2) + ') superan lo que el Time Log indica ($' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + '). Revisar: pagos duplicados, etiquetado de gastos, o horas no reportadas por workers. Esto NO afecta el P&L (solo es control).';
           reconcileBanner = '<div style="background:' + bannerBg + ';border-left:4px solid ' + bannerBorder + ';padding:12px 16px;margin-bottom:12px;border-radius:6px;">'
-            + '<div style="font-weight:700;color:' + bannerColor + ';font-size:13px;margin-bottom:4px;">' + bannerIcon + ' Diferencia Time Log vs Gastos cargados: $' + Math.abs(rd).toFixed(2) + ' (' + bannerLabel + ')</div>'
+            + '<div style="font-weight:700;color:' + bannerColor + ';font-size:13px;margin-bottom:4px;">' + bannerIcon + ' Control reconciliación: $' + Math.abs(rd).toFixed(2) + ' (' + bannerLabel + ')</div>'
             + '<div style="font-size:11px;color:var(--text2);line-height:1.5;">' + bannerDetail + '</div>'
             + '</div>';
         }
@@ -10658,7 +10646,6 @@
           + row('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent / pl.revenueNeto : 0, null, false, null)
           + row('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools / pl.revenueNeto : 0, null, false, null)
           + row('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen / pl.revenueNeto : 0, null, false, null)
-          + row('Admin Workers', pl.adminWorkers, pl.revenueNeto > 0 ? pl.adminWorkers / pl.revenueNeto : 0, null, false, 'var(--accent2)')
           + row('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, null)
           + row('TOTAL OVERHEAD ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, 'var(--text)')
           + '<tr><td colspan="6"></td></tr>'
@@ -10938,7 +10925,6 @@
         if (pl.rent > 0) plRow('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent / pl.revenueNeto : 0, null, false, true, null);
         if (pl.tools > 0) plRow('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools / pl.revenueNeto : 0, null, false, true, null);
         if (pl.matGen > 0) plRow('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen / pl.revenueNeto : 0, null, false, true, null);
-        if (pl.adminWorkers > 0) plRow('Admin Workers', pl.adminWorkers, pl.revenueNeto > 0 ? pl.adminWorkers / pl.revenueNeto : 0, null, false, true, null);
         if (pl.otherOH > 0) plRow('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, true, null);
         plRow('TOTAL OVERHEAD  ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, false, null);
 
