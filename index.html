@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V59.5</title>
+  <title>TaskPro — Project Control V60</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -4584,6 +4584,11 @@
         setTimeout(() => { if (b.parentNode) b.remove(); }, 3000);
       }
 
+      // V60 — Cache equipoBase declarado al nivel raíz del script
+      // Se mantiene actualizado por Listener 3b en bootApp().
+      // Usado por: Pago Personal, Invoice de Persona, Banner P&L.
+      let _v58EquipoBaseCache = {};
+
       async function bootApp() {
         // Start finance data listeners
         initFinanceListeners();
@@ -4688,6 +4693,13 @@
             if (typeof renderTiempos === 'function') renderTiempos();
           }
         }, _firebaseErr('externalAdmin'));
+
+        // V60 — Listener 3b: equipoBase (cache permanente para banner P&L y otras vistas)
+        // Antes solo se llenaba al entrar a Pago Personal (_v58RefreshEquipoBaseCache),
+        // entonces el banner del P&L mostraba $0 si Carlos abría P&L directamente.
+        db.ref('taskpro/equipoBase').on('value', snap => {
+          _v58EquipoBaseCache = snap.val() || {};
+        }, _firebaseErr('equipoBase'));
 
         // Listener 4: currentId — read once at first load, then user controls it locally
         db.ref('taskpro/currentId').once('value').then(snap => {
@@ -8016,8 +8028,10 @@
       const _ppSort = { col: 'name', asc: true };
       function _ppSortBy(col) { _ppSort.asc = _ppSort.col === col ? !_ppSort.asc : true; _ppSort.col = col; updatePagosResumen(window._ppData, window._ppPersons); }
 
-      // V58.1 — Cache for equipoBase (no global listener exists, so fetch on entry to Pago Personal)
-      let _v58EquipoBaseCache = {};
+      // V58.1 — Cache for equipoBase
+      // V60 — declaración movida ANTES de los listeners de bootApp para garantizar orden de inicialización.
+      // Existe Listener 3b (en bootApp) que lo mantiene actualizado automáticamente.
+      // _v58RefreshEquipoBaseCache() queda como fallback manual (legacy, no debería ser necesario).
       async function _v58RefreshEquipoBaseCache() {
         try {
           const snap = await db.ref('taskpro/equipoBase').get();
