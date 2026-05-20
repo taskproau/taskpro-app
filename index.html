@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61</title>
+  <title>TaskPro — Project Control V61.1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -3464,6 +3464,15 @@
         <div id="mjet_action_info" style="background:rgba(94, 184, 132, 0.08);border-left:3px solid var(--accent);padding:10px 12px;border-radius:4px;margin-bottom:14px;font-size:12px;line-height:1.5;color:var(--text2);">
           Al confirmar, se sumará el tiempo de desplazamiento al check-in del proyecto destino y la jornada arrancará automáticamente.
         </div>
+        <!-- V61.1 — Dropdown fallback: visible solo si el travel es huérfano (sin destProjectId de V60) -->
+        <div id="mjet_fallback_block" class="form-group" style="display:none;">
+          <label>¿A qué proyecto vas? <span style="color:var(--warn);font-size:10px;font-weight:400;">(travel previo a V61, elegí destino)</span></label>
+          <select id="mjet_project"
+            style="width:100%;padding:12px;font-size:14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;"></select>
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5;">
+            Este desplazamiento se inició antes de la actualización. Seleccioná el proyecto destino o "Solo desplazamiento".
+          </div>
+        </div>
         <div class="form-group" style="margin-top:14px;">
           <label>Nota (opcional) <span id="mjet_note_count" style="color:var(--text3);font-size:10px;font-weight:400;">0/500</span></label>
           <textarea id="mjet_note" maxlength="500" placeholder="Tráfico, demoras, incidencias en el camino..." style="width:100%;min-height:60px;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;" oninput="_mjUpdateNoteCount('mjet_note','mjet_note_count')"></textarea>
@@ -5228,22 +5237,49 @@
         const elapsedMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
         document.getElementById('mjet_elapsed').textContent = minsToHHMM(elapsedMin) + ' (' + elapsedMin + ' min)';
 
-        // V61 — Mostrar destino guardado al iniciar el travel (no dropdown editable)
+        // V61.1 — Detectar travel huérfano: sin destProjectId ni destOnly (creado en V60 antes del upgrade)
+        const isOrphan = !tr.destProjectId && !tr.destOnly;
         const destLabel = document.getElementById('mjet_dest_label');
         const actionInfo = document.getElementById('mjet_action_info');
-        if (tr.destOnly) {
-          if (destLabel) destLabel.textContent = '(Solo desplazamiento sin proyecto)';
+        const fallbackBlock = document.getElementById('mjet_fallback_block');
+
+        if (isOrphan) {
+          // V61.1 — Mostrar dropdown fallback (comportamiento V60)
+          if (destLabel) destLabel.textContent = '(pendiente — elegí abajo)';
           if (actionInfo) {
             actionInfo.style.background = 'rgba(232, 160, 74, 0.08)';
             actionInfo.style.borderLeftColor = 'var(--warn)';
-            actionInfo.innerHTML = 'Al confirmar, el desplazamiento queda como pending sin proyecto. No arranca jornada.';
+            actionInfo.innerHTML = '⚠ Este desplazamiento fue iniciado antes de la actualización. Seleccioná el proyecto destino para finalizar.';
+          }
+          if (fallbackBlock) {
+            fallbackBlock.style.display = '';
+            const projects = _mjFindWorkerProjects();
+            const sel = document.getElementById('mjet_project');
+            let opts = '<option value="">— Selecciona proyecto destino —</option>';
+            projects.forEach(p => {
+              const label = _esc(p.name) + (p.client ? ' · ' + _esc(p.client) : '');
+              opts += '<option value="' + _esc(p.id) + '">' + label + '</option>';
+            });
+            opts += '<option value="__none__">— Solo registrar desplazamiento sin proyecto —</option>';
+            sel.innerHTML = opts;
           }
         } else {
-          if (destLabel) destLabel.textContent = tr.destProjectName || '—';
-          if (actionInfo) {
-            actionInfo.style.background = 'rgba(94, 184, 132, 0.08)';
-            actionInfo.style.borderLeftColor = 'var(--accent)';
-            actionInfo.innerHTML = 'Al confirmar, se sumará el tiempo de desplazamiento al check-in del proyecto destino y la jornada arrancará automáticamente.';
+          // V61 — Flujo normal: destino guardado al iniciar el travel
+          if (fallbackBlock) fallbackBlock.style.display = 'none';
+          if (tr.destOnly) {
+            if (destLabel) destLabel.textContent = '(Solo desplazamiento sin proyecto)';
+            if (actionInfo) {
+              actionInfo.style.background = 'rgba(232, 160, 74, 0.08)';
+              actionInfo.style.borderLeftColor = 'var(--warn)';
+              actionInfo.innerHTML = 'Al confirmar, el desplazamiento queda como pending sin proyecto. No arranca jornada.';
+            }
+          } else {
+            if (destLabel) destLabel.textContent = tr.destProjectName || '—';
+            if (actionInfo) {
+              actionInfo.style.background = 'rgba(94, 184, 132, 0.08)';
+              actionInfo.style.borderLeftColor = 'var(--accent)';
+              actionInfo.innerHTML = 'Al confirmar, se sumará el tiempo de desplazamiento al check-in del proyecto destino y la jornada arrancará automáticamente.';
+            }
           }
         }
 
@@ -5262,9 +5298,20 @@
         const tr = (state.activeTravels || {})[currentUser.uid];
         if (!tr) { alert('No hay desplazamiento activo.'); return; }
 
-        // V61 — destino ya está guardado en el travel desde el inicio (no se lee dropdown)
-        const destOnly = !!tr.destOnly;
-        const projId = tr.destProjectId || '';
+        // V61.1 — Detectar travel huérfano (V60) y leer dropdown como fallback
+        const isOrphan = !tr.destProjectId && !tr.destOnly;
+        let destOnly, projId;
+        if (isOrphan) {
+          const sel = document.getElementById('mjet_project');
+          const choice = sel ? sel.value : '';
+          if (!choice) { alert('Selecciona un proyecto destino o "Solo registrar".'); return; }
+          destOnly = (choice === '__none__');
+          projId = destOnly ? '' : choice;
+        } else {
+          // V61 — destino ya está guardado en el travel desde el inicio (no se lee dropdown)
+          destOnly = !!tr.destOnly;
+          projId = tr.destProjectId || '';
+        }
 
         const elapsedMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
         const travelNote = ((document.getElementById('mjet_note') || {}).value || '').trim().slice(0, 500);
