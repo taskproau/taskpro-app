@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.1</title>
+  <title>TaskPro — Project Control V61.2</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -10971,7 +10971,7 @@
           doc.text(_icon + ': Diferencia Time Log vs Gastos cargados = $' + Math.abs(_rd).toFixed(2) + ' (' + _lbl + ')', margin + 5, y + 5);
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(6);
-          doc.setTextColor(...C.text2);
+          doc.setTextColor(...C.grey);
           doc.text('Time Log: $' + (pl.labourFromTimelog + pl.adminWorkers).toFixed(2) + '   |   Gastos cargados: $' + pl.labourLoadedForWorkers.toFixed(2), margin + 5, y + 10);
           y += 18;
         }
