@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.2</title>
+  <title>TaskPro — Project Control V61.3</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -7457,15 +7457,22 @@
         renderAllProjects();
       }
 
+      // V61.3 — Refactor focus-preserving: shell se construye una sola vez; en re-renders
+      // sólo se actualizan tbody, fila de headers (sort indicators) y contador. Los inputs
+      // de filtro nunca se destruyen, por lo que el focus y la posición del cursor se preservan
+      // naturalmente entre keystrokes y entre disparos del listener de Firebase.
       function renderAllProjects() {
         const container = document.getElementById('allProjectsList');
-        let projects = Object.entries(state.projects);
-        if (!projects.length) {
+        if (!container) return;
+
+        const allProjEntries = Object.entries(state.projects);
+        if (!allProjEntries.length) {
           container.innerHTML = '<div class="empty-state"><div class="icon">📁</div><p>Sin proyectos aun.</p></div>';
           return;
         }
 
         // Apply filters
+        let projects = allProjEntries;
         const fName = _apFilters.name.toLowerCase();
         const fClient = _apFilters.client.toLowerCase();
         const fStatus = _apFilters.status;
@@ -7494,7 +7501,7 @@
           return asc ? va - vb : vb - va;
         });
 
-        const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
+        // Build header cells (sort indicators may change on each render)
         const si = (col) => {
           const cur = _apFilters.sort;
           if (cur === col + '_asc') return ' ↑';
@@ -7504,6 +7511,19 @@
         const sh = (col, label, cls) =>
           '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_apSort(\'' + col + '\')">' + label + si(col) + '</th>';
 
+        const headerCells = sh('name', 'Proyecto')
+          + sh('client', 'Cliente')
+          + sh('date', 'Inicio')
+          + sh('labour', 'Labour', 'num')
+          + sh('mat', 'Materiales', 'num')
+          + sh('total', 'Total sugerido', 'num')
+          + sh('client_price', 'Precio cliente', 'num')
+          + sh('diff', 'Diferencia', 'num')
+          + sh('status', 'Status')
+          + '<th>Invoice</th>'
+          + '<th></th>';
+
+        // Build rows
         let rows = '';
         withCalc.forEach(({ id, p, c }) => {
           const st = p.status || 'In Progress';
@@ -7512,11 +7532,9 @@
             ? '<span class="badge ' + (diff >= 0 || Math.abs(diff) < 0.5 ? 'badge-green' : 'badge-red') + '">'
             + (diff > 0 ? '+' : '') + '$' + (Math.round(Math.abs(diff)) === 0 ? '0' : Math.abs(diff).toFixed(0)) + '</span>'
             : '—';
-          // Find linked invoices for this project
           const linkedInvs = Object.values(finState.invoices || {}).filter(iv => iv.projectId === id);
           let invCell = '<span style="color:var(--text3);font-size:11px;">Sin invoice</span>';
           if (linkedInvs.length) {
-            // Show newest first
             linkedInvs.sort((a, b) => (b.issueDate || '').localeCompare(a.issueDate || ''));
             invCell = linkedInvs.map(iv => {
               const color = iv.status === 'paid' ? 'var(--accent)'
@@ -7545,38 +7563,57 @@
             + '<td style="display:flex;gap:5px;align-items:center;">' + btnVer + btnEdit + btnInv + btnEmail + '</td>'
             + '</tr>';
         });
+        if (!rows) {
+          rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text2);font-size:12px;">Sin proyectos con los filtros aplicados.</td></tr>';
+        }
 
+        // PARTIAL UPDATE if shell already exists — preserves filter inputs (and their focus)
+        const existingTbody = document.getElementById('_apTbody');
+        const existingHeader = document.getElementById('_apHeaderRow');
+        const existingCount = document.getElementById('_apCount');
+        if (existingTbody && existingHeader) {
+          existingHeader.innerHTML = headerCells;
+          existingTbody.innerHTML = rows;
+          if (existingCount) existingCount.textContent = withCalc.length + ' proyecto(s)';
+          return;
+        }
+
+        // FULL RENDER — first time or after returning from empty-state
+        const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
         const inpStyle = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:10px;box-sizing:border-box;';
         const selStyle = 'font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;width:100%;';
-        const filterRow = '<tr style="background:var(--surface2);">'
-          + '<td><input type="text" placeholder="Nombre..." value="' + _apFilters.name.replace(/"/g, '&quot;') + '" oninput="_apFilters.name=this.value;renderAllProjects()" style="' + inpStyle + '"></td>'
-          + '<td><input type="text" placeholder="Cliente..." value="' + _apFilters.client.replace(/"/g, '&quot;') + '" oninput="_apFilters.client=this.value;renderAllProjects()" style="' + inpStyle + '"></td>'
+        const filterRow = '<tr id="_apFilterRow" style="background:var(--surface2);">'
+          + '<td><input type="text" id="_apFiltName" placeholder="Nombre..." value="' + _apFilters.name.replace(/"/g, '&quot;') + '" oninput="_apFilters.name=this.value;renderAllProjects()" style="' + inpStyle + '"></td>'
+          + '<td><input type="text" id="_apFiltClient" placeholder="Cliente..." value="' + _apFilters.client.replace(/"/g, '&quot;') + '" oninput="_apFilters.client=this.value;renderAllProjects()" style="' + inpStyle + '"></td>'
           + '<td></td><td></td><td></td><td></td><td></td><td></td>'
-          + '<td><select onchange="_apFilters.status=this.value;renderAllProjects()" style="' + selStyle + '">'
+          + '<td><select id="_apFiltStatus" onchange="_apFilters.status=this.value;renderAllProjects()" style="' + selStyle + '">'
           + '<option value="">Todos</option>'
           + allStatuses.map(st => '<option value="' + st + '"' + (_apFilters.status === st ? ' selected' : '') + '>' + st + '</option>').join('')
           + '</select></td>'
           + '<td></td>'
-          + '<td><button class="btn btn-ghost btn-sm" style="font-size:9px;padding:3px 6px;" onclick="_apFilters.name=\'\';_apFilters.client=\'\';_apFilters.status=\'\';renderAllProjects()">✕</button></td>'
+          + '<td><button class="btn btn-ghost btn-sm" style="font-size:9px;padding:3px 6px;" onclick="_apClearFilters()">✕</button></td>'
           + '</tr>';
 
         container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
-          + '<thead><tr>'
-          + sh('name', 'Proyecto')
-          + sh('client', 'Cliente')
-          + sh('date', 'Inicio')
-          + sh('labour', 'Labour', 'num')
-          + sh('mat', 'Materiales', 'num')
-          + sh('total', 'Total sugerido', 'num')
-          + sh('client_price', 'Precio cliente', 'num')
-          + sh('diff', 'Diferencia', 'num')
-          + sh('status', 'Status')
-          + '<th>Invoice</th>'
-          + '<th></th></tr>'
+          + '<thead>'
+          + '<tr id="_apHeaderRow">' + headerCells + '</tr>'
           + filterRow
           + '</thead>'
-          + '<tbody>' + rows + '</tbody></table></div>'
-          + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + withCalc.length + ' proyecto(s)</div>';
+          + '<tbody id="_apTbody">' + rows + '</tbody></table></div>'
+          + '<div id="_apCount" style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + withCalc.length + ' proyecto(s)</div>';
+      }
+
+      function _apClearFilters() {
+        _apFilters.name = '';
+        _apFilters.client = '';
+        _apFilters.status = '';
+        const n = document.getElementById('_apFiltName');
+        const c = document.getElementById('_apFiltClient');
+        const s = document.getElementById('_apFiltStatus');
+        if (n) n.value = '';
+        if (c) c.value = '';
+        if (s) s.value = '';
+        renderAllProjects();
       }
 
       // ═══════════════════════════════════════════
@@ -10630,12 +10667,18 @@
         renderFinProjects();
       }
 
+      // V61.3 — Mismo refactor focus-preserving que renderAllProjects.
       function renderFinProjects() {
         const container = document.getElementById('fin_projects_table');
         if (!container) return;
 
-        let projects = Object.entries(state.projects).map(([id, p]) => ({ id, ...p }));
+        const allProjEntries = Object.entries(state.projects);
+        if (!allProjEntries.length) {
+          container.innerHTML = '<div class="empty-state"><p>Sin proyectos registrados.</p></div>';
+          return;
+        }
 
+        let projects = allProjEntries.map(([id, p]) => ({ id, ...p }));
         if (_fpFilters.name) projects = projects.filter(p => (p.name || '').toLowerCase().includes(_fpFilters.name.toLowerCase()));
         if (_fpFilters.client) projects = projects.filter(p => (p.client || '').toLowerCase().includes(_fpFilters.client.toLowerCase()));
         if (_fpFilters.status) projects = projects.filter(p => (p.status || 'In Progress') === _fpFilters.status);
@@ -10665,40 +10708,11 @@
           return asc ? va - vb : vb - va;
         });
 
-        if (!withCalc.length) {
-          container.innerHTML = '<div class="empty-state"><p>Sin proyectos con los filtros aplicados.</p></div>';
-          return;
-        }
-
-        const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
-        const allMonths = [...new Set(Object.values(state.projects).map(p => dateToMonthKey(p.start)).filter(Boolean))].sort().reverse();
-
         const si = (col) => s === col + '_asc' ? ' ↑' : s === col + '_desc' ? ' ↓' : ' ⇅';
         const sh = (col, label, cls) =>
           '<th' + (cls ? ' class="' + cls + '"' : '') + ' style="cursor:pointer;white-space:nowrap;" onclick="_fpSort(\'' + col + '\')">' + label + si(col) + '</th>';
 
-        const inpSt = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;box-sizing:border-box;';
-        const selSt = 'font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;width:100%;';
-
-        const filterRow = '<tr style="background:var(--surface2);">'
-          + '<td></td>'
-          + '<td><input type="text" placeholder="Nombre..." value="' + _fpFilters.name.replace(/"/g, '&quot;') + '" oninput="_fpFilters.name=this.value;renderFinProjects()" style="' + inpSt + '"></td>'
-          + '<td><input type="text" placeholder="Cliente..." value="' + _fpFilters.client.replace(/"/g, '&quot;') + '" oninput="_fpFilters.client=this.value;renderFinProjects()" style="' + inpSt + '"></td>'
-          + '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
-          + '<td><select onchange="_fpFilters.status=this.value;renderFinProjects()" style="' + selSt + '">'
-          + '<option value="">Todos</option>'
-          + allStatuses.map(st => '<option value="' + st + '"' + (_fpFilters.status === st ? ' selected' : '') + '>' + st + '</option>').join('')
-          + '</select></td>'
-          + '<td><select onchange="_fpFilters.month=this.value;renderFinProjects()" style="' + selSt + '">'
-          + '<option value="">Todos</option>'
-          + allMonths.map(m => '<option value="' + m + '"' + (_fpFilters.month === m ? ' selected' : '') + '>' + m + '</option>').join('')
-          + '</select>'
-          + '<button onclick="_fpFilters.name=\'\';_fpFilters.client=\'\';_fpFilters.status=\'\';_fpFilters.month=\'\';renderFinProjects()" style="font-size:9px;margin-left:4px;padding:2px 5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:3px;cursor:pointer;">✕</button>'
-          + '</td></tr>';
-
-        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
-          + '<thead><tr>'
-          + sh('date', 'Fecha')
+        const headerCells = sh('date', 'Fecha')
           + sh('name', 'Proyecto')
           + sh('client', 'Cliente')
           + sh('labour', 'Labour', 'num')
@@ -10709,9 +10723,14 @@
           + sh('diff', 'Diferencia', 'num')
           + sh('margin', 'Margen', 'num')
           + sh('status', 'Status')
-          + sh('month', 'Mes')
-          + '</tr>' + filterRow + '</thead><tbody>'
-          + withCalc.map(({ p, c }) => {
+          + sh('month', 'Mes');
+
+        // Build rows
+        let rows = '';
+        if (!withCalc.length) {
+          rows = '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text2);font-size:12px;">Sin proyectos con los filtros aplicados.</td></tr>';
+        } else {
+          rows = withCalc.map(({ p, c }) => {
             const diff = c.profitVsClient;
             const diffColor = diff >= 0 ? 'var(--accent)' : 'var(--danger)';
             const mes = dateToMonthKey(p.start);
@@ -10730,9 +10749,66 @@
               + '<td style="font-size:10px;">' + (p.status || 'In Progress') + '</td>'
               + '<td style="font-size:10px;font-family:monospace;">' + (mes || '—') + '</td>'
               + '</tr>';
-          }).join('')
-          + '</tbody></table></div>'
-          + '<div style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + withCalc.length + ' proyecto(s)</div>';
+          }).join('');
+        }
+
+        // PARTIAL UPDATE if shell exists — preserves filter inputs and focus
+        const existingTbody = document.getElementById('_fpTbody');
+        const existingHeader = document.getElementById('_fpHeaderRow');
+        const existingCount = document.getElementById('_fpCount');
+        if (existingTbody && existingHeader) {
+          existingHeader.innerHTML = headerCells;
+          existingTbody.innerHTML = rows;
+          if (existingCount) existingCount.textContent = withCalc.length + ' proyecto(s)';
+          return;
+        }
+
+        // FULL RENDER — first time or after returning from empty-state
+        const allStatuses = ['In Progress', 'Completed', 'On Hold', 'Cancelled'];
+        const allMonths = [...new Set(Object.values(state.projects).map(p => dateToMonthKey(p.start)).filter(Boolean))].sort().reverse();
+
+        const inpSt = 'width:100%;background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 5px;border-radius:4px;font-size:10px;box-sizing:border-box;';
+        const selSt = 'font-size:10px;padding:3px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px;width:100%;';
+
+        const filterRow = '<tr id="_fpFilterRow" style="background:var(--surface2);">'
+          + '<td></td>'
+          + '<td><input type="text" id="_fpFiltName" placeholder="Nombre..." value="' + _fpFilters.name.replace(/"/g, '&quot;') + '" oninput="_fpFilters.name=this.value;renderFinProjects()" style="' + inpSt + '"></td>'
+          + '<td><input type="text" id="_fpFiltClient" placeholder="Cliente..." value="' + _fpFilters.client.replace(/"/g, '&quot;') + '" oninput="_fpFilters.client=this.value;renderFinProjects()" style="' + inpSt + '"></td>'
+          + '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>'
+          + '<td><select id="_fpFiltStatus" onchange="_fpFilters.status=this.value;renderFinProjects()" style="' + selSt + '">'
+          + '<option value="">Todos</option>'
+          + allStatuses.map(st => '<option value="' + st + '"' + (_fpFilters.status === st ? ' selected' : '') + '>' + st + '</option>').join('')
+          + '</select></td>'
+          + '<td><select id="_fpFiltMonth" onchange="_fpFilters.month=this.value;renderFinProjects()" style="' + selSt + '">'
+          + '<option value="">Todos</option>'
+          + allMonths.map(m => '<option value="' + m + '"' + (_fpFilters.month === m ? ' selected' : '') + '>' + m + '</option>').join('')
+          + '</select>'
+          + '<button onclick="_fpClearFilters()" style="font-size:9px;margin-left:4px;padding:2px 5px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:3px;cursor:pointer;">✕</button>'
+          + '</td></tr>';
+
+        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
+          + '<thead>'
+          + '<tr id="_fpHeaderRow">' + headerCells + '</tr>'
+          + filterRow
+          + '</thead>'
+          + '<tbody id="_fpTbody">' + rows + '</tbody></table></div>'
+          + '<div id="_fpCount" style="font-size:10px;color:var(--text2);margin-top:6px;text-align:right;">' + withCalc.length + ' proyecto(s)</div>';
+      }
+
+      function _fpClearFilters() {
+        _fpFilters.name = '';
+        _fpFilters.client = '';
+        _fpFilters.status = '';
+        _fpFilters.month = '';
+        const n = document.getElementById('_fpFiltName');
+        const c = document.getElementById('_fpFiltClient');
+        const s = document.getElementById('_fpFiltStatus');
+        const m = document.getElementById('_fpFiltMonth');
+        if (n) n.value = '';
+        if (c) c.value = '';
+        if (s) s.value = '';
+        if (m) m.value = '';
+        renderFinProjects();
       }
 
 
