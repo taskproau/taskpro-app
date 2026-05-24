@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.3</title>
+  <title>TaskPro — Project Control V61.4</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -1171,6 +1171,37 @@
       .invoice-modal-grid {
         grid-template-columns: 1fr !important;
         gap: 12px !important;
+      }
+
+      /* V61.4 — Invoice modal: actions stack full-width on mobile, modal padding tight */
+      #sendInvoiceModal #si_modal_box {
+        padding: 16px !important;
+        max-width: 100% !important;
+      }
+
+      #sendInvoiceModal #si_actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+      }
+
+      #sendInvoiceModal #si_actions>button {
+        width: 100% !important;
+        min-height: 44px !important;
+        font-size: 13px !important;
+      }
+
+      #sendInvoiceModal #si_actions>div[style*="flex:1"] {
+        display: none !important;
+      }
+
+      #sendInvoiceModal #si_items_table {
+        font-size: 11px !important;
+      }
+
+      #sendInvoiceModal #si_items_table th,
+      #sendInvoiceModal #si_items_table td {
+        padding: 5px 4px !important;
       }
 
       /* Inline 3-col guide grid in expenses */
@@ -3584,8 +3615,16 @@
 
     <!-- ══════════ MODAL: SEND INVOICE ══════════ -->
     <div class="modal-overlay" id="sendInvoiceModal">
-      <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto;">
+      <div class="modal" id="si_modal_box" style="max-width:920px;max-height:92vh;overflow-y:auto;">
         <div class="modal-title">🧾 Invoice — <span id="si_invoice_number_display"></span></div>
+
+        <!-- DRAFT BANNER (hidden by default) -->
+        <div id="si_draft_banner" style="display:none;background:rgba(232,160,74,0.12);border:1px solid var(--warn);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:12px;">
+          <span style="color:var(--warn);font-weight:600;">📝 Borrador disponible</span>
+          <span id="si_draft_banner_text" style="color:var(--text2);"> · Última edición: —</span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:10px;font-size:10px;padding:3px 8px;" onclick="_siRestoreDraft()">Recuperar borrador</button>
+          <button class="btn btn-ghost btn-sm" style="margin-left:4px;font-size:10px;padding:3px 8px;" onclick="_siDiscardDraft()">Descartar</button>
+        </div>
 
         <!-- TWO COLUMN LAYOUT -->
         <div class="invoice-modal-grid" style="margin-bottom:16px;gap:24px;">
@@ -3598,30 +3637,30 @@
             <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:10px;">
               <div class="form-group" style="grid-column:span 2;">
                 <label>Cliente *</label>
-                <input type="text" id="si_client_name" oninput="si_onClientChange(this.value)">
+                <input type="text" id="si_client_name" oninput="si_onClientChange(this.value);_siMarkDirty()">
               </div>
               <div class="form-group" style="grid-column:span 2;">
                 <label>Dirección del trabajo</label>
-                <input type="text" id="si_job_address" placeholder="Ej: 4 Kingston Drive, Taylors Hill VIC 3037">
+                <input type="text" id="si_job_address" placeholder="Ej: 4 Kingston Drive, Taylors Hill VIC 3037" oninput="_siRebuildSubject();_siMarkDirty()">
               </div>
               <div class="form-group">
                 <label>Fecha Invoice</label>
-                <input type="date" id="si_invoice_date">
+                <input type="date" id="si_invoice_date" oninput="_siMarkDirty()">
               </div>
               <div class="form-group">
                 <label>Fecha vencimiento</label>
-                <input type="date" id="si_due_date">
+                <input type="date" id="si_due_date" oninput="_siMarkDirty()">
               </div>
               <div class="form-group">
                 <label>Referencia</label>
-                <input type="text" id="si_reference" placeholder="Opcional">
+                <input type="text" id="si_reference" placeholder="Opcional" oninput="_siMarkDirty()">
               </div>
               <div class="form-group">
                 <label>Invoice N° <span
                     style="font-size:10px;color:var(--text2);font-weight:400;">(editable)</span></label>
                 <input type="text" id="si_invoice_number"
                   style="background:var(--surface2);color:var(--accent);font-weight:700;font-family:'DM Mono',monospace;"
-                  oninput="document.getElementById('si_inv_num_stored').value = this.value.trim(); document.getElementById('si_invoice_number_display').textContent = this.value.trim(); const subj = document.getElementById('si_subject'); if (subj) subj.value = 'Invoice ' + this.value.trim() + ' from Task Pro';">
+                  oninput="document.getElementById('si_inv_num_stored').value = this.value.trim(); document.getElementById('si_invoice_number_display').textContent = this.value.trim(); _siRebuildSubject(); _siMarkDirty();">
               </div>
             </div>
           </div>
@@ -3639,14 +3678,15 @@
               </div>
               <div class="form-group">
                 <label>Para (To) *</label>
-                <input type="email" id="si_to_email" placeholder="accounts@cliente.com.au">
+                <input type="email" id="si_to_email" placeholder="accounts@cliente.com.au" oninput="_siValidateEmail();_siMarkDirty()">
+                <div id="si_to_email_hint" style="font-size:10px;color:var(--danger);margin-top:3px;min-height:12px;"></div>
               </div>
               <div class="form-group">
                 <label>Asunto (Subject)</label>
-                <input type="text" id="si_subject">
+                <input type="text" id="si_subject" oninput="_siMarkDirty()">
               </div>
               <div class="form-group" style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-                <input type="checkbox" id="si_send_copy" checked style="width:auto;margin:0;">
+                <input type="checkbox" id="si_send_copy" checked style="width:auto;margin:0;" onchange="_siMarkDirty()">
                 <label style="margin:0;font-size:12px;cursor:pointer;" for="si_send_copy">Enviarme una copia
                   (info@taskproau.com)</label>
               </div>
@@ -3663,16 +3703,16 @@
             <thead>
               <tr style="background:var(--surface2);">
                 <th
-                  style="text-align:left;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:50%;">
+                  style="text-align:left;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:55%;">
                   DESCRIPCIÓN</th>
                 <th
                   style="text-align:center;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:8%;">
                   QTY</th>
                 <th
-                  style="text-align:right;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:15%;">
+                  style="text-align:right;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:14%;">
                   PRECIO UNIT.</th>
                 <th
-                  style="text-align:right;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:15%;">
+                  style="text-align:right;padding:7px 8px;font-size:10px;color:var(--text2);font-weight:600;width:14%;">
                   MONTO</th>
                 <th style="width:5%;"></th>
               </tr>
@@ -3705,10 +3745,12 @@
         <input type="hidden" id="si_inv_num_stored">
 
         <!-- ACTIONS -->
-        <div style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;">
-          <button class="btn btn-primary" onclick="confirmSendInvoice()">📧 Enviar Invoice</button>
-          <button class="btn btn-ghost" onclick="downloadInvoicePDFFromModal()">🧾 Solo descargar PDF</button>
-          <button class="btn btn-ghost" onclick="closeModal('sendInvoiceModal')">Cancelar</button>
+        <div id="si_actions" style="display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;align-items:center;">
+          <button class="btn btn-primary" id="si_btn_send" onclick="confirmSendInvoice()">📧 Enviar Invoice</button>
+          <button class="btn btn-ghost" id="si_btn_pdf" onclick="downloadInvoicePDFFromModal()">📄 Solo descargar PDF</button>
+          <button class="btn btn-ghost" id="si_btn_draft" onclick="_siSaveDraftBtn()">💾 Guardar borrador</button>
+          <div style="flex:1;"></div>
+          <button class="btn btn-ghost" id="si_btn_cancel" onclick="_siCloseModal()" style="opacity:0.7;">Cancelar</button>
         </div>
         <div id="si_status" style="margin-top:10px;font-size:12px;min-height:18px;"></div>
       </div>
@@ -7547,8 +7589,8 @@
           }
           const btnVer = '<button class="btn btn-ghost btn-sm" data-pid="' + id + '" onclick="projBtnVer(this)">Ver</button>';
           const btnEdit = '<button class="btn btn-ghost btn-sm" data-pid="' + id + '" onclick="projBtnEdit(this)" style="padding:5px 8px;" title="Editar">✏️</button>';
-          const btnInv = '<button class="btn btn-ghost btn-sm" data-pid="' + id + '" onclick="projBtnInvoice(this)" style="padding:5px 8px;" title="Generar Invoice PDF">🧾</button>';
-          const btnEmail = '<button class="btn btn-primary btn-sm" data-pid="' + id + '" onclick="projBtnSendInvoice(this)" style="padding:5px 8px;" title="Enviar Invoice">📧</button>';
+          // V61.4 — Botón unificado: el modal cubre las 4 acciones (Enviar/PDF/Borrador/Cancelar)
+          const btnInv = '<button class="btn btn-primary btn-sm" data-pid="' + id + '" onclick="projBtnSendInvoice(this)" style="padding:5px 8px;" title="Crear / enviar invoice">🧾</button>';
           rows += '<tr>'
             + '<td><strong>' + (p.name || '') + '</strong></td>'
             + '<td style="color:var(--text2);">' + (p.client || '—') + '</td>'
@@ -7560,7 +7602,7 @@
             + '<td class="num">' + diffBadge + '</td>'
             + '<td>' + statusBadge(st) + '</td>'
             + '<td style="min-width:100px;">' + invCell + '</td>'
-            + '<td style="display:flex;gap:5px;align-items:center;">' + btnVer + btnEdit + btnInv + btnEmail + '</td>'
+            + '<td style="display:flex;gap:5px;align-items:center;">' + btnVer + btnEdit + btnInv + '</td>'
             + '</tr>';
         });
         if (!rows) {
@@ -12660,14 +12702,32 @@
       function siRenderItems() {
         const tbody = document.getElementById('si_items_body');
         if (!tbody) return;
+        // V61.4 — Descripción es <textarea> con auto-resize, una línea por defecto.
+        // El oninput recalcula la altura para que crezca con el contenido.
+        // Estilo: sin resize manual, max-height razonable, scroll vertical cuando se pasa.
         tbody.innerHTML = siItems.map((item, idx) => '<tr style="border-bottom:1px solid var(--border);">'
-          + '<td style="padding:6px 8px;"><input type="text" value="' + (item.desc || '').replace(/"/g, '&quot;') + '" oninput="siItems[' + idx + '].desc=this.value" style="font-size:11px;width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:2px 4px;" placeholder="Descripción del servicio..."></td>'
-          + '<td style="padding:6px 8px;text-align:center;"><input type="number" value="' + (item.qty || 1) + '" oninput="siItems[' + idx + '].qty=this.value;siRecalc()" style="font-size:11px;width:50px;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);" min="0" step="0.5"></td>'
-          + '<td style="padding:6px 8px;text-align:right;"><input type="number" value="' + (item.price || 0) + '" oninput="siItems[' + idx + '].price=this.value;siRecalc()" style="font-size:11px;width:80px;text-align:right;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);" min="0" step="0.01"></td>'
-          + '<td style="padding:6px 8px;text-align:right;color:var(--accent);font-weight:600;">$' + ((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)).toFixed(2) + '</td>'
-          + '<td style="padding:6px 8px;text-align:center;"><button onclick="siRemoveItem(' + idx + ')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;" title="Eliminar">✕</button></td>'
+          + '<td style="padding:6px 8px;vertical-align:top;">'
+          + '<textarea data-si-desc-idx="' + idx + '" rows="1" placeholder="Descripción del servicio..."'
+          + ' style="font-size:12px;width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:6px 4px;font-family:inherit;line-height:1.4;resize:none;overflow:hidden;min-height:28px;max-height:200px;"'
+          + ' oninput="siItems[' + idx + '].desc=this.value;_siAutoSize(this);_siMarkDirty()">'
+          + (item.desc || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          + '</textarea></td>'
+          + '<td style="padding:6px 8px;text-align:center;vertical-align:top;"><input type="number" value="' + (item.qty || 1) + '" oninput="siItems[' + idx + '].qty=this.value;siRecalc();_siMarkDirty()" style="font-size:12px;width:50px;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:6px 4px;" min="0" step="0.5"></td>'
+          + '<td style="padding:6px 8px;text-align:right;vertical-align:top;"><input type="number" value="' + (item.price || 0) + '" oninput="siItems[' + idx + '].price=this.value;siRecalc();_siMarkDirty()" style="font-size:12px;width:80px;text-align:right;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:6px 4px;" min="0" step="0.01"></td>'
+          + '<td style="padding:6px 8px;text-align:right;color:var(--accent);font-weight:600;vertical-align:top;">$' + ((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)).toFixed(2) + '</td>'
+          + '<td style="padding:6px 8px;text-align:center;vertical-align:top;"><button onclick="siRemoveItem(' + idx + ')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;" title="Eliminar">✕</button></td>'
           + '</tr>').join('');
         siRecalc();
+        // Re-fit textarea heights to their content (preserved after re-render)
+        tbody.querySelectorAll('textarea[data-si-desc-idx]').forEach(ta => _siAutoSize(ta));
+      }
+
+      // V61.4 — Auto-resize de textarea de descripción
+      function _siAutoSize(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        const h = Math.min(el.scrollHeight, 200);
+        el.style.height = (h < 28 ? 28 : h) + 'px';
       }
 
       function siAddItem(desc, qty, price) {
@@ -12678,13 +12738,221 @@
       function siRemoveItem(idx) {
         siItems.splice(idx, 1);
         siRenderItems();
+        _siMarkDirty();
+      }
+
+      // ═══════════════════════════════════════════════════════════
+      // V61.4 — INVOICE MODAL: helpers (validation, draft, subject, loading)
+      // ═══════════════════════════════════════════════════════════
+      let _siDirty = false;
+      const _SI_DRAFT_PREFIX = 'taskpro_si_draft_';
+
+      // Reconstruye el subject combinando invoice number + dirección del trabajo.
+      function _siRebuildSubject() {
+        const subj = document.getElementById('si_subject');
+        if (!subj) return;
+        const invNum = (document.getElementById('si_inv_num_stored').value || '').trim();
+        const addr = (document.getElementById('si_job_address').value || '').trim();
+        let s = 'Invoice ' + invNum;
+        if (addr) s += ' — ' + addr;
+        s += ' from Task Pro';
+        subj.value = s;
+      }
+
+      // Valida formato del email TO y enabled/disabled del botón Enviar.
+      function _siValidateEmail() {
+        const inp = document.getElementById('si_to_email');
+        const hint = document.getElementById('si_to_email_hint');
+        const btn = document.getElementById('si_btn_send');
+        if (!inp || !btn) return;
+        const v = (inp.value || '').trim();
+        const reEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        let valid = reEmail.test(v);
+        if (!v) {
+          if (hint) hint.textContent = '';
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          btn.title = 'Ingresá el email del destinatario para enviar';
+        } else if (!valid) {
+          if (hint) hint.textContent = 'Formato de email inválido';
+          btn.disabled = true;
+          btn.style.opacity = '0.5';
+          btn.style.cursor = 'not-allowed';
+          btn.title = 'Email inválido';
+        } else {
+          if (hint) hint.textContent = '';
+          btn.disabled = false;
+          btn.style.opacity = '';
+          btn.style.cursor = '';
+          btn.title = '';
+        }
+      }
+
+      // Marca el modal como dirty (con cambios sin guardar). Trigger leve por cualquier oninput.
+      function _siMarkDirty() {
+        _siDirty = true;
+      }
+
+      // Loading state durante envío
+      function _siSetLoading(isLoading, btnId) {
+        const btns = ['si_btn_send', 'si_btn_pdf', 'si_btn_draft', 'si_btn_cancel'];
+        btns.forEach(id => {
+          const b = document.getElementById(id);
+          if (!b) return;
+          if (isLoading) {
+            b.dataset._origText = b.dataset._origText || b.innerHTML;
+            b.disabled = true;
+            b.style.opacity = '0.5';
+            b.style.cursor = 'wait';
+            if (id === btnId) b.innerHTML = '⏳ Procesando…';
+          } else {
+            b.disabled = false;
+            b.style.opacity = '';
+            b.style.cursor = '';
+            if (b.dataset._origText) {
+              b.innerHTML = b.dataset._origText;
+              delete b.dataset._origText;
+            }
+          }
+        });
+        // After unloading, re-apply email validation (might re-disable send)
+        if (!isLoading) _siValidateEmail();
+      }
+
+      // ── DRAFT (localStorage) ──
+      function _siBuildDraftPayload() {
+        const pid = document.getElementById('si_pid').value;
+        if (!pid) return null;
+        return {
+          pid: pid,
+          clientName: document.getElementById('si_client_name').value,
+          toEmail: document.getElementById('si_to_email').value,
+          jobAddress: document.getElementById('si_job_address').value,
+          invoiceDate: document.getElementById('si_invoice_date').value,
+          dueDate: document.getElementById('si_due_date').value,
+          reference: document.getElementById('si_reference').value,
+          invoiceNumber: document.getElementById('si_invoice_number').value,
+          subject: document.getElementById('si_subject').value,
+          sendCopy: document.getElementById('si_send_copy').checked,
+          items: siItems.slice(),
+          savedAt: Date.now()
+        };
+      }
+
+      function _siApplyDraft(d) {
+        if (!d) return;
+        document.getElementById('si_client_name').value = d.clientName || '';
+        document.getElementById('si_to_email').value = d.toEmail || '';
+        document.getElementById('si_job_address').value = d.jobAddress || '';
+        document.getElementById('si_invoice_date').value = d.invoiceDate || '';
+        document.getElementById('si_due_date').value = d.dueDate || '';
+        document.getElementById('si_reference').value = d.reference || '';
+        if (d.invoiceNumber) {
+          document.getElementById('si_invoice_number').value = d.invoiceNumber;
+          document.getElementById('si_inv_num_stored').value = d.invoiceNumber;
+          document.getElementById('si_invoice_number_display').textContent = d.invoiceNumber;
+        }
+        document.getElementById('si_subject').value = d.subject || '';
+        document.getElementById('si_send_copy').checked = !!d.sendCopy;
+        if (Array.isArray(d.items) && d.items.length) {
+          siItems = d.items.slice();
+          siRenderItems();
+        }
+        _siValidateEmail();
+      }
+
+      function _siCheckForDraft(pid) {
+        const banner = document.getElementById('si_draft_banner');
+        const text = document.getElementById('si_draft_banner_text');
+        if (!banner) return;
+        try {
+          const raw = localStorage.getItem(_SI_DRAFT_PREFIX + pid);
+          if (!raw) { banner.style.display = 'none'; return; }
+          const d = JSON.parse(raw);
+          if (!d || !d.savedAt) { banner.style.display = 'none'; return; }
+          const dt = new Date(d.savedAt);
+          const stamp = dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString().slice(0, 5);
+          if (text) text.textContent = ' · Última edición: ' + stamp;
+          banner.style.display = 'block';
+        } catch (e) {
+          banner.style.display = 'none';
+        }
+      }
+
+      function _siRestoreDraft() {
+        const pid = document.getElementById('si_pid').value;
+        if (!pid) return;
+        try {
+          const raw = localStorage.getItem(_SI_DRAFT_PREFIX + pid);
+          if (!raw) return;
+          const d = JSON.parse(raw);
+          _siApplyDraft(d);
+          document.getElementById('si_draft_banner').style.display = 'none';
+          _siSetStatus('Borrador recuperado', 'success');
+          _siDirty = false;
+        } catch (e) {
+          _siSetStatus('Error al recuperar borrador: ' + e.message, 'error');
+        }
+      }
+
+      function _siDiscardDraft() {
+        const pid = document.getElementById('si_pid').value;
+        if (!pid) return;
+        if (!confirm('¿Descartar el borrador guardado para este proyecto?')) return;
+        try { localStorage.removeItem(_SI_DRAFT_PREFIX + pid); } catch (e) {}
+        document.getElementById('si_draft_banner').style.display = 'none';
+        _siSetStatus('Borrador descartado', 'success');
+      }
+
+      function _siSaveDraftBtn() {
+        const pid = document.getElementById('si_pid').value;
+        if (!pid) return;
+        const payload = _siBuildDraftPayload();
+        try {
+          localStorage.setItem(_SI_DRAFT_PREFIX + pid, JSON.stringify(payload));
+          _siSetStatus('💾 Borrador guardado localmente', 'success');
+          _siDirty = false;
+        } catch (e) {
+          _siSetStatus('Error al guardar borrador: ' + e.message, 'error');
+        }
+      }
+
+      function _siClearDraft(pid) {
+        if (!pid) pid = document.getElementById('si_pid').value;
+        if (!pid) return;
+        try { localStorage.removeItem(_SI_DRAFT_PREFIX + pid); } catch (e) {}
+      }
+
+      function _siSetStatus(msg, type) {
+        const el = document.getElementById('si_status');
+        if (!el) return;
+        const color = type === 'success' ? 'var(--accent)' : type === 'error' ? 'var(--danger)' : 'var(--text2)';
+        el.style.color = color;
+        el.textContent = msg;
+      }
+
+      // Cerrar el modal con confirmación si hay cambios sin guardar.
+      function _siCloseModal() {
+        if (_siDirty) {
+          if (!confirm('Hay cambios sin guardar. ¿Cerrar de todas formas?\n\nTip: podés usar "Guardar borrador" para conservarlos.')) return;
+        }
+        closeModal('sendInvoiceModal');
+        _siDirty = false;
       }
 
       function si_onClientChange(name) {
         const cli = getClientByName(name);
         if (cli) {
           if (cli.email) document.getElementById('si_to_email').value = cli.email;
-          if (cli.address) document.getElementById('si_job_address').value = cli.address;
+          // V61.4 — Solo sobreescribir job_address si está vacío.
+          // La dirección del proyecto (cargada al abrir el modal) tiene prioridad.
+          const jaInput = document.getElementById('si_job_address');
+          if (jaInput && !jaInput.value.trim() && cli.address) {
+            jaInput.value = cli.address;
+            _siRebuildSubject();
+          }
+          _siValidateEmail();
         }
       }
 
@@ -12699,29 +12967,41 @@
         const cli = getClientByName(p.client);
         const today = new Date();
         const toISO = d => d.toISOString().slice(0, 10);
-        const dueD = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000);
+        // Use client default due days if available, fallback to 21
+        const dueDays = (cli && cli.defaultDueDays) ? parseInt(cli.defaultDueDays) || 21 : 21;
+        const dueD = new Date(today.getTime() + dueDays * 24 * 60 * 60 * 1000);
+
+        // V61.4 — Priority: dirección del PROYECTO primero, dirección del cliente como fallback
+        const jobAddr = p.address || (cli ? (cli.address || '') : '') || '';
 
         document.getElementById('si_pid').value = pid;
         document.getElementById('si_client_name').value = p.client || '';
         document.getElementById('si_to_email').value = cli ? (cli.email || '') : '';
-        document.getElementById('si_job_address').value = cli ? (cli.address || '') : '';
+        document.getElementById('si_job_address').value = jobAddr;
         document.getElementById('si_invoice_date').value = toISO(today);
         document.getElementById('si_due_date').value = toISO(dueD);
         document.getElementById('si_reference').value = '';
         document.getElementById('si_status').textContent = '';
+        document.getElementById('si_to_email_hint').textContent = '';
 
-        // Init line items from project
+        // V61.4 — Init line items SIN descripción default. El placeholder guía al usuario.
         siItems = [];
-        const desc = p.notas || 'Supply of furniture installation and assembly services as per agreed scope.';
-        siAddItem(desc, 1, clientPrice);
+        siAddItem('', 1, clientPrice);
 
         // Get next invoice number
         getNextInvoiceNumber(invNum => {
           document.getElementById('si_invoice_number').value = invNum;
           document.getElementById('si_inv_num_stored').value = invNum;
           document.getElementById('si_invoice_number_display').textContent = invNum;
-          document.getElementById('si_subject').value = 'Invoice ' + invNum + ' from Task Pro';
+          _siRebuildSubject();
         });
+
+        // V61.4 — Reset dirty flag, check for existing draft
+        _siDirty = false;
+        _siCheckForDraft(pid);
+
+        // V61.4 — Initial validation
+        setTimeout(() => _siValidateEmail(), 0);
 
         document.getElementById('sendInvoiceModal').classList.add('open');
       }
@@ -12962,10 +13242,28 @@
       }
 
       function downloadInvoicePDFFromModal() {
-        const d = buildInvoiceDataFromModal();
-        generateInvoicePDFFromData(d, false);
-        // Save tracking record
-        saveProjectInvoiceRecord(d);
+        // V61.4 — Loading state + status + clear draft post-success
+        _siSetLoading(true, 'si_btn_pdf');
+        _siSetStatus('⏳ Generando PDF…', 'info');
+        try {
+          const d = buildInvoiceDataFromModal();
+          const doc = generateInvoicePDFFromData(d, true);
+          if (!doc) {
+            _siSetStatus('❌ Error generando PDF.', 'error');
+            _siSetLoading(false);
+            return;
+          }
+          doc.save('TaskPro_Invoice_' + d.invNum + '_' + (d.clientName || '').replace(/\s+/g, '_') + '.pdf');
+          saveProjectInvoiceRecord(d);
+          _siClearDraft(d.pid);
+          _siDirty = false;
+          _siSetStatus('✅ PDF descargado · Invoice ' + d.invNum + ' registrado en seguimiento', 'success');
+          showSyncBanner('PDF descargado: Invoice ' + d.invNum, 'success');
+          setTimeout(() => { _siSetLoading(false); closeModal('sendInvoiceModal'); }, 2000);
+        } catch (e) {
+          _siSetStatus('❌ Error: ' + (e.message || e), 'error');
+          _siSetLoading(false);
+        }
       }
 
       // Save a project invoice record to Firebase for tracking
@@ -13023,27 +13321,38 @@
 
       async function confirmSendInvoice() {
         const d = buildInvoiceDataFromModal();
-        const statusEl = document.getElementById('si_status');
-        if (!d.toEmail) { alert('El email del cliente es obligatorio.'); return; }
-        if (!d.items.length) { alert('Agregá al menos una línea de servicio.'); return; }
+        // V61.4 — Validación estricta antes de loading
+        const reEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!d.toEmail || !reEmail.test(d.toEmail)) {
+          _siSetStatus('❌ Email del destinatario inválido o vacío.', 'error');
+          return;
+        }
+        if (!d.items.length) {
+          _siSetStatus('❌ Agregá al menos una línea de servicio.', 'error');
+          return;
+        }
+        const hasDesc = d.items.some(i => (i.desc || '').trim());
+        if (!hasDesc) {
+          if (!confirm('Ninguna línea tiene descripción. ¿Enviar de todas formas?')) return;
+        }
 
-        statusEl.style.color = 'var(--warn)';
-        statusEl.textContent = '⏳ Generando PDF...';
+        _siSetLoading(true, 'si_btn_send');
+        _siSetStatus('⏳ Generando PDF…', 'info');
 
         const doc = generateInvoicePDFFromData(d, true);
-        if (!doc) { statusEl.textContent = '❌ Error generando PDF.'; return; }
-        // Always download PDF locally
+        if (!doc) {
+          _siSetStatus('❌ Error generando PDF.', 'error');
+          _siSetLoading(false);
+          return;
+        }
         doc.save('TaskPro_Invoice_' + d.invNum + '_' + (d.clientName || '').replace(/\s+/g, '_') + '.pdf');
-        // Save tracking record
         saveProjectInvoiceRecord(d);
 
-        statusEl.style.color = 'var(--text2)';
-        statusEl.textContent = '⏳ Enviando email...';
+        _siSetStatus('⏳ Enviando email…', 'info');
 
         try {
           emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
-          // Send without attachment (plain text params only)
           const params = {
             to_email: d.toEmail,
             client_name: d.clientName,
@@ -13052,7 +13361,7 @@
             job_address: d.jobAddress,
             invoice_date: d.invoiceDate,
             due_date: d.dueDate,
-            description: d.items.map(i => i.desc).join('; '),
+            description: d.items.map(i => i.desc).filter(Boolean).join('; '),
             subtotal: d.subtotal.toFixed(2),
             gst_amount: d.gst.toFixed(2),
             total_amount: d.total.toFixed(2)
@@ -13065,18 +13374,21 @@
             await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { ...params, to_email: 'info@taskproau.com' });
           }
 
-          statusEl.style.color = 'var(--accent)';
-          statusEl.textContent = '✅ Email enviado a ' + d.toEmail
-            + (d.sendCopy ? ' + copia a info@taskproau.com' : '')
-            + ' — PDF descargado localmente.';
-          setTimeout(() => closeModal('sendInvoiceModal'), 3500);
+          // V61.4 — Success: clear draft, show banner, then close
+          _siClearDraft(d.pid);
+          _siDirty = false;
+          const successMsg = '✅ Enviado a ' + d.toEmail
+            + (d.sendCopy ? ' (+ copia)' : '')
+            + ' · PDF descargado · Invoice ' + d.invNum + ' registrado.';
+          _siSetStatus(successMsg, 'success');
+          showSyncBanner('Invoice ' + d.invNum + ' enviado a ' + d.toEmail, 'success');
+          setTimeout(() => { _siSetLoading(false); closeModal('sendInvoiceModal'); }, 3000);
 
         } catch (err) {
           console.error('EmailJS error:', err);
-          statusEl.style.color = 'var(--danger)';
-          // Show detailed error to help diagnose
           const detail = err.text || err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-          statusEl.textContent = '❌ Error EmailJS: ' + detail;
+          _siSetStatus('❌ Error EmailJS: ' + detail + ' · El PDF se descargó localmente.', 'error');
+          _siSetLoading(false);
         }
       }
 
