@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.10</title>
+  <title>TaskPro — Project Control V61.11</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -12391,12 +12391,15 @@
           return '<span class="badge badge-warn">UNPAID</span>';
         };
 
-        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table" style="min-width:1100px;border-collapse:separate;border-spacing:0;">'
+        // V61.11 — Approach pragmático: ajustar tabla para que quepa sin scroll horizontal.
+        // Removido sticky (no funcionaba consistente por border-collapse). Columnas más compactas.
+        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table" style="font-size:10.5px;">'
+          + '<style>#inv_table table.data-table td, #inv_table table.data-table th { padding: 6px 7px !important; }</style>'
           + '<thead><tr>'
           + '<th>Número</th><th>Tipo</th><th>Cliente / Contratista</th><th>Referencia</th>'
           + '<th>Emitido</th><th>Vence</th><th class="num">Monto</th>'
           + '<th>Estado</th><th>Pagado</th>'
-          + '<th style="position:sticky;right:0;background:var(--surface2);z-index:3;box-shadow:-6px 0 8px -4px rgba(0,0,0,0.4);min-width:240px;width:240px;">Acciones</th>'
+          + '<th>Acciones</th>'
           + '</tr></thead><tbody>'
           + invoices.map(i => {
             const isPersonal = (i.type === 'personal');
@@ -12411,22 +12414,22 @@
               + '<td><strong style="font-family:monospace;">' + (i.number || '—') + '</strong></td>'
               + '<td><span style="font-size:10px;color:var(--text2);">' + (isPersonal ? 'Personal' : 'Cliente') + '</span></td>'
               + '<td style="font-size:11px;">' + party + '</td>'
-              + '<td style="font-size:11px;color:var(--text2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + ref + '</td>'
+              + '<td style="font-size:10px;color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + ref.replace(/"/g, '&quot;') + '">' + ref + '</td>'
               + '<td style="font-family:monospace;font-size:10px;">' + (i.issueDate || '—') + '</td>'
               + '<td style="font-family:monospace;font-size:10px;' + ((i.status === 'overdue') ? 'color:var(--danger);font-weight:700;' : '') + '">' + (i.dueDate || '—') + '</td>'
               + '<td class="num"><strong>$' + (i.amount || 0).toFixed(2) + '</strong></td>'
               + '<td>' + statusBadge(i.status || 'unpaid') + manualFlag + '</td>'
               + '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (i.paidDate || '—') + '</td>'
-              + '<td style="white-space:nowrap;position:sticky;right:0;background:var(--surface);z-index:2;box-shadow:-6px 0 8px -4px rgba(0,0,0,0.4);min-width:240px;width:240px;">'
-              + '<select onchange="setInvoiceStatusManual(\'' + i.id + '\', this.value)" style="font-size:10px;padding:3px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
+              + '<td style="white-space:nowrap;">'
+              + '<select onchange="setInvoiceStatusManual(\'' + i.id + '\', this.value)" style="font-size:9px;padding:2px 2px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:3px;width:60px;">'
               + '<option value="">-</option>'
               + '<option value="auto">🔄 Auto</option>'
               + '<option value="paid">✓ Paid</option>'
               + '<option value="unpaid">⏳ Unpaid</option>'
               + '<option value="overdue">⚠ Overdue</option>'
-              + '</select> '
-              + '<button class="btn btn-ghost btn-sm" style="padding:3px 6px;font-size:10px;margin-right:3px;" onclick="openEditInvoiceModal(\'' + i.id + '\')" title="Editar número / fechas">✏️</button>'
-              + '<button class="btn btn-danger btn-sm" style="padding:3px 6px;font-size:10px;" onclick="deleteInvoiceRecord(\'' + i.id + '\')" title="Eliminar registro">✕</button>'
+              + '</select>'
+              + '<button class="btn btn-ghost btn-sm" style="padding:2px 4px;font-size:10px;margin-left:2px;" onclick="openEditInvoiceModal(\'' + i.id + '\')" title="Editar número / fechas">✏️</button>'
+              + '<button class="btn btn-danger btn-sm" style="padding:2px 4px;font-size:10px;margin-left:1px;" onclick="deleteInvoiceRecord(\'' + i.id + '\')" title="Eliminar registro">✕</button>'
               + '</td></tr>';
           }).join('')
           + '</tbody></table></div>'
