@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.8</title>
+  <title>TaskPro — Project Control V61.9</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -12391,12 +12391,12 @@
           return '<span class="badge badge-warn">UNPAID</span>';
         };
 
-        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table">'
+        container.innerHTML = '<div style="overflow-x:auto;"><table class="data-table" style="min-width:1100px;">'
           + '<thead><tr>'
           + '<th>Número</th><th>Tipo</th><th>Cliente / Contratista</th><th>Referencia</th>'
           + '<th>Emitido</th><th>Vence</th><th class="num">Monto</th>'
           + '<th>Estado</th><th>Pagado</th>'
-          + '<th style="position:sticky;right:0;background:var(--surface2);z-index:3;box-shadow:-6px 0 8px -4px rgba(0,0,0,0.4);">Acciones</th>'
+          + '<th style="position:sticky;right:0;background:var(--surface2);z-index:3;box-shadow:-6px 0 8px -4px rgba(0,0,0,0.4);min-width:240px;width:240px;">Acciones</th>'
           + '</tr></thead><tbody>'
           + invoices.map(i => {
             const isPersonal = (i.type === 'personal');
@@ -12417,7 +12417,7 @@
               + '<td class="num"><strong>$' + (i.amount || 0).toFixed(2) + '</strong></td>'
               + '<td>' + statusBadge(i.status || 'unpaid') + manualFlag + '</td>'
               + '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (i.paidDate || '—') + '</td>'
-              + '<td style="white-space:nowrap;position:sticky;right:0;background:var(--surface);z-index:2;box-shadow:-6px 0 8px -4px rgba(0,0,0,0.4);">'
+              + '<td style="white-space:nowrap;position:sticky;right:0;background:var(--surface);z-index:2;box-shadow:-6px 0 8px -4px rgba(0,0,0,0.4);min-width:240px;width:240px;">'
               + '<select onchange="setInvoiceStatusManual(\'' + i.id + '\', this.value)" style="font-size:10px;padding:3px 4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;">'
               + '<option value="">-</option>'
               + '<option value="auto">🔄 Auto</option>'
