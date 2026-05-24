@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.6</title>
+  <title>TaskPro — Project Control V61.7</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -12696,9 +12696,24 @@
         const subtotal = siItems.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0), 0);
         const gst = subtotal * 0.1;
         const total = subtotal + gst;
-        document.getElementById('si_subtotal_display').textContent = '$' + subtotal.toFixed(2);
-        document.getElementById('si_gst_display').textContent = '$' + gst.toFixed(2);
-        document.getElementById('si_total_display').textContent = '$' + total.toFixed(2);
+        // V61.7 — Formato AUD con separador de miles
+        document.getElementById('si_subtotal_display').textContent = _siFmtAUD(subtotal);
+        document.getElementById('si_gst_display').textContent = _siFmtAUD(gst);
+        document.getElementById('si_total_display').textContent = _siFmtAUD(total);
+        // V61.7 — Fix bug: actualizar la celda MONTO de cada línea (antes se calculaba sólo al render)
+        siItems.forEach((item, idx) => {
+          const cell = document.querySelector('td[data-si-amount-idx="' + idx + '"]');
+          if (cell) {
+            const amt = (parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0);
+            cell.textContent = _siFmtAUD(amt);
+          }
+        });
+      }
+
+      // V61.7 — Formato moneda AUD: $1,234.56 (separador miles + 2 decimales)
+      function _siFmtAUD(n) {
+        const v = parseFloat(n) || 0;
+        return '$' + v.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
 
       function siRenderItems() {
@@ -12716,7 +12731,7 @@
           + '</textarea></td>'
           + '<td style="padding:6px 8px;text-align:center;vertical-align:top;"><input type="number" value="' + (item.qty || 1) + '" oninput="siItems[' + idx + '].qty=this.value;siRecalc();_siMarkDirty()" style="font-size:12px;width:50px;text-align:center;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:6px 4px;" min="0" step="0.5"></td>'
           + '<td style="padding:6px 8px;text-align:right;vertical-align:top;"><input type="number" value="' + (item.price || 0) + '" oninput="siItems[' + idx + '].price=this.value;siRecalc();_siMarkDirty()" style="font-size:12px;width:80px;text-align:right;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:6px 4px;" min="0" step="0.01"></td>'
-          + '<td style="padding:6px 8px;text-align:right;color:var(--accent);font-weight:600;vertical-align:top;">$' + ((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)).toFixed(2) + '</td>'
+          + '<td data-si-amount-idx="' + idx + '" style="padding:6px 8px;text-align:right;color:var(--accent);font-weight:600;vertical-align:top;">' + _siFmtAUD((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)) + '</td>'
           + '<td style="padding:6px 8px;text-align:center;vertical-align:top;"><button onclick="siRemoveItem(' + idx + ')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;" title="Eliminar">✕</button></td>'
           + '</tr>').join('');
         siRecalc();
@@ -13145,8 +13160,8 @@
           body: d.items.map(item => [
             item.desc || '—',
             String(parseFloat(item.qty) || 1),
-            '$' + (parseFloat(item.price) || 0).toFixed(2),
-            '$' + ((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)).toFixed(2)
+            _siFmtAUD(parseFloat(item.price) || 0),
+            _siFmtAUD((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0))
           ]),
           styles: { fontSize: 9, cellPadding: 5, textColor: [30, 30, 30], lineColor: [220, 220, 220], lineWidth: 0.1 },
           headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, cellPadding: 5 },
@@ -13172,12 +13187,12 @@
         doc.setTextColor(80, 80, 80);
         doc.text('Subtotal', totLabelX, y + 5, { align: 'right' });
         doc.setTextColor(30, 30, 30);
-        doc.text('$' + d.subtotal.toFixed(2), totValueX, y + 5, { align: 'right' });
+        doc.text(_siFmtAUD(d.subtotal), totValueX, y + 5, { align: 'right' });
 
         doc.setTextColor(80, 80, 80);
         doc.text('Total GST', totLabelX, y + 11, { align: 'right' });
         doc.setTextColor(30, 30, 30);
-        doc.text('$' + d.gst.toFixed(2), totValueX, y + 11, { align: 'right' });
+        doc.text(_siFmtAUD(d.gst), totValueX, y + 11, { align: 'right' });
 
         y += 16;
 
@@ -13190,7 +13205,7 @@
         doc.setFontSize(11);
         doc.setTextColor(255, 255, 255);
         doc.text('Total AUD', barX + 4, y + 7.5);
-        doc.text('$' + d.total.toFixed(2), totValueX - 2, y + 7.5, { align: 'right' });
+        doc.text(_siFmtAUD(d.total), totValueX - 2, y + 7.5, { align: 'right' });
 
         y += 18;
 
