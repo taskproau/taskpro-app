@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.4</title>
+  <title>TaskPro — Project Control V61.5</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -3615,8 +3615,10 @@
 
     <!-- ══════════ MODAL: SEND INVOICE ══════════ -->
     <div class="modal-overlay" id="sendInvoiceModal">
-      <div class="modal" id="si_modal_box" style="max-width:920px;max-height:92vh;overflow-y:auto;">
-        <div class="modal-title">🧾 Invoice — <span id="si_invoice_number_display"></span></div>
+      <div class="modal" id="si_modal_box" style="max-width:920px;max-height:92vh;overflow-y:auto;position:relative;">
+        <!-- V61.5 — Botón X de cerrar (esquina superior derecha) -->
+        <button onclick="_siCloseModal()" title="Cerrar" style="position:absolute;top:12px;right:12px;background:transparent;border:none;color:var(--text2);font-size:24px;line-height:1;cursor:pointer;padding:6px 10px;border-radius:6px;z-index:10;" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--text)';" onmouseout="this.style.background='transparent';this.style.color='var(--text2)';">×</button>
+        <div class="modal-title" style="padding-right:40px;">🧾 Invoice — <span id="si_invoice_number_display"></span></div>
 
         <!-- DRAFT BANNER (hidden by default) -->
         <div id="si_draft_banner" style="display:none;background:rgba(232,160,74,0.12);border:1px solid var(--warn);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:12px;">
@@ -13038,13 +13040,19 @@
 
       // ═══════════════════════════════════════════
       // GENERATE INVOICE PDF (from modal data)
+      // V61.5 — Refactor Tradify-style:
+      //   - Tabla ocupa todo el colW (100+22+30+30=182 = colW)
+      //   - Header "Quantity" cabe sin partir
+      //   - Totales alineados con right edge de la tabla
+      //   - Cliente + Job Address + Reference integrados en el box gris (sin "Project" suelta)
+      //   - Sin Payment Advice ni página 2
       // ═══════════════════════════════════════════
       function generateInvoicePDFFromData(d, returnDoc) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         const W = 210, margin = 14, colW = W - margin * 2;
 
-        // ── Header ──
+        // ── Header empresa ──
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(26);
         doc.setTextColor(20, 20, 20);
@@ -13057,109 +13065,146 @@
         doc.text('email info@taskproau.com', W - margin, 25, { align: 'right' });
         doc.setDrawColor(180, 180, 180);
         doc.setLineWidth(0.3);
-        doc.line(margin, 30, W - margin, 30);
+        doc.line(margin, 32, W - margin, 32);
 
-        // ── Tax Invoice + Number ──
-        doc.setFontSize(16);
+        // ── Tax Invoice + Número (número más grande, Tradify-style) ──
+        doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(20, 20, 20);
-        doc.text('Tax Invoice', margin, 40);
-        doc.text(d.invNum, W - margin, 40, { align: 'right' });
+        doc.text('Tax Invoice', margin, 44);
+        doc.setFontSize(22);
+        doc.text(d.invNum || '—', W - margin, 44, { align: 'right' });
 
-        // ── Client info block ──
-        let y = 46;
+        // ── Box gris con info cliente + job + fechas ──
+        // Tres columnas: Cliente | Job info | Fechas/ABN
+        let y = 50;
+        const boxH = 36;
         doc.setFillColor(245, 245, 245);
-        doc.rect(margin, y, colW, 26, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(20, 20, 20);
-        doc.text(d.clientName || '—', margin + 3, y + 6);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(60, 60, 60);
-        doc.text('Job Address', margin + 45, y + 4);
-        const addrLines = doc.splitTextToSize(d.jobAddress || '—', 48);
-        doc.text(addrLines, margin + 45, y + 9);
-        if (d.reference) {
-          doc.text('Reference', margin + 45, y + 18);
-          doc.text(d.reference, margin + 62, y + 18);
-        }
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(20, 20, 20);
-        doc.text('Invoice Date', margin + 105, y + 4);
-        doc.text('Due Date', margin + 105, y + 11);
-        doc.text('ABN', margin + 105, y + 18);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(60, 60, 60);
-        doc.text(d.invoiceDate, margin + 126, y + 4);
-        doc.text(d.dueDate, margin + 126, y + 11);
-        doc.text('70681664960', margin + 126, y + 18);
+        doc.rect(margin, y, colW, boxH, 'F');
 
-        // ── Project label ──
-        y += 32;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text('Project', margin, y);
-        y += 5;
+        // Columna 1: Cliente (prominente)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(20, 20, 20);
+        doc.text(d.clientName || '—', margin + 4, y + 7);
+
+        // Project name (subtítulo bajo el nombre del cliente)
         const projName = state.projects[document.getElementById('si_pid').value]
-          ? state.projects[document.getElementById('si_pid').value].name : d.clientName;
-        doc.setFontSize(9);
-        doc.setTextColor(20, 20, 20);
-        doc.text(projName || '—', margin, y);
-        y += 6;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, y, W - margin, y);
-        y += 4;
+          ? state.projects[document.getElementById('si_pid').value].name : '';
+        if (projName) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 100, 100);
+          const projLines = doc.splitTextToSize(projName, 55);
+          doc.text(projLines, margin + 4, y + 13);
+        }
 
-        // ── Line items table ──
+        // Columna 2: Job Address + Reference (medio)
+        const col2X = margin + 65;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(20, 20, 20);
+        doc.text('Job Address', col2X, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(60, 60, 60);
+        const addrLines = doc.splitTextToSize(d.jobAddress || '—', 60);
+        doc.text(addrLines, col2X, y + 11);
+        if (d.reference) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(20, 20, 20);
+          doc.text('Reference', col2X, y + 26);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(60, 60, 60);
+          const refLines = doc.splitTextToSize(d.reference, 60);
+          doc.text(refLines, col2X, y + 31);
+        }
+
+        // Columna 3: Invoice Date / Due Date / ABN (derecha)
+        const col3X = margin + 132;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(20, 20, 20);
+        doc.text('Invoice Date', col3X, y + 6);
+        doc.text('Due Date', col3X, y + 14);
+        doc.text('ABN', col3X, y + 22);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60, 60, 60);
+        doc.text(d.invoiceDate || '—', col3X + 22, y + 6);
+        doc.text(d.dueDate || '—', col3X + 22, y + 14);
+        doc.text('70681664960', col3X + 22, y + 22);
+
+        y += boxH + 6;
+
+        // ── Tabla de líneas (full width: 100+22+30+30 = 182 = colW) ──
         doc.autoTable({
           startY: y,
           margin: { left: margin, right: margin },
-          head: [['Description', 'Qty', 'Unit Price', 'Amount']],
+          head: [['Description', 'Quantity', 'Unit Price', 'Amount']],
           body: d.items.map(item => [
             item.desc || '—',
             String(parseFloat(item.qty) || 1),
             '$' + (parseFloat(item.price) || 0).toFixed(2),
             '$' + ((parseFloat(item.qty) || 0) * (parseFloat(item.price) || 0)).toFixed(2)
           ]),
-          styles: { fontSize: 8, cellPadding: 4, textColor: [30, 30, 30] },
-          headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
-          columnStyles: { 0: { cellWidth: 110 }, 1: { halign: 'center', cellWidth: 12 }, 2: { halign: 'right', cellWidth: 26 }, 3: { halign: 'right', cellWidth: 26 } }
+          styles: { fontSize: 9, cellPadding: 5, textColor: [30, 30, 30], lineColor: [220, 220, 220], lineWidth: 0.1 },
+          headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, cellPadding: 5 },
+          columnStyles: {
+            0: { cellWidth: 100 },
+            1: { halign: 'center', cellWidth: 22 },
+            2: { halign: 'right', cellWidth: 30 },
+            3: { halign: 'right', cellWidth: 30 }
+          },
+          alternateRowStyles: { fillColor: [250, 250, 250] }
         });
 
-        y = doc.lastAutoTable.finalY + 3;
+        y = doc.lastAutoTable.finalY + 4;
 
-        // ── Totals (tight, no gap) ──
-        const totX = margin + 120;
+        // ── Totales alineados con right edge de tabla ──
+        // Right edge tabla = W - margin = 196
+        // Bloque de totales ocupa los últimos 80mm (right-aligned)
+        const totLabelX = W - margin - 60; // posición de los labels
+        const totValueX = W - margin;       // posición de los valores (right aligned)
+
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(9);
         doc.setTextColor(80, 80, 80);
-        doc.text('Subtotal', totX, y + 5, { align: 'right' });
-        doc.text('Total GST', totX, y + 11, { align: 'right' });
-        doc.setTextColor(20, 20, 20);
-        doc.text('$' + d.subtotal.toFixed(2), W - margin, y + 5, { align: 'right' });
-        doc.text('$' + d.gst.toFixed(2), W - margin, y + 11, { align: 'right' });
-        y += 14;
-        doc.setFillColor(20, 20, 20);
-        doc.rect(totX - 12, y, W - margin - totX + 12 + 14, 10, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(255, 255, 255);
-        doc.text('Total AUD', totX - 8, y + 7);
-        doc.text('$' + d.total.toFixed(2), W - margin - 2, y + 7, { align: 'right' });
+        doc.text('Subtotal', totLabelX, y + 5, { align: 'right' });
+        doc.setTextColor(30, 30, 30);
+        doc.text('$' + d.subtotal.toFixed(2), totValueX, y + 5, { align: 'right' });
 
-        y += 14;
+        doc.setTextColor(80, 80, 80);
+        doc.text('Total GST', totLabelX, y + 11, { align: 'right' });
+        doc.setTextColor(30, 30, 30);
+        doc.text('$' + d.gst.toFixed(2), totValueX, y + 11, { align: 'right' });
+
+        y += 16;
+
+        // Bar oscuro "Total AUD" — width 80mm, alineado al right edge de tabla
+        const barW = 80;
+        const barX = W - margin - barW;
+        doc.setFillColor(20, 20, 20);
+        doc.rect(barX, y, barW, 11, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(255, 255, 255);
+        doc.text('Total AUD', barX + 4, y + 7.5);
+        doc.text('$' + d.total.toFixed(2), totValueX - 2, y + 7.5, { align: 'right' });
+
+        y += 18;
+
+        // Separador
         doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
         doc.line(margin, y, W - margin, y);
-        y += 5;
+        y += 6;
 
         // ── Bank details ──
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
+        doc.setFontSize(9);
         doc.setTextColor(20, 20, 20);
-        doc.text('Bank Details for Payment:', margin, y); y += 5;
+        doc.text('Bank Details for Payment:', margin, y); y += 6;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(60, 60, 60);
@@ -13167,62 +13212,19 @@
           '• Payment Reference: Please use the invoice number as the reference.'].forEach(line => {
             doc.text(line, margin, y); y += 5;
           });
-        y += 2;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(margin, y, W - margin, y);
-        y += 5;
+        y += 4;
 
         // ── Terms ──
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(100, 100, 100);
         doc.text('Invoice Terms & Conditions – Task Pro Pty Ltd', margin, y); y += 5;
-        doc.text('1. Payment Terms: Payment is due within 21 days from the invoice date.', margin, y, { maxWidth: colW });
+        doc.text('1. Payment Terms: Payment is due within 21 days from the invoice date. Late payments may be subject to additional fees.', margin, y, { maxWidth: colW }); y += 8;
+        doc.text('For any inquiries regarding this invoice, please contact us at 0426652730 or info@taskproau.com', margin, y); y += 6;
+        doc.setFont('helvetica', 'italic');
+        doc.text('Thank you for your business.', margin, y);
 
-        // ── Payment Advice — same page if room, new page if not ──
-        const remainingSpace = 277 - y;
-        const onNewPage = remainingSpace < 65;
-        if (onNewPage) {
-          doc.addPage();
-          y = 18;
-        } else {
-          y += 14;
-        }
-        let y2 = y;
-
-        if (onNewPage) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(80, 80, 80);
-          doc.text('For any inquiries regarding this invoice, please contact us at 0426652730 or info@taskproau.com.', margin, y2); y2 += 6;
-          doc.text('Thank you for your business.', margin, y2); y2 += 10;
-        }
-
-        doc.setDrawColor(20, 20, 20);
-        doc.setLineWidth(0.8);
-        doc.line(margin, y2, W - margin, y2);
-        y2 += 7;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(20, 20, 20);
-        doc.text('Payment Advice', margin, y2);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(60, 60, 60);
-        ['Task Pro Pty Ltd', 'ABN 70681664960', 'phone 0426652730', 'email info@taskproau.com'].forEach((line, i) => {
-          doc.text(line, margin, y2 + 6 + i * 5.5);
-        });
-        const paX = W / 2 + 10;
-        [['Customer', d.clientName || '—'], ['Invoice No', d.invNum], ['Amount Due', '$' + d.total.toFixed(2)], ['Due Date', d.dueDate], ['Amount Enclosed', '']].forEach(([label, val], i) => {
-          const ry = y2 + i * 7;
-          doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 20, 20);
-          doc.text(label, paX, ry);
-          doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
-          if (val) doc.text(val, paX + 40, ry);
-          else { doc.setDrawColor(100, 100, 100); doc.setLineWidth(0.3); doc.line(paX + 40, ry, paX + 80, ry); }
-        });
-
-        // Footer
+        // ── Footer page count (siempre 1 página ahora) ──
         const totalPages = doc.internal.getNumberOfPages();
         for (let pg = 1; pg <= totalPages; pg++) {
           doc.setPage(pg);
