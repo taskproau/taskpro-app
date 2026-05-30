@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V61.11</title>
+  <title>TaskPro — Project Control V62</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -10648,7 +10648,8 @@
         // Labour del P&L: TODOS los gastos Direct Project / Labour cargados (workers + externos)
         const labour = directExps.filter(r => r.categoria === 'Labour').reduce((s, r) => s + (r.monto || 0), 0);
         const materials = directExps.filter(r => r.categoria === 'Materials').reduce((s, r) => s + (r.monto || 0), 0);
-        const otherDirect = directExps.filter(r => !['Labour', 'Materials'].includes(r.categoria)).reduce((s, r) => s + (r.monto || 0), 0);
+        const otherDirectExps = directExps.filter(r => !['Labour', 'Materials'].includes(r.categoria));
+        const otherDirect = otherDirectExps.reduce((s, r) => s + (r.monto || 0), 0);
         const totalDirect = labour + materials + otherDirect;
         const grossProfit = revenueNeto - totalDirect;
 
@@ -10659,8 +10660,33 @@
         const rent = ohExps.filter(r => r.categoria === 'Rent').reduce((s, r) => s + (r.monto || 0), 0);
         const tools = ohExps.filter(r => r.categoria === 'Tools' || r.categoria === 'Herramienta').reduce((s, r) => s + (r.monto || 0), 0);
         const matGen = ohExps.filter(r => r.categoria === 'Materials').reduce((s, r) => s + (r.monto || 0), 0);
-        const otherOH = ohExps.filter(r => !['Transport', 'Software/Suscripciones', 'Rent', 'Tools', 'Herramienta', 'Materials'].includes(r.categoria)).reduce((s, r) => s + (r.monto || 0), 0);
+        const otherOHExps = ohExps.filter(r => !['Transport', 'Software/Suscripciones', 'Rent', 'Tools', 'Herramienta', 'Materials'].includes(r.categoria));
+        const otherOH = otherOHExps.reduce((s, r) => s + (r.monto || 0), 0);
         const totalOH = transport + software + rent + tools + matGen + otherOH;
+
+        // V62 — Breakdown agrupado por categoría real para drill-down (Nivel 2).
+        // Agrupa los gastos catch-all por su categoría; "(sin categoría)" si está vacía.
+        function _groupByCat(exps) {
+          const map = {};
+          exps.forEach(r => {
+            const cat = (r.categoria && r.categoria.trim()) ? r.categoria.trim() : '(sin categoría)';
+            if (!map[cat]) map[cat] = { total: 0, count: 0, items: [] };
+            map[cat].total += (r.monto || 0);
+            map[cat].count += 1;
+            map[cat].items.push({
+              fecha: r.fecha || r.date || '',
+              proveedor: r.proveedor || '',
+              notas: r.notas || '',
+              monto: r.monto || 0
+            });
+          });
+          // Convert to sorted array (desc by total)
+          return Object.entries(map)
+            .map(([cat, d]) => ({ cat, total: d.total, count: d.count, items: d.items }))
+            .sort((a, b) => b.total - a.total);
+        }
+        const otherOHBreakdown = _groupByCat(otherOHExps);
+        const otherDirectBreakdown = _groupByCat(otherDirectExps);
 
         const netProfit = grossProfit - totalOH;
         const personal = expRecs.filter(r => r.tipo === 'Personal').reduce((s, r) => s + (r.monto || 0), 0);
@@ -10685,6 +10711,8 @@
         return {
           cashTotal, refunds, gstTotal, revenueNeto,
           labour, materials, otherDirect, totalDirect, grossProfit,
+          // V62 — drill-down breakdowns agrupados por categoría
+          otherDirectBreakdown, otherOHBreakdown,
           // V59.5 — claves info-only para banner de reconciliación
           labourFromTimelog, adminWorkers,
           // V59.5 Bloque C — reconciliación
@@ -10859,6 +10887,57 @@
       // ═══════════════════════════════════════════════════════════
       // MONTHLY SUMMARY RENDER
       // ═══════════════════════════════════════════════════════════
+
+      // V62 — Estado de filas drill-down expandidas (key: 'od' | 'ooh')
+      const _plDrillOpen = { od: false, ooh: false };
+
+      function _plToggleDrill(key) {
+        _plDrillOpen[key] = !_plDrillOpen[key];
+        renderFinSummary();
+      }
+
+      // V62 — Genera la fila "Otros X" con triángulo expandible + sub-filas por categoría (Nivel 2).
+      // key: identificador único ('od' para Otros Direct, 'ooh' para Otros Overhead).
+      function _plDrillRow(label, value, pctRev, breakdown, key, revenueNeto) {
+        const hasDetail = breakdown && breakdown.length > 0;
+        const isOpen = _plDrillOpen[key];
+        const caret = hasDetail ? (isOpen ? '▼ ' : '▶ ') : '';
+        const pctStr = pctRev !== null && !isNaN(pctRev) ? (pctRev * 100).toFixed(1) + '%' : '';
+        const clickAttr = hasDetail ? ' style="cursor:pointer;" onclick="_plToggleDrill(\'' + key + '\')" title="Click para ver desglose"' : '';
+
+        let html = '<tr' + clickAttr + '>'
+          + '<td>' + caret + label + (hasDetail ? ' <span style="color:var(--text3);font-size:10px;">(' + breakdown.length + ' concepto' + (breakdown.length !== 1 ? 's' : '') + ')</span>' : '') + '</td>'
+          + '<td class="num" style="color:' + (value < 0 ? 'var(--danger)' : 'var(--text)') + ';">$' + value.toFixed(2) + '</td>'
+          + '<td class="num" style="color:var(--text2);">' + pctStr + '</td>'
+          + '<td></td><td></td><td></td></tr>';
+
+        // Sub-filas (agrupadas por categoría), sólo si está expandido
+        if (hasDetail && isOpen) {
+          breakdown.forEach(grp => {
+            const grpPct = revenueNeto > 0 ? (grp.total / revenueNeto * 100).toFixed(1) + '%' : '';
+            html += '<tr style="background:rgba(255,255,255,0.02);">'
+              + '<td style="padding-left:28px;font-size:11px;color:var(--text2);">↳ ' + grp.cat
+              + ' <span style="color:var(--text3);font-size:10px;">(' + grp.count + ' gasto' + (grp.count !== 1 ? 's' : '') + ')</span></td>'
+              + '<td class="num" style="font-size:11px;color:var(--text2);">$' + grp.total.toFixed(2) + '</td>'
+              + '<td class="num" style="font-size:10px;color:var(--text3);">' + grpPct + '</td>'
+              + '<td></td><td></td>'
+              + '<td style="font-size:10px;color:var(--text3);">' + _plDrillItemsTooltip(grp.items) + '</td>'
+              + '</tr>';
+          });
+        }
+        return html;
+      }
+
+      // V62 — Resumen corto de items dentro de una categoría (para la columna Notas).
+      function _plDrillItemsTooltip(items) {
+        if (!items || !items.length) return '';
+        // Mostrar hasta 3 proveedores/notas, luego "+N más"
+        const labels = items.map(it => it.proveedor || it.notas || '—').filter(Boolean);
+        const shown = labels.slice(0, 3).join(', ');
+        const extra = labels.length > 3 ? ' +' + (labels.length - 3) + ' más' : '';
+        return (shown + extra).slice(0, 60);
+      }
+
       function renderFinSummary() {
         const monthKey = document.getElementById('fin_month_sel')?.value || '';
         const container = document.getElementById('fin_summary_content');
@@ -10919,7 +10998,7 @@
           + '<tr style="background:var(--surface2);"><td colspan="6" style="font-weight:800;color:var(--warn);padding:8px 12px;">▶ COSTOS DIRECTOS</td></tr>'
           + row('Labour (Salarios)', pl.labour, pl.revenueNeto > 0 ? pl.labour / pl.revenueNeto : 0, getParam('labour_max') / 100, false, null)
           + row('Materials (Directo)', pl.materials, pl.revenueNeto > 0 ? pl.materials / pl.revenueNeto : 0, null, false, null)
-          + row('Otros Direct', pl.otherDirect, pl.revenueNeto > 0 ? pl.otherDirect / pl.revenueNeto : 0, null, false, null)
+          + _plDrillRow('Otros Direct', pl.otherDirect, pl.revenueNeto > 0 ? pl.otherDirect / pl.revenueNeto : 0, pl.otherDirectBreakdown, 'od', pl.revenueNeto)
           + row('TOTAL COSTO DIRECTO ★', pl.totalDirect, pl.revenueNeto > 0 ? pl.totalDirect / pl.revenueNeto : 0, null, true, 'var(--warn)')
           + '<tr><td colspan="6"></td></tr>'
           + row('GROSS PROFIT ★', pl.grossProfit, pl.revenueNeto > 0 ? pl.grossProfit / pl.revenueNeto : 0, getParam('markup') / 100, true, pl.grossProfit >= 0 ? 'var(--gain)' : 'var(--danger)')
@@ -10930,7 +11009,7 @@
           + row('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent / pl.revenueNeto : 0, null, false, null)
           + row('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools / pl.revenueNeto : 0, null, false, null)
           + row('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen / pl.revenueNeto : 0, null, false, null)
-          + row('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, null)
+          + _plDrillRow('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, pl.otherOHBreakdown, 'ooh', pl.revenueNeto)
           + row('TOTAL OVERHEAD ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, 'var(--text)')
           + '<tr><td colspan="6"></td></tr>'
           + row('NET PROFIT ★', pl.netProfit, pl.revenueNeto > 0 ? pl.netProfit / pl.revenueNeto : 0, getParam('min_margin') / 100, true, pl.netProfit >= 0 ? 'var(--gain)' : 'var(--danger)')
@@ -11163,6 +11242,29 @@
           y += 6.5;
         }
 
+        // V62 — Sub-fila de drill-down en PDF (categoría dentro de Otros X)
+        function plSubRow(cat, total, count, pctRev, itemsLabel) {
+          y = addPageIfNeeded(doc, y, 6);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6.3);
+          doc.setTextColor(90, 90, 90);
+          const countStr = ' (' + count + ' gasto' + (count !== 1 ? 's' : '') + ')';
+          doc.text('        ↳ ' + cat + countStr, cols.label + 4, y);
+          doc.setTextColor(90, 90, 90);
+          doc.text(fmt$(total), cols.monto, y, { align: 'right' });
+          if (pctRev !== null) {
+            doc.setTextColor(130, 130, 130);
+            doc.text(fmtPct(pctRev), cols.pct, y, { align: 'right' });
+          }
+          // Items label (proveedores) en columna target/var, texto chico
+          if (itemsLabel) {
+            doc.setTextColor(140, 140, 140);
+            doc.setFontSize(5.8);
+            doc.text(itemsLabel.slice(0, 45), cols.target - 6, y);
+          }
+          y += 5;
+        }
+
         function sectionLabel(label, color) {
           y = addPageIfNeeded(doc, y, 10);
           doc.setFont('helvetica', 'bold');
@@ -11193,7 +11295,12 @@
         sectionLabel('COSTOS DIRECTOS', C.warn);
         plRow('Labour (Salarios)', pl.labour, pl.revenueNeto > 0 ? pl.labour / pl.revenueNeto : 0, getParam('labour_max') / 100, false, true, null);
         plRow('Materials (Directo)', pl.materials, pl.revenueNeto > 0 ? pl.materials / pl.revenueNeto : 0, null, false, true, null);
-        if (pl.otherDirect > 0) plRow('Otros Direct', pl.otherDirect, pl.revenueNeto > 0 ? pl.otherDirect / pl.revenueNeto : 0, null, false, true, null);
+        if (pl.otherDirect > 0) {
+          plRow('Otros Direct', pl.otherDirect, pl.revenueNeto > 0 ? pl.otherDirect / pl.revenueNeto : 0, null, false, true, null);
+          (pl.otherDirectBreakdown || []).forEach(grp => {
+            plSubRow(grp.cat, grp.total, grp.count, pl.revenueNeto > 0 ? grp.total / pl.revenueNeto : null, _plDrillItemsTooltip(grp.items));
+          });
+        }
         plRow('TOTAL COSTO DIRECTO  ★', pl.totalDirect, pl.revenueNeto > 0 ? pl.totalDirect / pl.revenueNeto : 0, null, true, false, C.warn);
 
         separator();
@@ -11209,7 +11316,12 @@
         if (pl.rent > 0) plRow('Rent / Arriendo', pl.rent, pl.revenueNeto > 0 ? pl.rent / pl.revenueNeto : 0, null, false, true, null);
         if (pl.tools > 0) plRow('Herramientas', pl.tools, pl.revenueNeto > 0 ? pl.tools / pl.revenueNeto : 0, null, false, true, null);
         if (pl.matGen > 0) plRow('Materiales Generales', pl.matGen, pl.revenueNeto > 0 ? pl.matGen / pl.revenueNeto : 0, null, false, true, null);
-        if (pl.otherOH > 0) plRow('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, true, null);
+        if (pl.otherOH > 0) {
+          plRow('Otros Overhead', pl.otherOH, pl.revenueNeto > 0 ? pl.otherOH / pl.revenueNeto : 0, null, false, true, null);
+          (pl.otherOHBreakdown || []).forEach(grp => {
+            plSubRow(grp.cat, grp.total, grp.count, pl.revenueNeto > 0 ? grp.total / pl.revenueNeto : null, _plDrillItemsTooltip(grp.items));
+          });
+        }
         plRow('TOTAL OVERHEAD  ★', pl.totalOH, pl.revenueNeto > 0 ? pl.totalOH / pl.revenueNeto : 0, getParam('overhead') / 100, true, false, null);
 
         separator();
