@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V62</title>
+  <title>TaskPro — Project Control V62.1</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -11524,6 +11524,112 @@
           doc.text(a.accion, margin + colW, y, { align: 'right' });
           y += 7;
         });
+
+        // ══════════ V62.1 — PROYECTOS COMPLETADOS DEL MES ══════════
+        // Filtro B: status Completed + start dentro del mes seleccionado.
+        if (!isAll) {
+          const monthProjects = Object.values(state.projects).filter(p => {
+            const isCompleted = (p.status || '') === 'Completed';
+            const inMonth = dateToMonthKey(p.start) === monthKey;
+            return isCompleted && inMonth;
+          });
+
+          if (monthProjects.length > 0) {
+            // Precompute pricing
+            const rows = monthProjects.map(p => {
+              const c = calcPricing(p);
+              return { p, c };
+            }).sort((a, b) => (b.c.clientPrice || 0) - (a.c.clientPrice || 0));
+
+            // Nueva página para la sección (mantiene el reporte ordenado)
+            doc.addPage();
+            y = 20;
+
+            // Título de sección
+            doc.setFillColor(...C.black);
+            doc.rect(0, 0, W, 16, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(...C.accent);
+            doc.text('PROYECTOS COMPLETADOS — ' + title, margin, 11);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...C.grey);
+            doc.text(monthProjects.length + ' proyecto(s)', W - margin, 11, { align: 'right' });
+            y = 24;
+
+            // Tabla con autoTable
+            const body = rows.map(({ p, c }) => {
+              const diff = c.profitVsClient;
+              const diffStr = c.clientPrice > 0 ? (diff >= 0 ? '+' : '') + '$' + diff.toFixed(0) : '—';
+              return [
+                p.name || '—',
+                p.client || '—',
+                '$' + c.labour.toFixed(0),
+                '$' + c.materials.toFixed(0),
+                '$' + c.totalCost.toFixed(0),
+                c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—',
+                diffStr,
+                c.margin.toFixed(1) + '%'
+              ];
+            });
+
+            // Totales
+            const tot = rows.reduce((acc, { c }) => {
+              acc.labour += c.labour;
+              acc.materials += c.materials;
+              acc.totalCost += c.totalCost;
+              acc.clientPrice += c.clientPrice > 0 ? c.clientPrice : 0;
+              acc.diff += c.clientPrice > 0 ? c.profitVsClient : 0;
+              return acc;
+            }, { labour: 0, materials: 0, totalCost: 0, clientPrice: 0, diff: 0 });
+            const avgMargin = rows.length
+              ? rows.reduce((s, { c }) => s + (c.margin || 0), 0) / rows.length
+              : 0;
+
+            doc.autoTable({
+              startY: y,
+              margin: { left: margin, right: margin },
+              head: [['Proyecto', 'Cliente', 'Labour', 'Materiales', 'Costo Total', 'Precio Cliente', 'Diferencia', 'Margen']],
+              body: body,
+              foot: [['TOTAL', '', '$' + tot.labour.toFixed(0), '$' + tot.materials.toFixed(0),
+                '$' + tot.totalCost.toFixed(0), '$' + tot.clientPrice.toFixed(0),
+                (tot.diff >= 0 ? '+' : '') + '$' + tot.diff.toFixed(0), avgMargin.toFixed(1) + '%']],
+              styles: { fontSize: 6.5, cellPadding: 2.5, textColor: [30, 30, 30], lineColor: [220, 220, 220], lineWidth: 0.1 },
+              headStyles: { fillColor: [28, 32, 27], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.5 },
+              footStyles: { fillColor: [240, 240, 240], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 6.5 },
+              columnStyles: {
+                0: { cellWidth: 46 },
+                1: { cellWidth: 24 },
+                2: { halign: 'right', cellWidth: 16 },
+                3: { halign: 'right', cellWidth: 18 },
+                4: { halign: 'right', cellWidth: 18 },
+                5: { halign: 'right', cellWidth: 20 },
+                6: { halign: 'right', cellWidth: 18 },
+                7: { halign: 'right', cellWidth: 16 }
+              },
+              alternateRowStyles: { fillColor: [248, 248, 248] },
+              // Colorear diferencia negativa en rojo
+              didParseCell: function (data) {
+                if (data.section === 'body' && data.column.index === 6) {
+                  const txt = data.cell.text[0] || '';
+                  if (txt.startsWith('-') || (txt.startsWith('$-'))) {
+                    data.cell.styles.textColor = [200, 50, 50];
+                  } else if (txt.startsWith('+')) {
+                    data.cell.styles.textColor = [40, 140, 60];
+                  }
+                }
+              }
+            });
+            y = doc.lastAutoTable.finalY + 6;
+
+            // Nota al pie de la tabla
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(6.5);
+            doc.setTextColor(...C.darkgrey);
+            doc.text('Proyectos con status "Completed" e inicio dentro de ' + title + '. Diferencia = Precio Cliente − Costo Total. Margen sobre precio cliente.', margin, y, { maxWidth: colW });
+          }
+        }
 
         // ── FOOTER ───────────────────────────────────────────────
         const totalPages = doc.internal.getNumberOfPages();
