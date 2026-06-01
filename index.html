@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V62.1</title>
+  <title>TaskPro — Project Control V62.2</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -11562,6 +11562,9 @@
             const body = rows.map(({ p, c }) => {
               const diff = c.profitVsClient;
               const diffStr = c.clientPrice > 0 ? (diff >= 0 ? '+' : '') + '$' + diff.toFixed(0) : '—';
+              // V62.2 — Margen REAL sobre precio cliente: (clientPrice - totalCost)/clientPrice
+              const realMargin = c.clientPrice > 0 ? ((c.clientPrice - c.totalCost) / c.clientPrice * 100) : null;
+              const marginStr = realMargin !== null ? realMargin.toFixed(1) + '%' : '—';
               return [
                 p.name || '—',
                 p.client || '—',
@@ -11570,7 +11573,7 @@
                 '$' + c.totalCost.toFixed(0),
                 c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—',
                 diffStr,
-                c.margin.toFixed(1) + '%'
+                marginStr
               ];
             });
 
@@ -11583,8 +11586,9 @@
               acc.diff += c.clientPrice > 0 ? c.profitVsClient : 0;
               return acc;
             }, { labour: 0, materials: 0, totalCost: 0, clientPrice: 0, diff: 0 });
-            const avgMargin = rows.length
-              ? rows.reduce((s, { c }) => s + (c.margin || 0), 0) / rows.length
+            // V62.2 — Margen real agregado: sobre el total de precio cliente del mes
+            const totalRealMargin = tot.clientPrice > 0
+              ? ((tot.clientPrice - tot.totalCost) / tot.clientPrice * 100)
               : 0;
 
             doc.autoTable({
@@ -11594,7 +11598,7 @@
               body: body,
               foot: [['TOTAL', '', '$' + tot.labour.toFixed(0), '$' + tot.materials.toFixed(0),
                 '$' + tot.totalCost.toFixed(0), '$' + tot.clientPrice.toFixed(0),
-                (tot.diff >= 0 ? '+' : '') + '$' + tot.diff.toFixed(0), avgMargin.toFixed(1) + '%']],
+                (tot.diff >= 0 ? '+' : '') + '$' + tot.diff.toFixed(0), totalRealMargin.toFixed(1) + '%']],
               styles: { fontSize: 6.5, cellPadding: 2.5, textColor: [30, 30, 30], lineColor: [220, 220, 220], lineWidth: 0.1 },
               headStyles: { fillColor: [28, 32, 27], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.5 },
               footStyles: { fillColor: [240, 240, 240], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 6.5 },
@@ -11619,6 +11623,13 @@
                     data.cell.styles.textColor = [40, 140, 60];
                   }
                 }
+                // V62.2 — Margen negativo en rojo
+                if (data.section === 'body' && data.column.index === 7) {
+                  const txt = data.cell.text[0] || '';
+                  if (txt.startsWith('-')) {
+                    data.cell.styles.textColor = [200, 50, 50];
+                  }
+                }
               }
             });
             y = doc.lastAutoTable.finalY + 6;
@@ -11627,7 +11638,7 @@
             doc.setFont('helvetica', 'italic');
             doc.setFontSize(6.5);
             doc.setTextColor(...C.darkgrey);
-            doc.text('Proyectos con status "Completed" e inicio dentro de ' + title + '. Diferencia = Precio Cliente − Costo Total. Margen sobre precio cliente.', margin, y, { maxWidth: colW });
+            doc.text('Proyectos con status "Completed" e inicio dentro de ' + title + '. Diferencia = Precio Cliente − Precio Sugerido. Margen real = (Precio Cliente − Costo Total) / Precio Cliente.', margin, y, { maxWidth: colW });
           }
         }
 
