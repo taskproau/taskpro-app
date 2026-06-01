@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V62.2</title>
+  <title>TaskPro — Project Control V62.3</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -11525,8 +11525,9 @@
           y += 7;
         });
 
-        // ══════════ V62.1 — PROYECTOS COMPLETADOS DEL MES ══════════
+        // ══════════ V62.3 — PROYECTOS COMPLETADOS DEL MES (cascade coverage) ══════════
         // Filtro B: status Completed + start dentro del mes seleccionado.
+        // Página landscape con desglose de cobertura por componente (igual al Quote simulator).
         if (!isAll) {
           const monthProjects = Object.values(state.projects).filter(p => {
             const isCompleted = (p.status || '') === 'Completed';
@@ -11535,124 +11536,160 @@
           });
 
           if (monthProjects.length > 0) {
-            // Precompute pricing
+            // V62.3 — Cascade coverage por proyecto (replica lógica del Quote: líneas ~7266-7277)
+            // Distribuye el clientPrice en cascada: Costo → Overhead → Imprevisto → Markup.
+            // Cada capa toma lo que queda hasta su ideal; el markup absorbe el excedente.
+            function _cascadeCoverage(p, c) {
+              const ideals = [c.totalCost, c.overhead, c.contingency, c.markup];
+              let remaining = c.clientPrice > 0 ? c.clientPrice : c.total;
+              const real = ideals.map((ideal, idx) => {
+                const isLast = (idx === ideals.length - 1);
+                const r = isLast ? Math.max(remaining, 0) : Math.min(Math.max(remaining, 0), ideal);
+                remaining -= r;
+                return r;
+              });
+              // % cobertura de cada componente vs su ideal
+              const pct = ideals.map((ideal, idx) => ideal > 0 ? (real[idx] / ideal * 100) : (real[idx] > 0 ? 100 : null));
+              return {
+                costReal: real[0], costIdeal: ideals[0], costPct: pct[0],
+                ohReal: real[1], ohIdeal: ideals[1], ohPct: pct[1],
+                ctReal: real[2], ctIdeal: ideals[2], ctPct: pct[2],
+                mkReal: real[3], mkIdeal: ideals[3], mkPct: pct[3]
+              };
+            }
+
             const rows = monthProjects.map(p => {
               const c = calcPricing(p);
-              return { p, c };
+              return { p, c, cov: _cascadeCoverage(p, calcPricing(p)) };
             }).sort((a, b) => (b.c.clientPrice || 0) - (a.c.clientPrice || 0));
 
-            // Nueva página para la sección (mantiene el reporte ordenado)
-            doc.addPage();
-            y = 20;
+            // V62.3 — Nueva página en LANDSCAPE (apaisada) para que entren las 13 columnas
+            doc.addPage('a4', 'landscape');
+            const LW = 297, LH = 210, lmargin = 10, lcolW = LW - lmargin * 2;
+            let ly = 20;
 
             // Título de sección
             doc.setFillColor(...C.black);
-            doc.rect(0, 0, W, 16, 'F');
+            doc.rect(0, 0, LW, 16, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
             doc.setTextColor(...C.accent);
-            doc.text('PROYECTOS COMPLETADOS — ' + title, margin, 11);
+            doc.text('PROYECTOS COMPLETADOS — ' + title, lmargin, 11);
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(7);
             doc.setTextColor(...C.grey);
-            doc.text(monthProjects.length + ' proyecto(s)', W - margin, 11, { align: 'right' });
-            y = 24;
+            doc.text(monthProjects.length + ' proyecto(s) · Cobertura por componente (Real $ / % del ideal)', LW - lmargin, 11, { align: 'right' });
+            ly = 24;
 
-            // Tabla con autoTable
-            const body = rows.map(({ p, c }) => {
+            // Helper: celda "valor + %"
+            function _covCell(real, pct) {
+              if (pct === null) return '$' + real.toFixed(0) + '\n—';
+              return '$' + real.toFixed(0) + '\n' + pct.toFixed(0) + '%';
+            }
+
+            const body = rows.map(({ p, c, cov }) => {
               const diff = c.profitVsClient;
               const diffStr = c.clientPrice > 0 ? (diff >= 0 ? '+' : '') + '$' + diff.toFixed(0) : '—';
-              // V62.2 — Margen REAL sobre precio cliente: (clientPrice - totalCost)/clientPrice
-              const realMargin = c.clientPrice > 0 ? ((c.clientPrice - c.totalCost) / c.clientPrice * 100) : null;
-              const marginStr = realMargin !== null ? realMargin.toFixed(1) + '%' : '—';
               return [
                 p.name || '—',
                 p.client || '—',
-                '$' + c.labour.toFixed(0),
-                '$' + c.materials.toFixed(0),
-                '$' + c.totalCost.toFixed(0),
+                _covCell(cov.costReal, cov.costPct),
+                _covCell(cov.ohReal, cov.ohPct),
+                _covCell(cov.ctReal, cov.ctPct),
+                _covCell(cov.mkReal, cov.mkPct),
                 c.clientPrice > 0 ? '$' + c.clientPrice.toFixed(0) : '—',
-                diffStr,
-                marginStr
+                '$' + c.total.toFixed(0),
+                diffStr
               ];
             });
 
-            // Totales
-            const tot = rows.reduce((acc, { c }) => {
-              acc.labour += c.labour;
-              acc.materials += c.materials;
-              acc.totalCost += c.totalCost;
+            // Totales agregados
+            const tot = rows.reduce((acc, { c, cov }) => {
+              acc.costReal += cov.costReal; acc.costIdeal += cov.costIdeal;
+              acc.ohReal += cov.ohReal; acc.ohIdeal += cov.ohIdeal;
+              acc.ctReal += cov.ctReal; acc.ctIdeal += cov.ctIdeal;
+              acc.mkReal += cov.mkReal; acc.mkIdeal += cov.mkIdeal;
               acc.clientPrice += c.clientPrice > 0 ? c.clientPrice : 0;
+              acc.sugerido += c.total;
               acc.diff += c.clientPrice > 0 ? c.profitVsClient : 0;
               return acc;
-            }, { labour: 0, materials: 0, totalCost: 0, clientPrice: 0, diff: 0 });
-            // V62.2 — Margen real agregado: sobre el total de precio cliente del mes
-            const totalRealMargin = tot.clientPrice > 0
-              ? ((tot.clientPrice - tot.totalCost) / tot.clientPrice * 100)
-              : 0;
+            }, { costReal: 0, costIdeal: 0, ohReal: 0, ohIdeal: 0, ctReal: 0, ctIdeal: 0, mkReal: 0, mkIdeal: 0, clientPrice: 0, sugerido: 0, diff: 0 });
+            const _totPct = (real, ideal) => ideal > 0 ? (real / ideal * 100).toFixed(0) + '%' : '—';
 
             doc.autoTable({
-              startY: y,
-              margin: { left: margin, right: margin },
-              head: [['Proyecto', 'Cliente', 'Labour', 'Materiales', 'Costo Total', 'Precio Cliente', 'Diferencia', 'Margen']],
+              startY: ly,
+              margin: { left: lmargin, right: lmargin },
+              head: [['Proyecto', 'Cliente', 'Costo Directo', 'Overhead', 'Imprevisto', 'Markup / Margen', 'Precio Cliente', 'Precio Sugerido', 'Diferencia']],
               body: body,
-              foot: [['TOTAL', '', '$' + tot.labour.toFixed(0), '$' + tot.materials.toFixed(0),
-                '$' + tot.totalCost.toFixed(0), '$' + tot.clientPrice.toFixed(0),
-                (tot.diff >= 0 ? '+' : '') + '$' + tot.diff.toFixed(0), totalRealMargin.toFixed(1) + '%']],
-              styles: { fontSize: 6.5, cellPadding: 2.5, textColor: [30, 30, 30], lineColor: [220, 220, 220], lineWidth: 0.1 },
-              headStyles: { fillColor: [28, 32, 27], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 6.5, cellPadding: 2.5 },
-              footStyles: { fillColor: [240, 240, 240], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 6.5 },
+              foot: [['TOTAL', '',
+                '$' + tot.costReal.toFixed(0) + '\n' + _totPct(tot.costReal, tot.costIdeal),
+                '$' + tot.ohReal.toFixed(0) + '\n' + _totPct(tot.ohReal, tot.ohIdeal),
+                '$' + tot.ctReal.toFixed(0) + '\n' + _totPct(tot.ctReal, tot.ctIdeal),
+                '$' + tot.mkReal.toFixed(0) + '\n' + _totPct(tot.mkReal, tot.mkIdeal),
+                '$' + tot.clientPrice.toFixed(0),
+                '$' + tot.sugerido.toFixed(0),
+                (tot.diff >= 0 ? '+' : '') + '$' + tot.diff.toFixed(0)]],
+              styles: { fontSize: 7, cellPadding: 2.5, textColor: [30, 30, 30], lineColor: [220, 220, 220], lineWidth: 0.1, valign: 'middle' },
+              headStyles: { fillColor: [28, 32, 27], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, cellPadding: 2.5, halign: 'center' },
+              footStyles: { fillColor: [240, 240, 240], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7 },
               columnStyles: {
-                0: { cellWidth: 46 },
-                1: { cellWidth: 24 },
-                2: { halign: 'right', cellWidth: 16 },
-                3: { halign: 'right', cellWidth: 18 },
-                4: { halign: 'right', cellWidth: 18 },
-                5: { halign: 'right', cellWidth: 20 },
-                6: { halign: 'right', cellWidth: 18 },
-                7: { halign: 'right', cellWidth: 16 }
+                0: { cellWidth: 58 },
+                1: { cellWidth: 34 },
+                2: { halign: 'right', cellWidth: 24 },
+                3: { halign: 'right', cellWidth: 24 },
+                4: { halign: 'right', cellWidth: 24 },
+                5: { halign: 'right', cellWidth: 28 },
+                6: { halign: 'right', cellWidth: 26 },
+                7: { halign: 'right', cellWidth: 26 },
+                8: { halign: 'right', cellWidth: 26 }
               },
               alternateRowStyles: { fillColor: [248, 248, 248] },
-              // Colorear diferencia negativa en rojo
               didParseCell: function (data) {
-                if (data.section === 'body' && data.column.index === 6) {
-                  const txt = data.cell.text[0] || '';
-                  if (txt.startsWith('-') || (txt.startsWith('$-'))) {
-                    data.cell.styles.textColor = [200, 50, 50];
-                  } else if (txt.startsWith('+')) {
-                    data.cell.styles.textColor = [40, 140, 60];
+                // Color de cobertura por componente: rojo <100%, verde =100%+
+                if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 5) {
+                  const txt = (data.cell.text[1] || '');
+                  const pctNum = parseFloat(txt);
+                  if (!isNaN(pctNum)) {
+                    if (pctNum >= 100) data.cell.styles.textColor = [40, 140, 60];
+                    else if (pctNum > 0) data.cell.styles.textColor = [200, 120, 40];
+                    else data.cell.styles.textColor = [200, 50, 50];
                   }
                 }
-                // V62.2 — Margen negativo en rojo
-                if (data.section === 'body' && data.column.index === 7) {
+                // Diferencia: verde/rojo
+                if (data.section === 'body' && data.column.index === 8) {
                   const txt = data.cell.text[0] || '';
-                  if (txt.startsWith('-')) {
-                    data.cell.styles.textColor = [200, 50, 50];
-                  }
+                  if (txt.startsWith('-') || txt.startsWith('$-')) data.cell.styles.textColor = [200, 50, 50];
+                  else if (txt.startsWith('+')) data.cell.styles.textColor = [40, 140, 60];
                 }
               }
             });
-            y = doc.lastAutoTable.finalY + 6;
+            ly = doc.lastAutoTable.finalY + 6;
 
-            // Nota al pie de la tabla
+            // Nota al pie
             doc.setFont('helvetica', 'italic');
-            doc.setFontSize(6.5);
+            doc.setFontSize(7);
             doc.setTextColor(...C.darkgrey);
-            doc.text('Proyectos con status "Completed" e inicio dentro de ' + title + '. Diferencia = Precio Cliente − Precio Sugerido. Margen real = (Precio Cliente − Costo Total) / Precio Cliente.', margin, y, { maxWidth: colW });
+            doc.text('Proyectos "Completed" con inicio dentro de ' + title + '. Cada componente muestra Real $ cubierto y % del ideal logrado (cascada: Costo → Overhead → Imprevisto → Markup). Diferencia = Precio Cliente − Precio Sugerido.', lmargin, ly, { maxWidth: lcolW });
           }
         }
 
         // ── FOOTER ───────────────────────────────────────────────
+        // V62.3 — Footer adaptativo: detecta dimensiones reales de cada página
+        // (la sección de proyectos es landscape, el resto portrait).
         const totalPages = doc.internal.getNumberOfPages();
         for (let p = 1; p <= totalPages; p++) {
           doc.setPage(p);
+          const pg = doc.internal.pageSize;
+          const pgW = pg.getWidth ? pg.getWidth() : pg.width;
+          const pgH = pg.getHeight ? pg.getHeight() : pg.height;
+          const footY = pgH - 11; // 11mm desde el fondo de la página
           doc.setFillColor(...C.black);
-          doc.rect(0, 286, W, 11, 'F');
+          doc.rect(0, footY - 6, pgW, 11, 'F');
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(6.5);
           doc.setTextColor(...C.grey);
-          doc.text('TaskPro | Reporte Ejecutivo ' + title, margin, 292);
-          doc.text('Página ' + p + ' de ' + totalPages, W - margin, 292, { align: 'right' });
+          doc.text('TaskPro | Reporte Ejecutivo ' + title, margin, footY);
+          doc.text('Página ' + p + ' de ' + totalPages, pgW - margin, footY, { align: 'right' });
         }
 
         // ── SAVE ─────────────────────────────────────────────────
