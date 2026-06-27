@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V62.4</title>
+  <title>TaskPro — Project Control V63</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -8165,6 +8165,20 @@
       // V53.1 cleanup: helper calcCompanyBreak() removed — logic lives inline in buildPayData step 2.
 
       // Pay = (prodH + adminH + companyBreakH) * rate
+      // V63 — Tarifa base de una persona desde equipoBase (para pagar admin externo).
+      // Opción A: el admin time fuera de proyectos se paga a la tarifa base configurada.
+      function _getPersonBaseRate(personName) {
+        if (!personName) return 0;
+        const src = (_v58EquipoBaseCache && Object.keys(_v58EquipoBaseCache).length)
+          ? _v58EquipoBaseCache
+          : {};
+        const member = Object.values(src).find(m => m && m.name === personName);
+        if (member && (member.rate || member.rate === 0)) return parseFloat(member.rate) || 0;
+        // Fallback: buscar en globalWorkers (legacy)
+        const gw = toArr(state.globalWorkers).find(w => w && w.name === personName);
+        return gw ? (parseFloat(gw.rate) || 0) : 0;
+      }
+
       function buildPayData(from, to) {
         const data = {};
 
@@ -8197,6 +8211,37 @@
             data[name].adminH += adminH;
             data[name].travelH += travelH;
           });
+        });
+
+        // V63 — Step 1b: incorporar admin time fuera de proyectos (externalAdmin).
+        // Estas horas se pagan a la tarifa base de la persona (Opción A) y se tratan
+        // como horas admin pagables, pero NO disparan break de empresa (Regla B):
+        // se marcan isExtAdmin para que Step 2 las excluya del cálculo de break.
+        toArr(state.externalAdmin).forEach(e => {
+          if (!inRange(e.date, from, to)) return;
+          const name = e.person;
+          if (!name) return;
+          const extH = timeToMins(e.timeHHMM || '00:00') / 60;
+          if (extH <= 0) return;
+          const rate = _getPersonBaseRate(name);
+          if (!data[name]) data[name] = { entries: [], prodH: 0, breakH: 0, adminH: 0, travelH: 0, breakPaid: 0, companyBreakH: 0, pay: 0, extAdminH: 0 };
+          data[name].entries.push({
+            project: '(Admin fuera de proyecto)',
+            date: e.date,
+            start: '', end: '',
+            rate,
+            prodH: 0, breakH: 0, adminH: 0, travelH: 0,
+            extAdminH: extH,          // V63 — hora admin externa pagable
+            companyBreakH: 0,
+            breakUnpaidH: 0,
+            pay: 0,
+            isExtAdmin: true,         // V63 — flag para excluir del cálculo de break
+            _extDesc: e.desc || '',
+            _raw: e,
+            _projectId: null
+          });
+          data[name].adminH += extH;  // suma al total admin de la persona
+          data[name].extAdminH = (data[name].extAdminH || 0) + extH; // V63 — track separado para break informativo
         });
 
         // Step 2: calculate companyBreakH per DAY per person
@@ -8242,13 +8287,14 @@
       }
 
       // Recalculate pay using company break rule
-      // Pay per entry = (prodH + adminH + companyBreakH + travelH) * rate
+      // Pay per entry = (prodH + adminH + extAdminH + companyBreakH + travelH) * rate
       function recalcPayData(data) {
         Object.entries(data).forEach(([name, d]) => {
           d.breakPaid = d.companyBreakH || 0;
           d.pay = 0;
           d.entries.forEach(e => {
-            e.pay = (e.prodH + e.adminH + (e.companyBreakH || 0) + (e.travelH || 0)) * e.rate;
+            // V63 — incluir extAdminH (admin fuera de proyecto) en el pago
+            e.pay = (e.prodH + e.adminH + (e.extAdminH || 0) + (e.companyBreakH || 0) + (e.travelH || 0)) * e.rate;
             d.pay += e.pay;
           });
         });
@@ -8400,7 +8446,7 @@
       <td class="num" style="color:var(--accent);" id="bpaid_${safeId}" title="Break pagado por TaskPro">
         ${minsToHHMM(Math.round((d.companyBreakH || 0) * 60))}
         <div style="font-size:9px;color:var(--text2);margin-top:2px;">
-          ${Math.floor((d.prodH + d.adminH) / 4)} x 15min
+          ${Math.floor((d.prodH + d.adminH - (d.extAdminH || 0)) / 4)} x 15min
         </div>
       </td>
       <td class="num" style="color:var(--text3);" title="Break tomado pero no pagado por la empresa">
@@ -8567,7 +8613,7 @@
             <td class="num">${minsToHHMM(Math.round(e.breakH * 60))}</td>
             <td class="num" style="color:var(--accent);">${minsToHHMM(Math.round((e.companyBreakH || 0) * 60))}</td>
             <td class="num" style="color:var(--text3);">${minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60))}</td>
-            <td class="num">${minsToHHMM(Math.round(e.adminH * 60))}</td>
+            <td class="num">${minsToHHMM(Math.round((e.adminH + (e.extAdminH || 0)) * 60))}${e.isExtAdmin ? ' <span style="color:var(--warn);font-size:9px;" title="Admin fuera de proyecto">⚙</span>' : ''}</td>
             <td class="num" style="font-weight:700;">$${e.pay.toFixed(2)}</td>
           </tr>`;
         }).join('')}
@@ -8660,7 +8706,7 @@
             minsToHHMM(Math.round(e.breakH * 60)),
             minsToHHMM(Math.round((e.companyBreakH || 0) * 60)),
             minsToHHMM(Math.round((e.breakUnpaidH || 0) * 60)),
-            minsToHHMM(Math.round(e.adminH * 60)),
+            minsToHHMM(Math.round((e.adminH + (e.extAdminH || 0)) * 60)),
             '$' + e.pay.toFixed(2)
           ]),
           foot: [['', 'TOTAL', '', '', '',
@@ -9090,6 +9136,18 @@
         const lockTimestamp = Date.now();
         const lockPromises = [];
         freshEntries.forEach(e => {
+          // V63 — Lock de entradas admin externo (externalAdmin), ruta distinta a timelog.
+          if (e.isExtAdmin) {
+            if (!e._raw || !e._raw.id) return;
+            const arr = toArr(state.externalAdmin);
+            const idx = arr.findIndex(ea => ea && ea.id === e._raw.id);
+            if (idx < 0) return;
+            lockPromises.push(
+              db.ref('taskpro/externalAdmin/' + idx + '/invoicedAt').set(lockTimestamp)
+                .then(() => db.ref('taskpro/externalAdmin/' + idx + '/invoiceId').set(invoiceNum))
+            );
+            return;
+          }
           if (!e._projectId || !e._raw || !e._raw.id) return;
           const proj = state.projects[e._projectId];
           if (!proj || !Array.isArray(proj.timelog)) return;
