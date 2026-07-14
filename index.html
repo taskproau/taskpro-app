@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V63</title>
+  <title>TaskPro — Project Control V64</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2815,10 +2815,25 @@
             </div>
             <button class="btn btn-primary" style="margin-top:12px;" onclick="addIncome()">Registrar ingreso</button>
           </div>
+          <!-- V64 — IMPORTAR INGRESOS DESDE EXCEL -->
           <div class="card">
-            <div
-              style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-              <div class="card-title" style="margin:0;">💰 Historial de ingresos</div>
+            <div class="card-title" style="margin-bottom:6px;">📥 Importar ingresos desde Excel</div>
+            <p style="font-size:11px;color:var(--text2);margin:0 0 12px 0;">
+              Descargá la plantilla, pegá tus datos (solo valores), y volvé a subirla. Vas a poder revisar todo antes de confirmar.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button class="btn btn-ghost btn-sm" onclick="xiDownloadTemplate('income')">⬇ Descargar plantilla</button>
+              <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0;">
+                📤 Subir archivo
+                <input type="file" accept=".xlsx,.xls" style="display:none;"
+                  onchange="xiHandleFile(this, 'income')">
+              </label>
+              <span id="xi_income_filename" style="font-size:11px;color:var(--text2);"></span>
+            </div>
+            <div id="xi_income_preview" style="margin-top:14px;"></div>
+          </div>
+
+          <div class="card">
               <button class="btn btn-ghost btn-sm" onclick="clearIncFilters()" style="font-size:10px;">✕ Limpiar
                 filtros</button>
             </div>
@@ -2931,6 +2946,25 @@
             </div>
             <button class="btn btn-primary" style="margin-top:12px;" onclick="addExpense()">Registrar gasto</button>
           </div>
+
+          <!-- V64 — IMPORTAR EGRESOS DESDE EXCEL -->
+          <div class="card">
+            <div class="card-title" style="margin-bottom:6px;">📥 Importar egresos desde Excel</div>
+            <p style="font-size:11px;color:var(--text2);margin:0 0 12px 0;">
+              Descargá la plantilla, pegá tus datos (solo valores), y volvé a subirla. Vas a poder revisar todo antes de confirmar.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button class="btn btn-ghost btn-sm" onclick="xiDownloadTemplate('expense')">⬇ Descargar plantilla</button>
+              <label class="btn btn-primary btn-sm" style="cursor:pointer;margin:0;">
+                📤 Subir archivo
+                <input type="file" accept=".xlsx,.xls" style="display:none;"
+                  onchange="xiHandleFile(this, 'expense')">
+              </label>
+              <span id="xi_expense_filename" style="font-size:11px;color:var(--text2);"></span>
+            </div>
+            <div id="xi_expense_preview" style="margin-top:14px;"></div>
+          </div>
+
           <div class="card">
             <div
               style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -11992,6 +12026,595 @@
 
 
 
+
+      // ═══════════════════════════════════════════════════════════
+      // V64 — EXCEL IMPORT (Ingresos / Egresos) con preview y validación
+      // Flujo: descargar plantilla → pegar datos → subir → revisar → confirmar.
+      // Nada se escribe en Firebase hasta que el usuario confirma en el preview.
+      // ═══════════════════════════════════════════════════════════
+
+      // Definición de columnas por tipo. El orden es el de la plantilla.
+      const XI_SCHEMA = {
+        income: {
+          sheet: 'INGRESOS',
+          label: 'ingresos',
+          headers: ['Fecha', 'Cliente', 'Proyecto', 'Invoice', 'Tipo (B2B/B2C)', 'Monto Recibido', 'GST Incluido?', 'Método de Pago', 'Notas'],
+          example: ['2026-07-06', 'INVIDA', '32 Sandover Dr, Roxburgh Park', 'INV00132', 'B2B', 2756.82, 'Yes', 'Transferencia', 'Pago final']
+        },
+        expense: {
+          sheet: 'EGRESOS',
+          label: 'egresos',
+          headers: ['Fecha', 'Proyecto/Área', 'Tipo Costo', 'Categoría', 'Proveedor', 'Monto ($)', 'Método', 'Ciclo', 'Notas'],
+          example: ['2026-07-01', 'ADMIN_GENERAL', 'Fixed Operating', 'Tolls', 'Linkt', 4.19, 'Tarjeta', 'Unico', 'TOLLS']
+        }
+      };
+
+      // Valores válidos (deben coincidir con los dropdowns del form manual)
+      const XI_VALID = {
+        tipoCosto: ['Direct Project', 'Fixed Operating', 'Personal'],
+        metodo: ['Transferencia', 'Tarjeta', 'Cash', 'Afterpay'],
+        tipoIngreso: ['B2B', 'B2C'],
+        gst: ['Yes', 'No']
+      };
+
+      // Estado del preview en curso (por tipo)
+      const _xiState = { income: null, expense: null };
+
+      // ── Descarga de plantilla ──
+      function xiDownloadTemplate(kind) {
+        const S = XI_SCHEMA[kind];
+        const wb = XLSX.utils.book_new();
+
+        // Hoja de datos: headers + 1 fila de ejemplo
+        const data = [S.headers, S.example];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        // Anchos de columna cómodos
+        ws['!cols'] = S.headers.map(h => ({ wch: Math.max(14, h.length + 4) }));
+        XLSX.utils.book_append_sheet(wb, ws, S.sheet);
+
+        // Hoja de instrucciones con valores válidos
+        const instr = [
+          ['INSTRUCCIONES — Plantilla de ' + S.label.toUpperCase() + ' TaskPro'],
+          [],
+          ['1. Pegá tus datos en la hoja "' + S.sheet + '", debajo de los encabezados.'],
+          ['2. Pegá SOLO VALORES (Ctrl+Shift+V). No cambies los nombres de las columnas.'],
+          ['3. Podés borrar la fila de ejemplo.'],
+          ['4. Guardá el archivo y subilo en TaskPro. Vas a poder revisar todo antes de confirmar.'],
+          [],
+          ['FORMATOS'],
+          ['Fecha', 'YYYY-MM-DD (ej: 2026-07-06). También acepta DD/MM/YYYY o fecha de Excel.'],
+          ['Montos', 'Solo números. Sin símbolo $ ni separador de miles. Decimales con punto (ej: 1234.56).']
+        ];
+        if (kind === 'income') {
+          instr.push([]);
+          instr.push(['VALORES VÁLIDOS']);
+          instr.push(['Tipo (B2B/B2C)', XI_VALID.tipoIngreso.join(' | ')]);
+          instr.push(['GST Incluido?', XI_VALID.gst.join(' | ') + '  (Yes = el monto YA incluye GST)']);
+          instr.push(['Método de Pago', XI_VALID.metodo.join(' | ')]);
+          instr.push([]);
+          instr.push(['OBLIGATORIOS', 'Fecha, Cliente, Monto Recibido']);
+          instr.push(['NOTA', 'El GST se calcula automáticamente según "GST Incluido?".']);
+        } else {
+          instr.push([]);
+          instr.push(['VALORES VÁLIDOS']);
+          instr.push(['Tipo Costo', XI_VALID.tipoCosto.join(' | ')]);
+          instr.push(['Método', XI_VALID.metodo.join(' | ')]);
+          instr.push(['Ciclo', 'Texto libre (ej: Unico, Mensual)']);
+          instr.push([]);
+          instr.push(['OBLIGATORIOS', 'Fecha, Proyecto/Área, Tipo Costo, Categoría, Monto ($)']);
+          instr.push(['NOTA', 'Proyecto/Área = ADMIN_GENERAL, SALARY, PERSONAL, MATERIALES_PROYECTO, o el nombre del proyecto.']);
+        }
+        const wsI = XLSX.utils.aoa_to_sheet(instr);
+        wsI['!cols'] = [{ wch: 22 }, { wch: 80 }];
+        XLSX.utils.book_append_sheet(wb, wsI, 'INSTRUCCIONES');
+
+        XLSX.writeFile(wb, 'TaskPro_Plantilla_' + S.label.charAt(0).toUpperCase() + S.label.slice(1) + '.xlsx');
+        showSyncBanner('Plantilla de ' + S.label + ' descargada', 'success');
+      }
+
+      // ── Parseo de fecha robusto (string ISO, DD/MM/YYYY, Date, serial de Excel) ──
+      function _xiParseDate(raw) {
+        if (raw === null || raw === undefined || raw === '') return null;
+        if (raw instanceof Date && !isNaN(raw)) {
+          const y = raw.getFullYear();
+          const m = String(raw.getMonth() + 1).padStart(2, '0');
+          const d = String(raw.getDate()).padStart(2, '0');
+          return y + '-' + m + '-' + d;
+        }
+        if (typeof raw === 'number') {
+          // Excel serial date
+          const dt = new Date(Math.round((raw - 25569) * 86400 * 1000));
+          if (isNaN(dt)) return null;
+          return dt.toISOString().slice(0, 10);
+        }
+        const s = String(raw).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+        // DD/MM/YYYY o D/M/YYYY
+        const m1 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (m1) return m1[3] + '-' + m1[2].padStart(2, '0') + '-' + m1[1].padStart(2, '0');
+        return null;
+      }
+
+      // ── Parseo de monto robusto (acepta coma decimal, símbolos, separadores) ──
+      function _xiParseAmount(raw) {
+        if (raw === null || raw === undefined || raw === '') return null;
+        if (typeof raw === 'number') return isNaN(raw) ? null : raw;
+        let s = String(raw).trim().replace(/\$/g, '').replace(/\s/g, '');
+        if (!s) return null;
+        // Si tiene coma Y punto, asumimos coma = miles (formato AU/US): 1,234.56
+        if (s.includes(',') && s.includes('.')) {
+          s = s.replace(/,/g, '');
+        } else if (s.includes(',') && !s.includes('.')) {
+          // Solo coma: podría ser decimal europeo (4,19) o miles (1,234)
+          const parts = s.split(',');
+          if (parts.length === 2 && parts[1].length <= 2) {
+            s = parts[0] + '.' + parts[1];   // 4,19 → 4.19
+          } else {
+            s = s.replace(/,/g, '');          // 1,234 → 1234
+          }
+        }
+        const n = parseFloat(s);
+        return isNaN(n) ? null : n;
+      }
+
+      // Normaliza un valor contra una lista de válidos (case-insensitive). Devuelve el válido canónico o null.
+      function _xiMatchValid(raw, list) {
+        if (raw === null || raw === undefined || raw === '') return null;
+        const s = String(raw).trim().toLowerCase();
+        return list.find(v => v.toLowerCase() === s) || null;
+      }
+
+      // ── Detección de duplicados contra lo ya cargado en Firebase ──
+      function _xiIsDuplicate(kind, rec) {
+        const eps = 0.005; // tolerancia de centavos
+        if (kind === 'income') {
+          return Object.values(finState.income || {}).some(r =>
+            r.fecha === rec.fecha &&
+            Math.abs((r.monto || 0) - rec.monto) < eps &&
+            (r.cliente || '').trim().toLowerCase() === (rec.cliente || '').trim().toLowerCase()
+          );
+        }
+        return Object.values(finState.expenses || {}).some(r =>
+          r.fecha === rec.fecha &&
+          Math.abs((r.monto || 0) - rec.monto) < eps &&
+          (r.proveedor || '').trim().toLowerCase() === (rec.proveedor || '').trim().toLowerCase() &&
+          (r.categoria || '').trim().toLowerCase() === (rec.categoria || '').trim().toLowerCase()
+        );
+      }
+
+      // ── Handler del input file ──
+      async function xiHandleFile(input, kind) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const nameEl = document.getElementById('xi_' + kind + '_filename');
+        if (nameEl) nameEl.textContent = file.name;
+        const prevEl = document.getElementById('xi_' + kind + '_preview');
+        prevEl.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:10px;">⏳ Leyendo archivo…</div>';
+
+        try {
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+          const S = XI_SCHEMA[kind];
+
+          // Buscar la hoja: primero por nombre exacto, si no la primera que tenga los headers
+          let sheet = wb.Sheets[S.sheet];
+          if (!sheet) {
+            for (const nm of wb.SheetNames) {
+              if (nm.toUpperCase() === S.sheet) { sheet = wb.Sheets[nm]; break; }
+            }
+          }
+          if (!sheet) {
+            // Fallback: primera hoja que no sea INSTRUCCIONES
+            const cand = wb.SheetNames.find(n => n.toUpperCase() !== 'INSTRUCCIONES');
+            if (cand) sheet = wb.Sheets[cand];
+          }
+          if (!sheet) {
+            prevEl.innerHTML = '<div style="color:var(--danger);font-size:12px;padding:10px;">❌ No se encontró la hoja "' + S.sheet + '" en el archivo.</div>';
+            input.value = '';
+            return;
+          }
+
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false, cellDates: true });
+          const parsed = _xiParseRows(rows, kind);
+          _xiState[kind] = parsed;
+          _xiRenderPreview(kind);
+        } catch (e) {
+          console.error('Excel import error:', e);
+          prevEl.innerHTML = '<div style="color:var(--danger);font-size:12px;padding:10px;">❌ Error leyendo el archivo: ' + (e.message || e) + '</div>';
+        }
+        input.value = ''; // permitir re-subir el mismo archivo
+      }
+
+      // ── Parseo + validación fila por fila ──
+      function _xiParseRows(rows, kind) {
+        const S = XI_SCHEMA[kind];
+        const out = { rows: [], headerFound: false };
+
+        // Encontrar fila de encabezados (la que contenga "fecha" en alguna celda de las primeras 10)
+        let headerIdx = -1;
+        for (let i = 0; i < Math.min(rows.length, 10); i++) {
+          const r = rows[i] || [];
+          if (r.some(c => String(c).trim().toLowerCase() === 'fecha')) { headerIdx = i; break; }
+        }
+        if (headerIdx === -1) return out;
+        out.headerFound = true;
+
+        const headers = (rows[headerIdx] || []).map(h => String(h).trim().toLowerCase());
+        const findCol = (...cands) => {
+          for (const c of cands) {
+            const idx = headers.findIndex(h => h === c.toLowerCase());
+            if (idx !== -1) return idx;
+          }
+          // fallback: includes
+          for (const c of cands) {
+            const idx = headers.findIndex(h => h.includes(c.toLowerCase()));
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
+
+        let C;
+        if (kind === 'income') {
+          C = {
+            fecha: findCol('fecha'),
+            cliente: findCol('cliente'),
+            proyecto: findCol('proyecto'),
+            invoice: findCol('invoice'),
+            tipo: findCol('tipo (b2b/b2c)', 'tipo'),
+            monto: findCol('monto recibido', 'monto'),
+            gst: findCol('gst incluido?', 'gst incluido', 'gst'),
+            metodo: findCol('método de pago', 'metodo de pago', 'método', 'metodo'),
+            notas: findCol('notas')
+          };
+        } else {
+          C = {
+            fecha: findCol('fecha'),
+            proyecto: findCol('proyecto/área', 'proyecto/area', 'proyecto'),
+            tipoCosto: findCol('tipo costo', 'tipo de costo'),
+            categoria: findCol('categoría', 'categoria'),
+            proveedor: findCol('proveedor'),
+            monto: findCol('monto ($)', 'monto'),
+            metodo: findCol('método', 'metodo'),
+            ciclo: findCol('ciclo'),
+            notas: findCol('notas')
+          };
+        }
+
+        const get = (row, idx) => (idx >= 0 && row[idx] !== undefined) ? row[idx] : '';
+        const gstRate = getParam('gst') / 100;
+
+        for (let i = headerIdx + 1; i < rows.length; i++) {
+          const row = rows[i] || [];
+          // Saltar filas totalmente vacías
+          const hasAny = row.some(c => String(c).trim() !== '');
+          if (!hasAny) continue;
+
+          const errors = [];
+          const warnings = [];
+          const rec = {};
+
+          // Fecha (obligatoria)
+          const fecha = _xiParseDate(get(row, C.fecha));
+          if (!fecha) errors.push('Fecha inválida o vacía');
+          else rec.fecha = fecha;
+
+          // Monto (obligatorio, > 0)
+          const monto = _xiParseAmount(get(row, C.monto));
+          if (monto === null) errors.push('Monto inválido o vacío');
+          else if (monto <= 0) errors.push('Monto debe ser mayor a 0');
+          else rec.monto = monto;
+
+          if (kind === 'income') {
+            const cliente = String(get(row, C.cliente)).trim();
+            if (!cliente) errors.push('Cliente obligatorio');
+            else rec.cliente = cliente;
+
+            rec.proyecto = String(get(row, C.proyecto)).trim();
+            rec.invoice = String(get(row, C.invoice)).trim();
+            rec.notas = String(get(row, C.notas)).trim();
+
+            // Tipo B2B/B2C (opcional, pero si viene debe ser válido)
+            const rawTipo = String(get(row, C.tipo)).trim();
+            if (rawTipo) {
+              const t = _xiMatchValid(rawTipo, XI_VALID.tipoIngreso);
+              if (!t) errors.push('Tipo debe ser B2B o B2C (recibido: "' + rawTipo + '")');
+              else rec.tipo = t;
+            } else {
+              rec.tipo = '';
+              warnings.push('Sin tipo B2B/B2C');
+            }
+
+            // GST Incluido (default Yes si vacío)
+            const rawGst = String(get(row, C.gst)).trim();
+            let gstIncl = 'Yes';
+            if (rawGst) {
+              const g = _xiMatchValid(rawGst, XI_VALID.gst);
+              if (!g) errors.push('GST Incluido debe ser Yes o No (recibido: "' + rawGst + '")');
+              else gstIncl = g;
+            } else {
+              warnings.push('GST vacío → se asume Yes');
+            }
+            rec.gstIncl = gstIncl;
+
+            // Método de pago (obligatorio de facto: si falta, warning y default Transferencia)
+            const rawMet = String(get(row, C.metodo)).trim();
+            if (rawMet) {
+              const m = _xiMatchValid(rawMet, XI_VALID.metodo);
+              if (!m) errors.push('Método inválido: "' + rawMet + '" (válidos: ' + XI_VALID.metodo.join(', ') + ')');
+              else rec.metodo = m;
+            } else {
+              rec.metodo = 'Transferencia';
+              warnings.push('Método vacío → se asume Transferencia');
+            }
+
+            // GST calculado (misma fórmula que addIncome)
+            if (rec.monto) {
+              const gstAmt = (gstIncl === 'Yes') ? (rec.monto / (1 + gstRate) * gstRate) : 0;
+              rec.gstAmt = parseFloat(gstAmt.toFixed(2));
+              rec.netoExGST = parseFloat((rec.monto - gstAmt).toFixed(2));
+            }
+          } else {
+            const proyecto = String(get(row, C.proyecto)).trim();
+            if (!proyecto) errors.push('Proyecto/Área obligatorio');
+            else rec.proyecto = proyecto;
+
+            const rawTC = String(get(row, C.tipoCosto)).trim();
+            if (!rawTC) errors.push('Tipo Costo obligatorio');
+            else {
+              const tc = _xiMatchValid(rawTC, XI_VALID.tipoCosto);
+              if (!tc) errors.push('Tipo Costo inválido: "' + rawTC + '" (válidos: ' + XI_VALID.tipoCosto.join(', ') + ')');
+              else rec.tipo = tc;
+            }
+
+            const cat = String(get(row, C.categoria)).trim();
+            if (!cat) errors.push('Categoría obligatoria');
+            else rec.categoria = cat;
+
+            rec.proveedor = String(get(row, C.proveedor)).trim();
+            rec.ciclo = String(get(row, C.ciclo)).trim();
+            rec.notas = String(get(row, C.notas)).trim();
+
+            const rawMet = String(get(row, C.metodo)).trim();
+            if (rawMet) {
+              const m = _xiMatchValid(rawMet, XI_VALID.metodo);
+              if (!m) errors.push('Método inválido: "' + rawMet + '" (válidos: ' + XI_VALID.metodo.join(', ') + ')');
+              else rec.metodo = m;
+            } else {
+              rec.metodo = 'Transferencia';
+              warnings.push('Método vacío → se asume Transferencia');
+            }
+          }
+
+          if (rec.fecha) rec.mes = dateToMonthKey(rec.fecha);
+
+          // Duplicado (solo si la fila es válida hasta acá)
+          let isDup = false;
+          if (!errors.length) {
+            isDup = _xiIsDuplicate(kind, rec);
+            if (isDup) warnings.push('Posible duplicado (misma fecha, monto y ' + (kind === 'income' ? 'cliente' : 'proveedor+categoría') + ')');
+          }
+
+          out.rows.push({
+            excelRow: i + 1,          // fila real en el Excel (1-indexed)
+            rec,
+            errors,
+            warnings,
+            isDup,
+            include: errors.length === 0 && !isDup   // duplicados arrancan destildados
+          });
+        }
+        return out;
+      }
+
+      // ── Toggle de inclusión de una fila ──
+      function _xiToggleRow(kind, idx, checked) {
+        const st = _xiState[kind];
+        if (!st || !st.rows[idx]) return;
+        st.rows[idx].include = !!checked;
+        _xiUpdateSummary(kind);
+      }
+
+      function _xiToggleAll(kind, checked) {
+        const st = _xiState[kind];
+        if (!st) return;
+        st.rows.forEach((r, i) => {
+          if (r.errors.length) return; // nunca incluir filas con error
+          r.include = !!checked;
+          const cb = document.getElementById('xi_cb_' + kind + '_' + i);
+          if (cb) cb.checked = !!checked;
+        });
+        _xiUpdateSummary(kind);
+      }
+
+      function _xiUpdateSummary(kind) {
+        const st = _xiState[kind];
+        if (!st) return;
+        const sel = st.rows.filter(r => r.include);
+        const total = sel.reduce((s, r) => s + (r.rec.monto || 0), 0);
+        const el = document.getElementById('xi_' + kind + '_summary');
+        if (el) el.innerHTML = '<strong>' + sel.length + '</strong> fila(s) seleccionada(s) · Total: <strong style="color:var(--accent);">$'
+          + total.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong>';
+        const btn = document.getElementById('xi_' + kind + '_confirm');
+        if (btn) {
+          btn.disabled = sel.length === 0;
+          btn.style.opacity = sel.length === 0 ? '0.5' : '';
+          btn.textContent = '✅ Importar ' + sel.length + ' registro(s)';
+        }
+      }
+
+      // ── Render del preview ──
+      function _xiRenderPreview(kind) {
+        const st = _xiState[kind];
+        const S = XI_SCHEMA[kind];
+        const el = document.getElementById('xi_' + kind + '_preview');
+        if (!el) return;
+
+        if (!st || !st.headerFound) {
+          el.innerHTML = '<div style="color:var(--danger);font-size:12px;padding:10px;">❌ No se encontró la fila de encabezados. Usá la plantilla descargada sin modificar los títulos de columna.</div>';
+          return;
+        }
+        if (!st.rows.length) {
+          el.innerHTML = '<div style="color:var(--warn);font-size:12px;padding:10px;">⚠️ El archivo no tiene filas de datos.</div>';
+          return;
+        }
+
+        const nOk = st.rows.filter(r => !r.errors.length && !r.warnings.length).length;
+        const nWarn = st.rows.filter(r => !r.errors.length && r.warnings.length).length;
+        const nErr = st.rows.filter(r => r.errors.length).length;
+
+        const chip = (n, label, color) =>
+          '<div style="background:rgba(255,255,255,0.04);border:1px solid ' + color + ';border-radius:6px;padding:6px 12px;text-align:center;min-width:78px;">'
+          + '<div style="font-size:18px;font-weight:800;color:' + color + ';">' + n + '</div>'
+          + '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;">' + label + '</div></div>';
+
+        let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+          + chip(nOk, 'OK', 'var(--accent)')
+          + chip(nWarn, 'Warnings', 'var(--warn)')
+          + chip(nErr, 'Errores', 'var(--danger)')
+          + '</div>';
+
+        if (nErr > 0) {
+          html += '<div style="background:rgba(220,80,80,0.1);border-left:3px solid var(--danger);padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--text2);">'
+            + '❌ Las filas con error <strong>no se pueden importar</strong>. Corregilas en el Excel y volvé a subirlo.</div>';
+        }
+        if (nWarn > 0) {
+          html += '<div style="background:rgba(232,160,74,0.1);border-left:3px solid var(--warn);padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--text2);">'
+            + '⚠️ Revisá las filas con warning. Los posibles duplicados vienen <strong>destildados</strong> por defecto — tildalos solo si querés importarlos igual.</div>';
+        }
+
+        // Tabla de preview
+        const cols = (kind === 'income')
+          ? ['Fecha', 'Cliente', 'Proyecto', 'Invoice', 'Tipo', 'Monto', 'GST', 'Método']
+          : ['Fecha', 'Proyecto/Área', 'Tipo Costo', 'Categoría', 'Proveedor', 'Monto', 'Método', 'Ciclo'];
+
+        html += '<div style="overflow-x:auto;max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">'
+          + '<table class="data-table" style="font-size:10.5px;">'
+          + '<thead><tr>'
+          + '<th style="width:30px;"><input type="checkbox" onchange="_xiToggleAll(\'' + kind + '\', this.checked)" title="Seleccionar todas las válidas"></th>'
+          + '<th style="width:36px;">Fila</th>'
+          + cols.map(c => '<th>' + c + '</th>').join('')
+          + '<th>Estado</th>'
+          + '</tr></thead><tbody>';
+
+        st.rows.forEach((r, i) => {
+          const hasErr = r.errors.length > 0;
+          const hasWarn = r.warnings.length > 0;
+          const rowBg = hasErr ? 'background:rgba(220,80,80,0.07);'
+            : hasWarn ? 'background:rgba(232,160,74,0.06);' : '';
+          const rec = r.rec;
+
+          const cells = (kind === 'income')
+            ? [rec.fecha || '—', rec.cliente || '—', rec.proyecto || '—', rec.invoice || '—',
+            rec.tipo || '—',
+            rec.monto !== undefined ? '$' + rec.monto.toFixed(2) : '—',
+            rec.gstIncl || '—', rec.metodo || '—']
+            : [rec.fecha || '—', rec.proyecto || '—', rec.tipo || '—', rec.categoria || '—',
+            rec.proveedor || '—',
+            rec.monto !== undefined ? '$' + rec.monto.toFixed(2) : '—',
+            rec.metodo || '—', rec.ciclo || '—'];
+
+          let estado = '';
+          if (hasErr) estado = '<span style="color:var(--danger);font-size:10px;">❌ ' + r.errors.join(' · ') + '</span>';
+          else if (hasWarn) estado = '<span style="color:var(--warn);font-size:10px;">⚠️ ' + r.warnings.join(' · ') + '</span>';
+          else estado = '<span style="color:var(--accent);font-size:10px;">✅ OK</span>';
+
+          html += '<tr style="' + rowBg + '">'
+            + '<td><input type="checkbox" id="xi_cb_' + kind + '_' + i + '"'
+            + (r.include ? ' checked' : '')
+            + (hasErr ? ' disabled title="Fila con error — no importable"' : '')
+            + ' onchange="_xiToggleRow(\'' + kind + '\', ' + i + ', this.checked)"></td>'
+            + '<td style="font-family:monospace;color:var(--text3);font-size:10px;">' + r.excelRow + '</td>'
+            + cells.map(c => '<td style="font-size:10px;">' + String(c) + '</td>').join('')
+            + '<td style="max-width:280px;">' + estado + '</td>'
+            + '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+
+        // Footer: resumen + acciones
+        html += '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">'
+          + '<div id="xi_' + kind + '_summary" style="font-size:12px;color:var(--text2);flex:1;min-width:200px;"></div>'
+          + '<button class="btn btn-ghost btn-sm" onclick="_xiCancel(\'' + kind + '\')">Cancelar</button>'
+          + '<button class="btn btn-primary" id="xi_' + kind + '_confirm" onclick="_xiConfirmImport(\'' + kind + '\')"></button>'
+          + '</div>'
+          + '<div id="xi_' + kind + '_status" style="margin-top:8px;font-size:12px;min-height:16px;"></div>';
+
+        el.innerHTML = html;
+        _xiUpdateSummary(kind);
+      }
+
+      function _xiCancel(kind) {
+        _xiState[kind] = null;
+        const el = document.getElementById('xi_' + kind + '_preview');
+        if (el) el.innerHTML = '';
+        const nm = document.getElementById('xi_' + kind + '_filename');
+        if (nm) nm.textContent = '';
+      }
+
+      // ── Confirmación e import real a Firebase ──
+      async function _xiConfirmImport(kind) {
+        const st = _xiState[kind];
+        if (!st) return;
+        const sel = st.rows.filter(r => r.include && !r.errors.length);
+        if (!sel.length) return;
+
+        const S = XI_SCHEMA[kind];
+        const total = sel.reduce((s, r) => s + (r.rec.monto || 0), 0);
+        if (!confirm('¿Importar ' + sel.length + ' ' + S.label + ' por un total de $'
+          + total.toLocaleString('en-AU', { minimumFractionDigits: 2 }) + '?\n\nEsta acción escribe en Firebase.')) return;
+
+        const statusEl = document.getElementById('xi_' + kind + '_status');
+        const btn = document.getElementById('xi_' + kind + '_confirm');
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+        if (statusEl) { statusEl.style.color = 'var(--text2)'; statusEl.textContent = '⏳ Importando…'; }
+
+        const basePath = (kind === 'income') ? 'taskpro/finance/income/' : 'taskpro/finance/expenses/';
+        const prefix = (kind === 'income') ? 'inc_' : 'exp_';
+        let okCount = 0;
+        const failed = [];
+
+        for (let i = 0; i < sel.length; i++) {
+          const r = sel[i];
+          // ID único (timestamp + índice evita colisiones en el mismo milisegundo)
+          const id = prefix + Date.now() + '_' + i;
+          const record = Object.assign({ id }, r.rec);
+          try {
+            await db.ref(basePath + id).set(record);
+            okCount++;
+            // Egresos: registrar proveedor en memoria + Director Loan si es PERSONAL
+            if (kind === 'expense') {
+              if (record.proveedor) {
+                db.ref('taskpro/finance/proveedores/' + record.proveedor.replace(/[^a-zA-Z0-9]/g, '_'))
+                  .set(record.proveedor).catch(() => { });
+              }
+              if (record.proyecto === 'PERSONAL' && typeof dla !== 'undefined') {
+                try { dla.registerPersonalExpense(record); } catch (e) { console.warn('DLA error:', e); }
+              }
+            }
+          } catch (e) {
+            console.error('Import row failed:', r.excelRow, e);
+            failed.push(r.excelRow);
+          }
+          if (statusEl) statusEl.textContent = '⏳ Importando… ' + (i + 1) + '/' + sel.length;
+        }
+
+        if (statusEl) {
+          if (failed.length) {
+            statusEl.style.color = 'var(--warn)';
+            statusEl.textContent = '⚠️ Importados ' + okCount + '/' + sel.length + '. Fallaron las filas: ' + failed.join(', ');
+          } else {
+            statusEl.style.color = 'var(--accent)';
+            statusEl.textContent = '✅ ' + okCount + ' ' + S.label + ' importados correctamente.';
+          }
+        }
+        showSyncBanner(okCount + ' ' + S.label + ' importados desde Excel', failed.length ? 'warn' : 'success');
+
+        // Refrescar vistas
+        if (kind === 'income') renderIncomeTable(); else renderExpenseTable();
+
+        // Limpiar preview tras un momento
+        setTimeout(() => _xiCancel(kind), 2500);
+      }
 
       // ═══════════════════════════════════════════
       // EXCEL IMPORT — Income & Expenses
