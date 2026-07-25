@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V64.1</title>
+  <title>TaskPro — Project Control V65</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -2318,6 +2318,12 @@
                 <input type="email" id="eb_email" placeholder="worker@gmail.com">
               </div>
             </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <input type="checkbox" id="eb_gst" style="width:auto;margin:0;">
+              <label for="eb_gst" style="margin:0;font-size:12px;cursor:pointer;color:var(--text2);">
+                Registrado para cobrar GST <span style="color:var(--text3);">(la tarifa se trata como GST-inclusive: el total no cambia, se desglosa el 10% hacia adentro)</span>
+              </label>
+            </div>
             <div class="form-grid" style="grid-template-columns:2fr 1fr 2fr 1.5fr;gap:12px;margin-bottom:8px;">
               <div class="form-group">
                 <label>Account Name <span style="color:var(--text3);font-weight:400;font-size:10px;">(banco)</span></label>
@@ -4166,8 +4172,15 @@
         const bsb = document.getElementById('eb_bsb').value.trim();
         const accNum = document.getElementById('eb_acc_num').value.trim();
         const bank = document.getElementById('eb_bank').value.trim();
+        const gstRegistered = document.getElementById('eb_gst').checked;
         if (!name) { alert('Ingresa el nombre del miembro.'); return; }
-        const member = { id: 'eb_' + Date.now(), name, role, rate, abn, email, accName, bsb, accNum, bank };
+        // V65 — Aviso si falta ABN (para cualquier persona)
+        if (!abn) {
+          if (!confirm('Esta persona no tiene ABN cargado.\n\nEl ABN es necesario para invoices válidos'
+            + (gstRegistered ? ', y es OBLIGATORIO para invoices con GST' : '')
+            + '. ¿Continuar de todas formas?')) return;
+        }
+        const member = { id: 'eb_' + Date.now(), name, role, rate, abn, email, accName, bsb, accNum, bank, gstRegistered };
         db.ref('taskpro/equipoBase/' + member.id).set(member)
           .then(() => { showSyncBanner('Miembro agregado al equipo base', 'success'); renderBaseTeam(); })
           .catch(err => showSyncBanner('Error guardando: ' + err.message, 'warn'));
@@ -4180,6 +4193,7 @@
         document.getElementById('eb_bsb').value = '';
         document.getElementById('eb_acc_num').value = '';
         document.getElementById('eb_bank').value = '';
+        document.getElementById('eb_gst').checked = false;
       }
 
       function removeBaseTeamMember(id) {
@@ -4202,25 +4216,32 @@
           }
           container.innerHTML = `
             <table class="data-table">
-              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th>Email</th><th>Banco</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Rol</th><th class="num">Tarifa base</th><th>ABN</th><th>GST</th><th>Email</th><th>Banco</th><th></th></tr></thead>
               <tbody>
                 ${entries.map(([id, m]) => {
                   const hasBank = !!(m.bsb && m.accNum && m.bank);
                   const bankBadge = hasBank
                     ? '<span style="color:var(--accent);font-size:11px;">✓ Configurado</span>'
                     : '<span style="color:var(--danger);font-size:11px;">⚠ Falta</span>';
+                  const abnCell = m.abn
+                    ? '<span style="font-family:monospace;font-size:11px;color:var(--text2);">' + m.abn + '</span>'
+                    : '<span style="color:var(--danger);font-size:11px;">⚠ Sin ABN</span>';
+                  const gstBadge = m.gstRegistered
+                    ? '<span style="color:var(--accent);font-size:11px;font-weight:600;">✓ Sí</span>'
+                    : '<span style="color:var(--text3);font-size:11px;">No</span>';
                   return `
                   <tr>
                     <td><span class="person-tag">👷 ${m.name}</span></td>
                     <td style="color:var(--text2);">${m.role || '—'}</td>
                     <td class="num">$${(m.rate || 0).toFixed(0)}/h</td>
-                    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text2);">${m.abn || '—'}</td>
+                    <td>${abnCell}</td>
+                    <td>${gstBadge}</td>
                     <td style="font-size:11px;color:${m.email ? 'var(--text2)' : 'var(--danger)'};">${m.email || '⚠ Sin email'}</td>
                     <td>${bankBadge}</td>
                     <td style="white-space:nowrap;">
                       <button class="btn btn-ghost btn-sm" style="padding:4px 8px;margin-right:4px;"
                         data-ebid="${id}" data-ebname="${m.name}" data-ebrole="${m.role || ''}" data-ebrate="${m.rate || 0}" data-ebabn="${m.abn || ''}" data-ebemail="${m.email || ''}"
-                        data-ebaccname="${m.accName || ''}" data-ebbsb="${m.bsb || ''}" data-ebaccnum="${m.accNum || ''}" data-ebbank="${m.bank || ''}"
+                        data-ebaccname="${m.accName || ''}" data-ebbsb="${m.bsb || ''}" data-ebaccnum="${m.accNum || ''}" data-ebbank="${m.bank || ''}" data-ebgst="${m.gstRegistered ? '1' : '0'}"
                         onclick="openEditBaseModalFromBtn(this)">✏️</button>
                       <button class="btn btn-danger btn-sm" onclick="removeBaseTeamMember('${id}')">✕</button>
                     </td>
@@ -4271,11 +4292,12 @@
           btn.getAttribute('data-ebaccname'),
           btn.getAttribute('data-ebbsb'),
           btn.getAttribute('data-ebaccnum'),
-          btn.getAttribute('data-ebbank')
+          btn.getAttribute('data-ebbank'),
+          btn.getAttribute('data-ebgst')
         );
       }
 
-      function openEditBaseModal(id, name, role, rate, abn, email, accName, bsb, accNum, bank) {
+      function openEditBaseModal(id, name, role, rate, abn, email, accName, bsb, accNum, bank, gst) {
         document.getElementById('ebm_id').value = id;
         document.getElementById('ebm_name').value = name;
         document.getElementById('ebm_role').value = role;
@@ -4286,6 +4308,8 @@
         document.getElementById('ebm_bsb').value = bsb || '';
         document.getElementById('ebm_acc_num').value = accNum || '';
         document.getElementById('ebm_bank').value = bank || '';
+        const gstEl = document.getElementById('ebm_gst');
+        if (gstEl) gstEl.checked = (gst === '1' || gst === true);
         document.getElementById('editBaseMsg').textContent = '';
         document.getElementById('editBaseModal').classList.add('open');
       }
@@ -4301,11 +4325,18 @@
         const bsb = document.getElementById('ebm_bsb').value.trim();
         const accNum = document.getElementById('ebm_acc_num').value.trim();
         const bank = document.getElementById('ebm_bank').value.trim();
+        const gstRegistered = (document.getElementById('ebm_gst') || {}).checked || false;
         const msg = document.getElementById('editBaseMsg');
         if (!name) { msg.style.color = 'var(--danger)'; msg.textContent = 'El nombre es requerido.'; return; }
+        // V65 — Aviso si falta ABN
+        if (!abn) {
+          if (!confirm('Esta persona no tiene ABN cargado.\n\nEl ABN es necesario para invoices válidos'
+            + (gstRegistered ? ', y es OBLIGATORIO para invoices con GST' : '')
+            + '. ¿Guardar de todas formas?')) return;
+        }
         msg.style.color = 'var(--text2)'; msg.textContent = 'Guardando...';
         try {
-          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn, email, accName, bsb, accNum, bank });
+          await db.ref('taskpro/equipoBase/' + id).update({ name, role, rate, abn, email, accName, bsb, accNum, bank, gstRegistered });
           msg.style.color = 'var(--accent)'; msg.textContent = 'Actualizado correctamente.';
           // Refresh all dropdowns
           populateWorkerBaseDropdown();
@@ -8819,6 +8850,13 @@
             const dueDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
             const periodLabel = (from || 'inicio') + ' to ' + (to || 'hoy');
 
+            // V65 — GST-inclusive si la persona está registrada
+            const gstReg = !!details.gstRegistered;
+            const gstRate = 0.10;
+            const totalPay = d.pay || 0;
+            const gstAmount = gstReg ? (totalPay - totalPay / (1 + gstRate)) : 0;
+            const subtotalExGst = gstReg ? (totalPay / (1 + gstRate)) : totalPay;
+
             // Header — green band
             doc.setFillColor(...GREEN);
             doc.rect(0, 0, pageW, 35, 'F');
@@ -8828,7 +8866,7 @@
             doc.text('TAX INVOICE', margin, 22);
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
-            doc.text('No GST charged', margin, 29);
+            doc.text(gstReg ? 'GST included' : 'No GST charged', margin, 29);
 
             // Contractor details (issuer) — right side
             doc.setTextColor(...DARK);
@@ -8839,7 +8877,7 @@
             doc.setFontSize(9);
             doc.text('Contractor', pageW - margin, 19, { align: 'right' });
             doc.text('ABN: ' + (abn || 'N/A'), pageW - margin, 24, { align: 'right' });
-            doc.text('Not registered for GST', pageW - margin, 29, { align: 'right' });
+            doc.text(gstReg ? 'Registered for GST' : 'Not registered for GST', pageW - margin, 29, { align: 'right' });
 
             // Invoice meta box — 2 rows for breathing room (V53.1 fix: period was truncated)
             let y = 48;
@@ -8903,7 +8941,7 @@
             doc.setFontSize(11);
             doc.setTextColor(...DARK);
             doc.setFont('helvetica', 'bold');
-            doc.text('$' + (d.pay || 0).toFixed(2), pageW - margin - 3, y, { align: 'right' });
+            doc.text('$' + subtotalExGst.toFixed(2), pageW - margin - 3, y, { align: 'right' });
 
             // Total line
             y += 25;
@@ -8911,6 +8949,19 @@
             doc.setLineWidth(0.3);
             doc.line(margin, y, pageW - margin, y);
             y += 8;
+
+            // V65 — Desglose GST si la persona está registrada
+            if (gstReg) {
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(10);
+              doc.setTextColor(...DARK);
+              doc.text('Subtotal (ex-GST)', pageW - margin - 82, y + 2);
+              doc.text('$' + subtotalExGst.toFixed(2), pageW - margin - 3, y + 2, { align: 'right' });
+              doc.text('GST (10%)', pageW - margin - 82, y + 9);
+              doc.text('$' + gstAmount.toFixed(2), pageW - margin - 3, y + 9, { align: 'right' });
+              y += 13;
+            }
+
             doc.setFillColor(...BRAND_SUCCESS);
             doc.rect(pageW - margin - 80, y, 80, 12, 'F');
             doc.setTextColor(...BRAND_BEIGE);
@@ -8918,7 +8969,7 @@
             doc.setFontSize(11);
             doc.text('TOTAL', pageW - margin - 75, y + 8);
             doc.setFontSize(13);
-            doc.text('$' + (d.pay || 0).toFixed(2) + ' AUD', pageW - margin - 3, y + 8, { align: 'right' });
+            doc.text('$' + totalPay.toFixed(2) + ' AUD', pageW - margin - 3, y + 8, { align: 'right' });
 
             // V58.5 — Payment Instructions block (only if bank details set)
             const hasBank = !!(details.bsb || details.accNum || details.bank || details.accName);
@@ -8960,7 +9011,9 @@
             doc.setTextColor(...DARK);
             doc.setFontSize(9);
             y += 5;
-            doc.text('No GST has been charged on this invoice. The contractor is not registered for GST.', margin, y);
+            doc.text(gstReg
+              ? 'This tax invoice includes GST. GST is calculated as 1/11 of the total (GST-inclusive rate).'
+              : 'No GST has been charged on this invoice. The contractor is not registered for GST.', margin, y);
             y += 5;
             doc.text('Please process payment by due date: ' + dueDate, margin, y);
 
@@ -9066,6 +9119,7 @@
         const bankBsb = member && member.bsb ? member.bsb.trim() : '';
         const bankAccNum = member && member.accNum ? member.accNum.trim() : '';
         const bankName = member && member.bank ? member.bank.trim() : '';
+        const gstRegistered = !!(member && member.gstRegistered); // V65
         if (!workerEmail) {
           alert('Sin email personal en Equipo Base. Pedile al admin que lo configure.');
           return;
@@ -9107,7 +9161,7 @@
         // Build HTML email body (inline, no attachment)
         const htmlBody = _buildInvoiceEmailHTML({
           invoiceNum, personName, abn, workerEmail, issueDate, dueDate, periodLabel,
-          totalAmount: sumPay, isComplement,
+          totalAmount: sumPay, isComplement, gstRegistered,
           // V58.5 — bank details for payment instructions footer
           accName: bankAccName, bsb: bankBsb, accNum: bankAccNum, bank: bankName
         });
@@ -9123,6 +9177,10 @@
           contractorEmail: workerEmail,
           clientName: 'TaskPro',
           amount: sumPay,
+          // V65 — desglose GST (si la persona está registrada; si no, gst=0 y neto=total)
+          gstRegistered: gstRegistered,
+          gstAmount: gstRegistered ? parseFloat((sumPay - sumPay / 1.10).toFixed(2)) : 0,
+          netExGst: gstRegistered ? parseFloat((sumPay / 1.10).toFixed(2)) : sumPay,
           issueDate, dueDate,
           periodFrom: from || '',
           periodTo: to || '',
@@ -9210,6 +9268,13 @@
       // V58.5 — Build email HTML body: single line item + bank details footer
       // No hours breakdown, no day-by-day table (proper AU contractor invoice format)
       function _buildInvoiceEmailHTML(p) {
+        // V65 — GST-inclusive si la persona está registrada
+        const gstReg = !!p.gstRegistered;
+        const gstRate = 0.10;
+        const total = p.totalAmount || 0;
+        const gstAmount = gstReg ? (total - total / (1 + gstRate)) : 0;
+        const subtotalExGst = gstReg ? (total / (1 + gstRate)) : total;
+
         const complementBanner = p.isComplement
           ? '<div style="background:#fff7e0;border-left:4px solid #e8a04a;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#7a4c00;">⚠️ <strong>Invoice complementario</strong> — Contiene únicamente servicios no facturados previamente para este período.</div>'
           : '';
@@ -9228,11 +9293,22 @@
             '</div>' +
             '</div>'
           : '';
+
+        // V65 — Bloque de totales: con desglose GST o directo al total
+        const totalsBlock = gstReg
+          ? '<table style="width:100%;font-size:13px;margin-bottom:8px;">' +
+            '<tr><td style="padding:4px 0;text-align:right;color:#666;">Subtotal (ex-GST)</td>' +
+            '<td style="padding:4px 0;text-align:right;font-family:monospace;width:130px;">$' + subtotalExGst.toFixed(2) + '</td></tr>' +
+            '<tr><td style="padding:4px 0;text-align:right;color:#666;">GST (10%)</td>' +
+            '<td style="padding:4px 0;text-align:right;font-family:monospace;">$' + gstAmount.toFixed(2) + '</td></tr>' +
+            '</table>'
+          : '';
+
         return '' +
           '<div style="font-family:Arial,Helvetica,sans-serif;max-width:680px;margin:0 auto;background:#fff;color:#1a1a1a;">' +
           '<div style="background:#0f1a23;padding:20px 24px;">' +
           '<h1 style="margin:0;font-size:24px;color:#e8dcc4;">TAX INVOICE</h1>' +
-          '<div style="font-size:12px;color:#e8dcc4;margin-top:4px;">No GST charged</div>' +
+          '<div style="font-size:12px;color:#e8dcc4;margin-top:4px;">' + (gstReg ? 'GST included' : 'No GST charged') + '</div>' +
           '</div>' +
           '<div style="padding:20px 24px;">' +
           complementBanner +
@@ -9246,7 +9322,7 @@
           '<div style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">From</div>' +
           '<div><strong>' + p.personName + '</strong> · Contractor</div>' +
           '<div>ABN: ' + (p.abn || 'N/A') + '</div>' +
-          '<div style="font-size:11px;color:#666;">Not registered for GST</div>' +
+          '<div style="font-size:11px;color:#666;">' + (gstReg ? 'Registered for GST' : 'Not registered for GST') + '</div>' +
           '</div>' +
           '<div style="margin-bottom:14px;font-size:13px;">' +
           '<div style="color:#666;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Bill To</div>' +
@@ -9264,16 +9340,19 @@
           '<div style="font-weight:600;">Installation and assembly services</div>' +
           '<div style="font-size:11px;color:#666;margin-top:3px;">Period: ' + p.periodLabel + '</div>' +
           '</td>' +
-          '<td style="padding:14px 12px;font-size:14px;text-align:right;font-family:monospace;font-weight:bold;">$' + p.totalAmount.toFixed(2) + '</td>' +
+          '<td style="padding:14px 12px;font-size:14px;text-align:right;font-family:monospace;font-weight:bold;">$' + subtotalExGst.toFixed(2) + '</td>' +
           '</tr></tbody>' +
           '</table>' +
+          totalsBlock +
           '<div style="background:#5a9d8f;padding:14px 18px;text-align:right;font-size:18px;font-weight:bold;margin-bottom:18px;color:#ffffff;">' +
-          'TOTAL: $' + p.totalAmount.toFixed(2) + ' AUD' +
+          'TOTAL: $' + total.toFixed(2) + ' AUD' +
           '</div>' +
           bankSection +
           '<div style="font-size:11px;color:#666;line-height:1.6;margin-top:18px;">' +
           '<div style="font-weight:bold;color:#1a1a1a;margin-bottom:4px;">NOTES</div>' +
-          'No GST has been charged on this invoice. The contractor is not registered for GST.<br>' +
+          (gstReg
+            ? 'This tax invoice includes GST. GST is calculated as 1/11 of the total (GST-inclusive rate).<br>'
+            : 'No GST has been charged on this invoice. The contractor is not registered for GST.<br>') +
           'Please process payment by due date: ' + p.dueDate + '.<br><br>' +
           'Generated by TaskPro Project Control · ' + new Date().toLocaleString('es-AU') +
           '</div>' +
@@ -13605,16 +13684,17 @@
           const snap = await db.ref('taskpro/equipoBase').get();
           const members = snap.val() || {};
           const match = Object.values(members).find(m => m.name && m.name.toLowerCase() === (personName || '').toLowerCase());
-          if (!match) return { abn: '', accName: '', bsb: '', accNum: '', bank: '' };
+          if (!match) return { abn: '', accName: '', bsb: '', accNum: '', bank: '', gstRegistered: false };
           return {
             abn: match.abn || '',
             accName: match.accName || '',
             bsb: match.bsb || '',
             accNum: match.accNum || '',
-            bank: match.bank || ''
+            bank: match.bank || '',
+            gstRegistered: !!match.gstRegistered   // V65
           };
         } catch (e) {
-          return { abn: '', accName: '', bsb: '', accNum: '', bank: '' };
+          return { abn: '', accName: '', bsb: '', accNum: '', bank: '', gstRegistered: false };
         }
       }
 
@@ -15236,6 +15316,12 @@
             <label>Email personal</label>
             <input type="email" id="ebm_email" placeholder="worker@gmail.com">
           </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="checkbox" id="ebm_gst" style="width:auto;margin:0;">
+          <label for="ebm_gst" style="margin:0;font-size:12px;cursor:pointer;color:var(--text2);">
+            Registrado para cobrar GST <span style="color:var(--text3);">(tarifa GST-inclusive: el total no cambia, se desglosa el 10%)</span>
+          </label>
         </div>
         <div style="margin-top:6px;margin-bottom:10px;padding:10px 12px;background:rgba(91,155,213,0.07);border-left:3px solid #5b9bd5;border-radius:4px;font-size:11px;color:var(--text2);line-height:1.5;">
           💳 <strong>Datos bancarios</strong> (para invoices personales)
