@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskPro — Project Control V65.1</title>
+  <title>TaskPro — Project Control V65.2</title>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
     rel="stylesheet">
@@ -3551,9 +3551,20 @@
           <label>Nota (opcional) <span id="mjet_note_count" style="color:var(--text3);font-size:10px;font-weight:400;">0/500</span></label>
           <textarea id="mjet_note" maxlength="500" placeholder="Tráfico, demoras, incidencias en el camino..." style="width:100%;min-height:60px;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;" oninput="_mjUpdateNoteCount('mjet_note','mjet_note_count')"></textarea>
         </div>
-        <div style="display:flex;gap:10px;margin-top:18px;">
+        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="mjEndTravel()">✅ Confirmar</button>
           <button class="btn btn-ghost" onclick="closeModal('mjEndTravelModal')">Cancelar</button>
+        </div>
+        <!-- V65.2 — Salida de emergencia: siempre disponible, no depende del proyecto destino -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <button class="btn btn-ghost btn-sm" onclick="mjForceEndTravelOnly()"
+            style="font-size:11px;color:var(--warn);border-color:var(--warn);">
+            🚪 Registrar solo el desplazamiento y salir
+          </button>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5;">
+            Usá esta opción si no podés finalizar normalmente (proyecto destino no disponible o ya no estás asignado).
+            Registra el tiempo del desplazamiento sin iniciar jornada.
+          </div>
         </div>
       </div>
     </div>
@@ -5109,11 +5120,19 @@
           const fromLine = tr.fromProjectName
             ? '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Saliste de <strong style="color:var(--text);">' + _esc(tr.fromProjectName) + '</strong></div>'
             : '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Desplazamiento sin proyecto de origen</div>';
+          // V65.2 — Aviso si el desplazamiento superó las 5h (se va a auto-cerrar / se puede forzar salida)
+          const overLimit = elapsed > _AUTOCLOSE_TRAVEL_LIMIT_MS;
+          const overBanner = overLimit
+            ? '<div style="background:rgba(245,90,90,0.12);border-left:3px solid var(--danger);color:#f5a05a;padding:10px 14px;border-radius:6px;font-size:12px;margin-bottom:14px;text-align:left;line-height:1.5;">'
+              + '⚠️ Este desplazamiento lleva más de 5h abierto. Se registrará con un máximo de 5h y quedará pendiente de revisión del Supervisor.'
+              + '</div>'
+            : '';
           hero.innerHTML = ''
             + '<div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Desplazamiento en curso</div>'
             + '<div style="font-size:22px;font-weight:700;margin-bottom:6px;color:#e8a04a;">🚗 En camino...</div>'
             + fromLine
-            + '<div id="mj_timer" style="font-size:42px;font-family:\'DM Mono\',monospace;font-weight:600;margin-bottom:24px;color:#e8a04a;letter-spacing:2px;">' + _mjFormatElapsed(elapsed) + '</div>'
+            + overBanner
+            + '<div id="mj_timer" style="font-size:42px;font-family:\'DM Mono\',monospace;font-weight:600;margin-bottom:24px;color:' + (overLimit ? 'var(--danger)' : '#e8a04a') + ';letter-spacing:2px;">' + _mjFormatElapsed(elapsed) + '</div>'
             + '<button class="btn" style="background:#e8a04a;color:#000;font-size:15px;padding:14px 32px;font-weight:700;border:none;cursor:pointer;border-radius:8px;" onclick="mjOpenEndTravelModal()">🏁 FINALIZAR DESPLAZAMIENTO</button>';
           _mjStartTimer();
           return;
@@ -5466,15 +5485,23 @@
         }
 
         // Path 2: auto check-in to destination project (destino guardado al inicio)
+        // V65.2 — Si alguna validación falla, ofrecer la salida de emergencia en vez de
+        // dejar al worker trabado con un alert() sin acción posible.
+        const _offerFallback = (motivo) => {
+          if (confirm(motivo + '\n\n¿Querés registrar solo el desplazamiento y salir?\n'
+            + '(Se guardará el tiempo de viaje para aprobación, sin iniciar jornada.)')) {
+            mjForceEndTravelOnly();
+          }
+        };
         if (!projId) {
-          alert('No se encontró proyecto destino en el desplazamiento activo. Cancelá y reiniciá.');
+          _offerFallback('No se encontró proyecto destino en el desplazamiento activo.');
           return;
         }
         const p = state.projects[projId];
-        if (!p) { alert('Proyecto destino no encontrado.'); return; }
-        if (!Array.isArray(p.workers)) { alert('Proyecto sin equipo asignado.'); return; }
+        if (!p) { _offerFallback('El proyecto destino ya no existe.'); return; }
+        if (!Array.isArray(p.workers)) { _offerFallback('El proyecto destino no tiene equipo asignado.'); return; }
         const w = p.workers.find(x => x && x.name === currentUser.linkedName);
-        if (!w) { alert('No estás asignado a este proyecto.'); return; }
+        if (!w) { _offerFallback('Ya no estás asignado a este proyecto.'); return; }
 
         const now = new Date();
         const timeIn = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
@@ -5503,6 +5530,63 @@
             showSyncBanner('🏁 Desplazamiento finalizado · 🟢 Jornada iniciada en ' + (p.name || ''), 'success');
           })
           .catch(err => alert('Error: ' + (err.message || err)));
+      }
+
+      // ─── V65.2: Salida de emergencia — registrar solo el desplazamiento ───
+      // Siempre funciona: no valida proyecto destino ni asignación del worker.
+      // Evita que el worker quede bloqueado si el proyecto fue borrado, renombrado,
+      // o si lo desasignaron después de iniciar el traslado.
+      function mjForceEndTravelOnly() {
+        if (!currentUser) return;
+        const tr = (state.activeTravels || {})[currentUser.uid];
+        if (!tr) { alert('No hay desplazamiento activo.'); return; }
+
+        const rawMin = Math.max(1, Math.round((Date.now() - (tr.startedAt || Date.now())) / 60000));
+        // Capear a 5h igual que el auto-close, para no meter horas basura si quedó abierto días
+        const capMin = _AUTOCLOSE_TRAVEL_LIMIT_MS / 60000; // 300
+        const elapsedMin = Math.min(rawMin, capMin);
+        const wasCapped = rawMin > capMin;
+
+        const travelNote = ((document.getElementById('mjet_note') || {}).value || '').trim().slice(0, 500);
+        const now = new Date();
+        const date = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const id = 'pt_travel_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+        const notaBase = wasCapped
+          ? '⚠ Desplazamiento cerrado manualmente. Tiempo real ' + minsToHHMM(rawMin) + ', topado a 5h — revisar.'
+          : '';
+        const notaFinal = [notaBase, travelNote].filter(Boolean).join(' · ');
+
+        const pending = {
+          id: id,
+          uid: currentUser.uid,
+          workerName: tr.workerName || currentUser.linkedName || '',
+          workerRate: 0,
+          projectId: '',
+          projectName: '(Solo desplazamiento)',
+          date: date,
+          timeIn: '',
+          timeOut: '',
+          breakH: 0,
+          adminH: 0,
+          travelH: elapsedMin / 60,
+          travelOnly: true,
+          workerNote: notaFinal,
+          status: 'pending',
+          submittedAt: Date.now(),
+          autoclosed: wasCapped,
+          notifiedAutoclose: false,
+          notifiedReject: false,
+          notifiedEdit: false
+        };
+
+        db.ref('taskpro/pendingTimelogs/' + currentUser.uid + '/' + id).set(pending)
+          .then(() => db.ref('taskpro/activeTravels/' + currentUser.uid).remove())
+          .then(() => {
+            closeModal('mjEndTravelModal');
+            showSyncBanner('🚪 Desplazamiento registrado (' + minsToHHMM(elapsedMin) + '). Queda pendiente de aprobación.', 'success');
+          })
+          .catch(err => alert('Error al guardar: ' + (err.message || err)));
       }
 
       // ─── Check-out (open modal) ───
@@ -6224,8 +6308,54 @@
       // V52 — AUTO-CLOSE 12h (admin scan + worker self-close)
       // ═══════════════════════════════════════════
       const _AUTOCLOSE_LIMIT_MS = 12 * 60 * 60 * 1000; // 12 hours
+      // V65.2 — Límite para desplazamientos: 5h. Un trayecto real nunca supera esto,
+      // así que pasado ese punto se asume que el worker olvidó cerrarlo.
+      const _AUTOCLOSE_TRAVEL_LIMIT_MS = 5 * 60 * 60 * 1000; // 5 hours
       let _autoCloseRunning = false;       // re-entry guard
       let _autoCloseLastRun = 0;           // throttle: don't re-run within 60s
+
+      // V65.2 — Build a pending travel-only entry from a stale active travel.
+      // travelH se capea a 5h: si el travel quedó abierto 3 días, registrar 72h sería basura.
+      // Queda marcado autoclosed:true para que Carlos lo ajuste en Aprobaciones.
+      function _buildAutoClosedTravelPending(uid, tr) {
+        const id = 'pt_autotravel_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        const start = tr.startedAt || Date.now();
+        const cutoff = new Date(start + _AUTOCLOSE_TRAVEL_LIMIT_MS);
+        const date = cutoff.getFullYear() + '-' + String(cutoff.getMonth() + 1).padStart(2, '0') + '-' + String(cutoff.getDate()).padStart(2, '0');
+        const cappedHours = _AUTOCLOSE_TRAVEL_LIMIT_MS / 3600000; // 5
+        const origin = tr.fromProjectName ? ' desde ' + tr.fromProjectName : '';
+        return {
+          id: id,
+          uid: uid,
+          workerName: tr.workerName || '',
+          workerRate: 0,
+          projectId: '',
+          projectName: '(Solo desplazamiento)',
+          date: date,
+          timeIn: '',
+          timeOut: '',
+          breakH: 0,
+          adminH: 0,
+          travelH: cappedHours,
+          travelOnly: true,
+          workerNote: '⚠ Desplazamiento auto-cerrado por exceder 5h' + origin + '. Tiempo topado a 5h — revisar y ajustar.',
+          status: 'pending',
+          submittedAt: Date.now(),
+          autoclosed: true,
+          notifiedAutoclose: false,
+          notifiedReject: false,
+          notifiedEdit: false
+        };
+      }
+
+      // V65.2 — Atomic move para travels: pending FIRST, remove active SECOND.
+      function _autoCloseTravel(uid, tr) {
+        const pending = _buildAutoClosedTravelPending(uid, tr);
+        return db.ref('taskpro/pendingTimelogs/' + uid + '/' + pending.id).set(pending)
+          .then(() => db.ref('taskpro/activeTravels/' + uid).remove())
+          .then(() => ({ uid: uid, ok: true, pending: pending }))
+          .catch(err => ({ uid: uid, ok: false, err: err }));
+      }
 
       // Build a pending entry from a stale active session (timeOut = startedAt + 12h)
       function _buildAutoClosedPending(uid, active) {
@@ -6286,9 +6416,22 @@
               stale.push({ uid: uid, active: a });
             }
           });
-          if (stale.length === 0) return;
 
-          const results = await Promise.all(stale.map(s => _autoCloseSession(s.uid, s.active)));
+          // V65.2 — También escanear desplazamientos activos (>5h)
+          const activeTr = state.activeTravels || {};
+          const staleTravels = [];
+          Object.entries(activeTr).forEach(([uid, t]) => {
+            if (!t || !t.startedAt) return;
+            if ((now - t.startedAt) > _AUTOCLOSE_TRAVEL_LIMIT_MS) {
+              staleTravels.push({ uid: uid, travel: t });
+            }
+          });
+
+          if (stale.length === 0 && staleTravels.length === 0) return;
+
+          const results = stale.length
+            ? await Promise.all(stale.map(s => _autoCloseSession(s.uid, s.active)))
+            : [];
           const okCount = results.filter(r => r.ok).length;
           if (okCount > 0) {
             showSyncBanner('⚠️ ' + okCount + ' jornada(s) auto-cerrada(s) por exceder 12h. Revisá en Aprobaciones.', 'warn');
@@ -6296,6 +6439,20 @@
           const failed = results.filter(r => !r.ok);
           if (failed.length > 0) {
             console.warn('Auto-close failed for some sessions:', failed);
+          }
+
+          // V65.2 — Cerrar travels vencidos y avisar a admin/supervisor
+          if (staleTravels.length) {
+            const trResults = await Promise.all(staleTravels.map(s => _autoCloseTravel(s.uid, s.travel)));
+            const trOk = trResults.filter(r => r.ok);
+            if (trOk.length > 0) {
+              const names = trOk.map(r => (r.pending && r.pending.workerName) || '—').join(', ');
+              showSyncBanner('🚗 ' + trOk.length + ' desplazamiento(s) auto-cerrado(s) por exceder 5h (' + names + '). Revisá las horas en Aprobaciones.', 'warn');
+            }
+            const trFailed = trResults.filter(r => !r.ok);
+            if (trFailed.length > 0) {
+              console.warn('Auto-close failed for some travels:', trFailed);
+            }
           }
         } finally {
           _autoCloseRunning = false;
@@ -6307,19 +6464,34 @@
       async function _workerSelfAutoClose() {
         if (!currentUser || currentUser.role !== 'operador') return;
         if (_autoCloseRunning) return;
+
         const a = (state.activeTimelogs || {})[currentUser.uid];
-        if (!a || !a.startedAt) return;
-        if ((Date.now() - a.startedAt) <= _AUTOCLOSE_LIMIT_MS) return;
+        const tr = (state.activeTravels || {})[currentUser.uid];
+        const now = Date.now();
+        const staleJornada = !!(a && a.startedAt && (now - a.startedAt) > _AUTOCLOSE_LIMIT_MS);
+        // V65.2 — el propio desplazamiento también se auto-cierra (>5h)
+        const staleTravel = !!(tr && tr.startedAt && (now - tr.startedAt) > _AUTOCLOSE_TRAVEL_LIMIT_MS);
+        if (!staleJornada && !staleTravel) return;
 
         _autoCloseRunning = true;
         try {
-          const r = await _autoCloseSession(currentUser.uid, a);
-          if (r.ok) {
-            showSyncBanner('⚠️ Tu jornada del ' + (a.date || '—') + ' se cerró automáticamente (>12h sin checkout). Hablá con el Supervisor.', 'warn');
-            // The toast scanner (_mjScanForToasts) will also fire from the listener update — that is fine,
-            // it self-deduplicates via _mjShownToasts and the notifiedAutoclose flag.
-          } else {
-            console.warn('Worker self auto-close failed:', r.err);
+          if (staleJornada) {
+            const r = await _autoCloseSession(currentUser.uid, a);
+            if (r.ok) {
+              showSyncBanner('⚠️ Tu jornada del ' + (a.date || '—') + ' se cerró automáticamente (>12h sin checkout). Hablá con el Supervisor.', 'warn');
+              // The toast scanner (_mjScanForToasts) will also fire from the listener update — that is fine,
+              // it self-deduplicates via _mjShownToasts and the notifiedAutoclose flag.
+            } else {
+              console.warn('Worker self auto-close failed:', r.err);
+            }
+          }
+          if (staleTravel) {
+            const rt = await _autoCloseTravel(currentUser.uid, tr);
+            if (rt.ok) {
+              showSyncBanner('🚗 Tu desplazamiento se cerró automáticamente (>5h sin finalizar). Quedó registrado con 5h para revisión del Supervisor.', 'warn');
+            } else {
+              console.warn('Worker self travel auto-close failed:', rt.err);
+            }
           }
         } finally {
           _autoCloseRunning = false;
